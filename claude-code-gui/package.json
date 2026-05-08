@@ -1,0 +1,57 @@
+{
+  "name": "claude-code-gui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite --port 5185 --strictPort",
+    "build": "tsc -b && vite build && npm run build:electron",
+    "build:electron": "tsc -p electron/tsconfig.json && node -e \"require('fs').copyFileSync('electron/assets/package.json', 'dist-electron/package.json')\"",
+    "electron": "npm run build:electron && node scripts/start-electron.cjs",
+    "electron:dev": "concurrently \"vite --port 5185 --strictPort\" \"npm run build:electron && wait-on http://localhost:5185 && node scripts/start-electron.cjs\"",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@types/marked": "^5.0.2",
+    "ansi-to-html": "^0.7.2",
+    "lucide-react": "^1.14.0",
+    "marked": "^18.0.3",
+    "node-pty": "^1.1.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.yourcompany.claude-code-gui",
+    "productName": "Claude Code GUI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ]
+  }
+}

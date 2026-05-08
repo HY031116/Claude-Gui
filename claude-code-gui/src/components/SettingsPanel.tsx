@@ -1,0 +1,530 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Settings, Check, X, Loader2, Cpu, Shield, Zap, ChevronDown, ChevronUp, Database } from 'lucide-react';
+import type { AppSettings, AuthStatus } from '../types';
+
+const MODEL_OPTIONS = [
+  { value: 'default', label: '默认 (default)' },
+  { value: 'sonnet', label: 'Sonnet (推荐)' },
+  { value: 'opus', label: 'Opus (最强)' },
+  { value: 'haiku', label: 'Haiku (最快)' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
+  { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'AWS Bedrock Sonnet v2' },
+  { value: 'anthropic/claude-3.5-sonnet', label: 'OpenRouter Claude 3.5 Sonnet' },
+  { value: 'meta/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
+];
+
+const EFFORT_LEVELS = [
+  { value: 'low', label: '低' },
+  { value: 'medium', label: '中 (默认)' },
+  { value: 'high', label: '高' },
+  { value: 'max', label: '最高' },
+];
+
+const CONFIG_PRESETS: Array<{
+  id: string;
+  label: string;
+  description: string;
+  settings: Partial<AppSettings>;
+}> = [
+  {
+    id: 'developer',
+    label: '开发模式',
+    description: 'Sonnet + 高努力',
+    settings: {
+      model: 'sonnet',
+      effortLevel: 'high',
+    } as Partial<AppSettings>,
+  },
+  {
+    id: 'power',
+    label: '强力模式',
+    description: 'Opus + 最高努力',
+    settings: {
+      model: 'opus',
+      effortLevel: 'max',
+    } as Partial<AppSettings>,
+  },
+  {
+    id: 'fast',
+    label: '快速模式',
+    description: 'Haiku + 低努力',
+    settings: {
+      model: 'haiku',
+      effortLevel: 'low',
+    } as Partial<AppSettings>,
+  },
+];
+
+export function SettingsPanel() {
+  // Config mode: native = use CLI native config (shared with VSCode)
+  const [useNativeConfig, setUseNativeConfig] = useState(true);
+  const [nativeConfigPath, setNativeConfigPath] = useState('');
+  const [nativeSettings, setNativeSettings] = useState<any>(null);
+
+  const [settings, setSettings] = useState<AppSettings>({
+    apiKey: '',
+    authMode: 'official',
+    model: 'sonnet',
+    permissionMode: 'auto',
+    allowedTools: 'default',
+    extraArgs: '',
+    useBareMode: false,
+    httpProxy: '',
+    apiBaseUrl: '',
+    provider: 'anthropic',
+  });
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Load CLI native config path first
+      const pathResult = await window.electronAPI.getCliConfigPath();
+      if (pathResult.success && pathResult.path) {
+        setNativeConfigPath(pathResult.path);
+      }
+
+      // Load from native config (shared with VSCode)
+      const nativeResult = await window.electronAPI.loadCliConfig();
+      if (nativeResult.success && nativeResult.settings) {
+        setNativeSettings(nativeResult.settings);
+        // Merge native config into our settings
+        setSettings((prev) => ({
+          ...prev,
+          model: nativeResult.settings.model || prev.model,
+          permissionMode: nativeResult.settings.permissions?.mode || prev.permissionMode,
+        }));
+      }
+
+      // Load GUI-specific settings (apiKey, authMode, apiBaseUrl, etc.)
+      const guiResult = await window.electronAPI.loadSettings();
+      if (guiResult.success && guiResult.settings) {
+        setSettings((prev) => ({
+          ...prev,
+          apiKey: guiResult.settings.apiKey || prev.apiKey,
+          authMode: guiResult.settings.authMode || prev.authMode,
+          apiBaseUrl: guiResult.settings.apiBaseUrl || prev.apiBaseUrl,
+          httpProxy: guiResult.settings.httpProxy || prev.httpProxy,
+          useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
+          extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
+        }));
+      }
+
+      // Load auth status
+      const authResult = await window.electronAPI.getAuthStatus();
+      if (authResult.success && authResult.status) {
+        setAuthStatus(authResult.status);
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const applyPreset = useCallback((presetId: string) => {
+    const preset = CONFIG_PRESETS.find(p => p.id === presetId);
+    if (preset) {
+      setSettings((prev) => ({ ...prev, ...preset.settings }));
+    }
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setSaveStatus('saving');
+    try {
+      // Save to native CLI config (shared with VSCode)
+      if (useNativeConfig) {
+        const nativeSave = await window.electronAPI.saveCliConfig({
+          model: settings.model,
+          permissions: {
+            mode: settings.permissionMode,
+          },
+          effortLevel: settings.effortLevel,
+        });
+        if (!nativeSave.success) {
+          throw new Error(nativeSave.error || 'Failed to save native config');
+        }
+      }
+
+      // Also save to GUI own settings
+      await window.electronAPI.saveSettings(settings);
+
+      setSaveStatus('saved');
+
+      // Reload settings to confirm
+      setTimeout(() => {
+        loadSettings();
+        setSaveStatus('idle');
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      setSaveStatus('error');
+    }
+  }, [settings, useNativeConfig, loadSettings]);
+
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+        <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 12 }}>
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Settings size={18} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>Claude Code 设置</span>
+      </div>
+
+      {/* Config Mode Toggle - VSCode Sharing */}
+      <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Database size={14} style={{ color: 'var(--accent-color)' }} />
+          <span style={{ fontWeight: 500, fontSize: 12 }}>配置文件同步</span>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={useNativeConfig}
+            onChange={(e) => setUseNativeConfig(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          <span>与 VSCode Claude Code 插件共享配置</span>
+        </label>
+        {nativeConfigPath && (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            配置文件: {nativeConfigPath}
+          </div>
+        )}
+        {nativeSettings && (
+          <div style={{ fontSize: 11, color: 'var(--success-text)', marginTop: 4 }}>
+            ✓ 已加载 {Object.keys(nativeSettings).length} 个配置项
+          </div>
+        )}
+      </div>
+
+      {/* Quick Presets */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          <Zap size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+          快速配置
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+          {CONFIG_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              className="btn"
+              style={{
+                fontSize: 11,
+                padding: '6px 8px',
+                justifyContent: 'center',
+              }}
+              onClick={() => applyPreset(preset.id)}
+              title={preset.description}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Model Selection */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          <Cpu size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+          模型选择
+        </label>
+        <select
+          className="input"
+          value={settings.model}
+          onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+          style={{ fontSize: 12, cursor: 'pointer' }}
+        >
+          {MODEL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          自定义模型: <input
+            type="text"
+            className="input"
+            value={settings.model === 'custom' || !MODEL_OPTIONS.some(m => m.value === settings.model) ? settings.model : ''}
+            onChange={(e) => setSettings({ ...settings, model: e.target.value || 'sonnet' })}
+            placeholder="输入模型名称..."
+            style={{
+              fontSize: 11,
+              padding: '4px 8px',
+              marginTop: 4,
+              width: '100%',
+              fontFamily: 'monospace',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Effort Level */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          <Zap size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+          努力程度 (Effort)
+        </label>
+        <select
+          className="input"
+          value={settings.effortLevel || 'medium'}
+          onChange={(e) => setSettings({ ...settings, effortLevel: e.target.value as AppSettings['effortLevel'] })}
+          style={{ fontSize: 12, cursor: 'pointer' }}
+        >
+          {EFFORT_LEVELS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Permission Mode */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          <Shield size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+          权限模式
+        </label>
+        <select
+          className="input"
+          value={settings.permissionMode || 'auto'}
+          onChange={(e) => setSettings({ ...settings, permissionMode: e.target.value })}
+          style={{ fontSize: 12, cursor: 'pointer' }}
+        >
+          <option value="default">默认</option>
+          <option value="auto">自动 (推荐)</option>
+          <option value="acceptEdits">自动接受编辑</option>
+          <option value="dontAsk">不询问</option>
+          <option value="plan">计划模式</option>
+        </select>
+      </div>
+
+      {/* Auth Status */}
+      <div
+        style={{
+          padding: 12,
+          borderRadius: 6,
+          background: (authStatus?.loggedIn || (settings.authMode === 'api-key' && settings.apiKey)) ? 'var(--success-bg)' : 'var(--warning-bg)',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        {(authStatus?.loggedIn || (settings.authMode === 'api-key' && settings.apiKey)) ? (
+          <Check size={16} style={{ color: 'var(--success-text)' }} />
+        ) : (
+          <X size={16} style={{ color: 'var(--warning-text)' }} />
+        )}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: (authStatus?.loggedIn || (settings.authMode === 'api-key' && settings.apiKey)) ? 'var(--success-text)' : 'var(--warning-text)' }}>
+            {(settings.authMode === 'api-key' && settings.apiKey) ? '✓ 自定义 API 已配置' : (authStatus?.loggedIn ? '✓ 官方已授权' : '✗ 未授权')}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {settings.authMode === 'api-key' ? (
+              '使用自定义 API Key 认证'
+            ) : (
+              <>
+                {authStatus?.authMethod && `认证方式: ${authStatus.authMethod}`}
+                {authStatus?.apiProvider && ` · 供应商: ${authStatus.apiProvider}`}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Official Login Button */}
+      {settings.authMode === 'official' && (!authStatus?.loggedIn) && (
+        <button
+          className="btn"
+          style={{
+            width: '100%',
+            marginBottom: 16,
+            background: 'var(--accent-color)',
+          }}
+          onClick={async () => {
+            await window.electronAPI.launchOfficialLogin();
+          }}
+        >
+          官方登录
+        </button>
+      )}
+
+      {/* Advanced Settings Toggle */}
+      <div
+        style={{
+          marginBottom: 12,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 12,
+          color: 'var(--text-secondary)',
+        }}
+        onClick={() => setShowAdvanced(!showAdvanced)}
+      >
+        {showAdvanced ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        <span>高级设置</span>
+      </div>
+
+      {/* Advanced Settings */}
+      {showAdvanced && (
+        <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 6 }}>
+          {/* Bare Mode */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={settings.useBareMode}
+                onChange={(e) => setSettings({ ...settings, useBareMode: e.target.checked })}
+                style={{ cursor: 'pointer' }}
+              />
+              Bare Mode (跳过钩子、LSP等)
+            </label>
+          </div>
+
+          {/* API Base URL for proxies */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+              API Base URL (中转/代理)
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={settings.apiBaseUrl}
+              onChange={(e) => {
+                const newApiBaseUrl = e.target.value;
+                setSettings(prev => {
+                  const newSettings = { ...prev, apiBaseUrl: newApiBaseUrl };
+                  // If user enters custom API URL, auto-switch to api-key mode
+                  if (newApiBaseUrl && newApiBaseUrl.trim() && prev.authMode === 'official') {
+                    newSettings.authMode = 'api-key';
+                  }
+                  return newSettings;
+                });
+              }}
+              placeholder="https://api.example.com/v1"
+              style={{ fontSize: 11, fontFamily: 'monospace' }}
+            />
+            {settings.apiBaseUrl && settings.authMode === 'api-key' && (
+              <div style={{ fontSize: 11, color: 'var(--success-text)', marginTop: 4 }}>
+                ✓ 已配置自定义 API，将跳过官方登录
+              </div>
+            )}
+          </div>
+
+          {/* Auth Mode Selection */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+              认证模式
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', flex: 1 }}>
+                <input
+                  type="radio"
+                  name="authMode"
+                  checked={settings.authMode === 'official'}
+                  onChange={() => setSettings({ ...settings, authMode: 'official' })}
+                  style={{ cursor: 'pointer' }}
+                />
+                官方登录
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', flex: 1 }}>
+                <input
+                  type="radio"
+                  name="authMode"
+                  checked={settings.authMode === 'api-key'}
+                  onChange={() => setSettings({ ...settings, authMode: 'api-key' })}
+                  style={{ cursor: 'pointer' }}
+                />
+                API Key
+              </label>
+            </div>
+          </div>
+
+          {/* API Key Input */}
+          {settings.authMode === 'api-key' && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+                API Key
+              </label>
+              <input
+                type="password"
+                className="input"
+                value={settings.apiKey}
+                onChange={(e) => setSettings({ ...settings, apiKey: e.target.value })}
+                placeholder="sk-..."
+                style={{ fontSize: 11, fontFamily: 'monospace' }}
+              />
+            </div>
+          )}
+
+          {/* HTTP Proxy */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+              HTTP 代理
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={settings.httpProxy}
+              onChange={(e) => setSettings({ ...settings, httpProxy: e.target.value })}
+              placeholder="http://127.0.0.1:7890"
+              style={{ fontSize: 11, fontFamily: 'monospace' }}
+            />
+          </div>
+
+          {/* Extra CLI Args */}
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+              额外命令行参数
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={settings.extraArgs}
+              onChange={(e) => setSettings({ ...settings, extraArgs: e.target.value })}
+              placeholder="--verbose --no-stream"
+              style={{ fontSize: 11, fontFamily: 'monospace' }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Save Button */}
+      <button
+        className="btn btn-primary"
+        style={{ width: '100%' }}
+        onClick={handleSave}
+        disabled={saveStatus === 'saving'}
+      >
+        {saveStatus === 'saving' && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+        {saveStatus === 'saved' && <Check size={14} />}
+        {saveStatus === 'error' && <X size={14} />}
+        {saveStatus === 'idle' && '保存设置'}
+        {saveStatus === 'saving' && '保存中...'}
+        {saveStatus === 'saved' && '已保存'}
+        {saveStatus === 'error' && '保存失败'}
+      </button>
+
+      {/* VSCode Link */}
+      <div style={{ marginTop: 16, textAlign: 'center' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          保存后设置将与 VSCode Claude Code 插件自动同步
+        </p>
+      </div>
+    </div>
+  );
+}
