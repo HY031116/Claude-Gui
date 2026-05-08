@@ -278,8 +278,9 @@ export class CliService {
     }
 
     // 开启扩展思考（extended thinking）
-    if (this.config.enableThinking) {
-      args.push('--thinking');
+    // 通过 beta header 激活，仅适用于 API Key 模式
+    if (this.config.enableThinking && this.config.authMode === 'api-key') {
+      args.push('--betas', 'interleaved-thinking-2025-05-14');
     }
 
     // 解析 extraArgs

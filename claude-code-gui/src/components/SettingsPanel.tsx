@@ -423,7 +423,7 @@ export function SettingsPanel() {
               🤔 扩展思考（Extended Thinking）
             </label>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, marginLeft: 20 }}>
-              启用后 Claude 会显示推理过程，需要支持思考链的模型（如 claude-sonnet-4-5）
+              通过 Beta Header 激活思考链（仅 API Key 模式有效）。使用支持 Extended Thinking 的模型时，消息上方会显示可折叠的"推理过程"。
             </div>
           </div>
 
