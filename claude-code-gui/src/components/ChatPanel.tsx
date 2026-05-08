@@ -384,6 +384,7 @@ export function ChatPanel() {
   return (
     <div className="chat-container">
       <div className="message-list">
+        <div className="message-list-inner">
         {/* 多轮对话状态徽章 */}
         {session.conversationSessionId && (
           <div className="session-badge">
@@ -437,9 +438,11 @@ export function ChatPanel() {
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       <div className="chat-input-area">
+        <div className="chat-input-area-inner">
         {/* 工作目录显示 / 编辑 Bar */}
         <div className="chat-wd-bar">
           {wdEditing ? (
@@ -508,6 +511,7 @@ export function ChatPanel() {
             + 新对话
           </button>
         )}
+        </div>
       </div>
     </div>
   );

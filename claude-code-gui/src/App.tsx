@@ -102,6 +102,43 @@ function App() {
   } = useAppStore();
   const isWindows = navigator.userAgent.includes('Windows');
 
+  // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    Math.min(480, Math.max(180, parseInt(localStorage.getItem('claude-gui-sidebar-width') || '280', 10)))
+  );
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = sidebarWidth;
+    document.body.classList.add('is-resizing');
+    e.preventDefault();
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const delta = e.clientX - resizeStartX.current;
+      const next = Math.max(180, Math.min(480, resizeStartWidth.current + delta));
+      setSidebarWidth(next);
+      localStorage.setItem('claude-gui-sidebar-width', String(next));
+    };
+    const onMouseUp = () => {
+      if (!isResizing.current) return;
+      isResizing.current = false;
+      document.body.classList.remove('is-resizing');
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
   // 主题切换：更新 document 根元素的 data-theme 属性
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -374,11 +411,12 @@ function App() {
 
       {/* Sidebar Content */}
       {sidebarVisible && (
+        <>
         <div
           style={{
-            width: 280,
+            width: sidebarWidth,
             background: 'var(--bg-primary)',
-            borderRight: '1px solid var(--border-color)',
+            borderRight: 'none',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -481,6 +519,12 @@ function App() {
             )}
           </div>
         </div>
+        {/* 拖拽调整宽度的把手 */}
+        <div
+          className="resize-handle"
+          onMouseDown={handleResizeMouseDown}
+        />
+        </>
       )}
 
       {/* Main Content */}

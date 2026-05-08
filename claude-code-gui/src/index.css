@@ -91,6 +91,29 @@
   z-index: 100;
   user-select: none;
 }
+
+/* 侧边栏宽度拖拽把手 */
+.resize-handle {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border-color);
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+}
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent-color);
+}
+
+/* 拖拽期间禁止全局文字选中、固定光标 */
+body.is-resizing,
+body.is-resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
@@ -248,10 +271,20 @@ pre code {
   overflow: hidden;
 }
 
+/* 消息列表：居中 + 最大宽度（超宽屏阅读友好） */
 .message-list {
   flex: 1;
   overflow: auto;
   padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message-list-inner {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -474,6 +507,13 @@ pre code {
   padding: 12px 20px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
+}
+
+/* 输入区内容与消息列表同宽 */
+.chat-input-area-inner {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .chat-input-wrapper {
