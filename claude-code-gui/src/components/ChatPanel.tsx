@@ -2,10 +2,18 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X } from 'lucide-react';
 import { marked } from 'marked';
+import hljs from 'highlight.js/lib/common';
+import 'highlight.js/styles/github-dark.css';
 import type { Message, ToolCall } from '../types';
 
-// 配置 marked：GFM + 换行符转 <br>
-marked.use({ gfm: true, breaks: true });
+// 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
+const renderer = new marked.Renderer();
+renderer.code = function({ text, lang }: { text: string; lang?: string }) {
+  const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
+  const highlighted = hljs.highlight(text, { language }).value;
+  return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+};
+marked.use({ gfm: true, breaks: true, renderer });
 
 /** 将 Markdown 文本渲染为 HTML 字符串 */
 function renderMarkdown(text: string): string {
