@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { FileText, Plus, Save, RefreshCw, Loader2, Check, X, BookOpen, FolderOpen } from 'lucide-react';
+import { FileText, Plus, Save, RefreshCw, Loader2, Check, X, BookOpen, FolderOpen, FilePlus2, Trash2 } from 'lucide-react';
+
+const CUSTOM_FILES_KEY = 'claude-gui-skill-custom-files';
 
 interface SkillFile {
   name: string;   // 展示名（如 CLAUDE.md、skills/my-skill.md）
   path: string;   // 绝对路径
-  category: '项目指令' | 'Skills' | '全局指令';
+  category: '项目指令' | 'Skills' | '全局指令' | '自定义';
 }
 
 /** 尝试读取一个文件，返回 null 表示不存在或失败 */
@@ -41,6 +43,41 @@ export function SkillsPanel() {
   const [saveResult, setSaveResult] = useState<'ok' | 'err' | null>(null);
   const [creating, setCreating] = useState(false);
   const [newFileName, setNewFileName] = useState('CLAUDE.md');
+  // 自定义文件（手动添加，localStorage 持久化）
+  const [customFiles, setCustomFiles] = useState<SkillFile[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(CUSTOM_FILES_KEY) ?? '[]');
+    } catch { return []; }
+  });
+
+  /** 持久化自定义文件列表 */
+  const saveCustomFiles = useCallback((files: SkillFile[]) => {
+    setCustomFiles(files);
+    localStorage.setItem(CUSTOM_FILES_KEY, JSON.stringify(files));
+  }, []);
+
+  /** 浏览选择文件并添加到自定义列表 */
+  const addCustomFile = useCallback(async () => {
+    const res = await window.electronAPI.selectFile({ defaultPath: cwd || undefined });
+    if (!res.success || !res.path) return;
+    const filePath = res.path.replace(/\\/g, '/');
+    if (customFiles.some((f) => f.path === filePath)) return; // 已存在，不重复添加
+    const name = filePath.split('/').pop() ?? filePath;
+    const newFile: SkillFile = { name, path: filePath, category: '自定义' };
+    saveCustomFiles([...customFiles, newFile]);
+    // 自动打开
+    void openFile(newFile);
+  }, [cwd, customFiles, saveCustomFiles]);
+
+  /** 删除自定义文件（从列表移除，不删除实际文件） */
+  const removeCustomFile = useCallback((filePath: string) => {
+    saveCustomFiles(customFiles.filter((f) => f.path !== filePath));
+    if (selectedFile?.path === filePath) {
+      setSelectedFile(null);
+      setContent('');
+      setOriginalContent('');
+    }
+  }, [customFiles, saveCustomFiles, selectedFile]);
 
   /** 扫描当前 cwd 下的 Skill 文件 */
   const scan = useCallback(async () => {
@@ -144,7 +181,14 @@ export function SkillsPanel() {
     '项目指令': 'var(--accent-color)',
     'Skills': '#8250df',
     '全局指令': 'var(--text-muted)',
+    '自定义': '#d29922',
   };
+
+  // 合并扫描文件 + 自定义文件（自定义不与扫描重复）
+  const allFiles = [
+    ...files,
+    ...customFiles.filter((cf) => !files.some((f) => f.path === cf.path)),
+  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -167,6 +211,14 @@ export function SkillsPanel() {
           disabled={loading}
         >
           {loading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />}
+        </button>
+        <button
+          className="btn"
+          style={{ padding: '4px 8px', fontSize: 11 }}
+          onClick={addCustomFile}
+          title="浏览并添加任意 Markdown 文件"
+        >
+          <FilePlus2 size={13} /> 浏览
         </button>
         <button
           className="btn btn-primary"
@@ -221,15 +273,15 @@ export function SkillsPanel() {
             <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
               请先开启会话
             </div>
-          ) : files.length === 0 && !loading ? (
+          ) : files.length === 0 && customFiles.length === 0 && !loading ? (
             <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
               未找到 Skill 文件<br />
               <span style={{ fontSize: 11 }}>点击"新建"创建 CLAUDE.md</span>
             </div>
           ) : (
             <>
-              {(['项目指令', 'Skills', '全局指令'] as const).map((cat) => {
-                const catFiles = files.filter((f) => f.category === cat);
+              {(['项目指令', 'Skills', '全局指令', '自定义'] as const).map((cat) => {
+                const catFiles = allFiles.filter((f) => f.category === cat);
                 if (catFiles.length === 0) return null;
                 return (
                   <div key={cat}>
@@ -244,27 +296,51 @@ export function SkillsPanel() {
                       {cat}
                     </div>
                     {catFiles.map((file) => (
-                      <button
+                      <div
                         key={file.path}
-                        onClick={() => void openFile(file)}
                         style={{
                           display: 'flex',
                           alignItems: 'flex-start',
-                          gap: 6,
-                          width: '100%',
-                          padding: '6px 12px',
                           background: selectedFile?.path === file.path ? 'var(--bg-hover)' : 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          color: selectedFile?.path === file.path ? 'var(--text-primary)' : 'var(--text-secondary)',
-                          fontSize: 12,
                           transition: 'background 0.1s',
                         }}
                       >
-                        <FileText size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                        <span style={{ wordBreak: 'break-all', lineHeight: 1.4 }}>{file.name}</span>
-                      </button>
+                        <button
+                          onClick={() => void openFile(file)}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 6,
+                            padding: '6px 8px 6px 12px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            color: selectedFile?.path === file.path ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            fontSize: 12,
+                          }}
+                        >
+                          <FileText size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                          <span style={{ wordBreak: 'break-all', lineHeight: 1.4 }}>{file.name}</span>
+                        </button>
+                        {file.category === '自定义' && (
+                          <button
+                            onClick={() => removeCustomFile(file.path)}
+                            title="从列表移除（不删除文件）"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '6px 8px 6px 4px',
+                              color: 'var(--text-muted)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 );

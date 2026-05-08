@@ -108,6 +108,18 @@ ipcMain.handle('fs:selectDirectory', async (_event, defaultPath?: string) => {
   return { success: true, path: result.filePaths[0] };
 });
 
+// 选择文件对话框
+ipcMain.handle('fs:selectFile', async (_event, options?: { filters?: Electron.FileFilter[]; defaultPath?: string }) => {
+  const win = BrowserWindow.getFocusedWindow();
+  const result = await dialog.showOpenDialog(win!, {
+    properties: ['openFile'],
+    defaultPath: options?.defaultPath || undefined,
+    filters: options?.filters || [{ name: 'Markdown', extensions: ['md', 'txt'] }, { name: '所有文件', extensions: ['*'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return { success: true, path: null };
+  return { success: true, path: result.filePaths[0] };
+});
+
 // IPC handlers for settings
 ipcMain.handle('settings:load', async () => {
   const result = settingsService.load();
