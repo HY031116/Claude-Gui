@@ -6,7 +6,8 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { ToolCallView } from './components/ToolCallView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon } from 'lucide-react';
+import { SkillsPanel } from './components/SkillsPanel';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen } from 'lucide-react';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -312,6 +313,7 @@ function App() {
     { id: 'chat' as const, label: '对话', icon: MessageSquare },
     { id: 'files' as const, label: '文件', icon: FolderOpen },
     { id: 'tools' as const, label: '工具', icon: Wrench },
+    { id: 'skills' as const, label: 'Skills', icon: BookOpen },
     { id: 'history' as const, label: '历史', icon: History },
   ];
 
@@ -492,6 +494,8 @@ function App() {
       >
         {activePanel === 'history' ? (
           <HistoryPanel />
+        ) : activePanel === 'skills' ? (
+          <SkillsPanel />
         ) : (
           <>
             <ChatPanel />
