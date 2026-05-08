@@ -95,6 +95,9 @@ function App() {
     setPendingPrompt,
     theme,
     setTheme,
+    currentModel,
+    currentAuthMode,
+    setCurrentStatus,
   } = useAppStore();
   const isWindows = navigator.userAgent.includes('Windows');
 
@@ -102,6 +105,15 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // 启动时加载设置到 store，供状态栏展示
+  useEffect(() => {
+    window.electronAPI.loadSettings().then((res) => {
+      if (res.success && res.settings) {
+        setCurrentStatus(res.settings.model ?? '', res.settings.authMode ?? '');
+      }
+    });
+  }, [setCurrentStatus]);
 
   // Buffer for accumulating terminal output to detect interactive prompts
   const outputBuffer = useRef('');
@@ -304,7 +316,7 @@ function App() {
   ];
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 24px)', width: '100vw', overflow: 'hidden' }}>
       {/* Left Sidebar Navigation */}
       <div
         style={{
@@ -484,6 +496,28 @@ function App() {
           <>
             <ChatPanel />
             <TerminalPanel />
+          </>
+        )}
+      </div>
+
+      {/* 底部状态栏 */}
+      <div className="status-bar">
+        <span className={`status-dot ${session.isConnected ? 'connected' : 'disconnected'}`} />
+        <span className="status-item">
+          {session.isConnected ? '已连接' : '未连接'}
+        </span>
+        {currentModel && (
+          <>
+            <span className="status-sep">|</span>
+            <span className="status-item">{currentModel}</span>
+          </>
+        )}
+        {currentAuthMode && (
+          <>
+            <span className="status-sep">|</span>
+            <span className="status-item">
+              {currentAuthMode === 'api-key' ? 'API Key' : 'Claude 账户'}
+            </span>
           </>
         )}
       </div>

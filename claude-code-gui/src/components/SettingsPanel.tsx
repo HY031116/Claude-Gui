@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, Check, X, Loader2, Cpu, Shield, Zap, ChevronDown, ChevronUp, Database } from 'lucide-react';
+import { useAppStore } from '../stores/useAppStore';
 import type { AppSettings, AuthStatus } from '../types';
 
 const MODEL_OPTIONS = [
@@ -57,6 +58,7 @@ const CONFIG_PRESETS: Array<{
 ];
 
 export function SettingsPanel() {
+  const { setCurrentStatus } = useAppStore();
   // Config mode: native = use CLI native config (shared with VSCode)
   const [useNativeConfig, setUseNativeConfig] = useState(true);
   const [nativeConfigPath, setNativeConfigPath] = useState('');
@@ -157,6 +159,8 @@ export function SettingsPanel() {
 
       // Also save to GUI own settings
       await window.electronAPI.saveSettings(settings);
+      // 同步到状态栏 store
+      setCurrentStatus(settings.model ?? '', settings.authMode ?? '');
 
       setSaveStatus('saved');
 

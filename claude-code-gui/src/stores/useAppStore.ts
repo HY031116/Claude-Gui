@@ -64,6 +64,10 @@ interface AppState {
   // 主题
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
+  // 状态栏：当前模型与认证方式
+  currentModel: string;
+  currentAuthMode: string;
+  setCurrentStatus: (model: string, authMode: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -141,4 +145,7 @@ export const useAppStore = create<AppState>((set) => ({
     localStorage.setItem('claude-gui-theme', theme);
     set({ theme });
   },
+  currentModel: '',
+  currentAuthMode: '',
+  setCurrentStatus: (model, authMode) => set({ currentModel: model, currentAuthMode: authMode }),
 }));

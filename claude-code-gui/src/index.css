@@ -74,6 +74,44 @@
 [data-theme="light"] .hljs-params { color: #24292f; }
 [data-theme="light"] .hljs-type { color: #0550ae; }
 
+/* 底部状态栏 */
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: var(--accent-color);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 11px;
+  z-index: 100;
+  user-select: none;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.connected {
+  background: #4ade80;
+  box-shadow: 0 0 4px #4ade80;
+}
+.status-dot.disconnected {
+  background: rgba(255, 255, 255, 0.45);
+}
+.status-item {
+  opacity: 0.9;
+  letter-spacing: 0.01em;
+}
+.status-sep {
+  opacity: 0.4;
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;
