@@ -496,6 +496,99 @@ pre code {
   background: #c53030;
 }
 
+/* 工作目录 Bar */
+.chat-wd-bar {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.chat-wd-display {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.chat-wd-display:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.chat-wd-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.chat-wd-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+}
+.chat-wd-edit-icon {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.chat-wd-display:hover .chat-wd-edit-icon {
+  opacity: 0.6;
+}
+
+/* 工作目录编辑行 */
+.chat-wd-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.chat-wd-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: monospace;
+  border: 1px solid var(--accent-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+.chat-wd-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+.chat-wd-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.chat-wd-action-btn.confirm:hover {
+  color: #38a169;
+  border-color: #38a169;
+  background: rgba(56, 161, 105, 0.06);
+}
+.chat-wd-action-btn.cancel:hover {
+  color: #e53e3e;
+  border-color: #e53e3e;
+  background: rgba(229, 62, 62, 0.06);
+}
+
 /* 时间分隔线 */
 .time-divider {
   display: flex;

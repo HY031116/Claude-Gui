@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X } from 'lucide-react';
 import { marked } from 'marked';
 import type { Message, ToolCall } from '../types';
 
@@ -80,6 +80,9 @@ export function ChatPanel() {
   const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation } = useAppStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  // 工作目录编辑状态
+  const [wdEditing, setWdEditing] = useState(false);
+  const [wdDraft, setWdDraft] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const assistantIdRef = useRef<string | null>(null);
@@ -342,6 +345,34 @@ export function ChatPanel() {
     pendingToolCallsRef.current = [];
   }, [updateMessage, addMessage]);
 
+  /** 开始编辑工作目录 */
+  const handleWdEdit = useCallback(() => {
+    setWdDraft(session.workingDirectory || '');
+    setWdEditing(true);
+  }, [session.workingDirectory]);
+
+  /** 确认工作目录更改 */
+  const handleWdConfirm = useCallback(() => {
+    if (wdDraft.trim()) setSession({ workingDirectory: wdDraft.trim() });
+    setWdEditing(false);
+  }, [wdDraft, setSession]);
+
+  /** 浏览选择目录 */
+  const handleWdBrowse = useCallback(async () => {
+    const result = await window.electronAPI.selectDirectory(wdDraft || session.workingDirectory || undefined);
+    if (result.success && result.path) setWdDraft(result.path);
+  }, [wdDraft, session.workingDirectory]);
+
+  /** 路径显示：取最后两段 */
+  const wdDisplayPath = useMemo(() => {
+    const wd = session.workingDirectory;
+    if (!wd) return '未设置工作目录';
+    // 兼容 Windows 和 Unix 路径分隔符
+    const parts = wd.replace(/\\/g, '/').split('/').filter(Boolean);
+    if (parts.length <= 2) return wd;
+    return `…/${parts.slice(-2).join('/')}`;
+  }, [session.workingDirectory]);
+
   return (
     <div className="chat-container">
       <div className="message-list">
@@ -401,6 +432,40 @@ export function ChatPanel() {
       </div>
 
       <div className="chat-input-area">
+        {/* 工作目录显示 / 编辑 Bar */}
+        <div className="chat-wd-bar">
+          {wdEditing ? (
+            <div className="chat-wd-edit-row">
+              <FolderOpen size={13} className="chat-wd-icon" />
+              <input
+                className="chat-wd-input"
+                value={wdDraft}
+                onChange={(e) => setWdDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleWdConfirm();
+                  if (e.key === 'Escape') setWdEditing(false);
+                }}
+                autoFocus
+                placeholder="输入路径..."
+              />
+              <button className="chat-wd-action-btn" onClick={handleWdBrowse} title="浏览目录">
+                <FolderOpen size={13} />
+              </button>
+              <button className="chat-wd-action-btn confirm" onClick={handleWdConfirm} title="确认">
+                <Check size={13} />
+              </button>
+              <button className="chat-wd-action-btn cancel" onClick={() => setWdEditing(false)} title="取消">
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <button className="chat-wd-display" onClick={handleWdEdit} title={session.workingDirectory || '点击设置工作目录'}>
+              <FolderOpen size={13} className="chat-wd-icon" />
+              <span className="chat-wd-path">{wdDisplayPath}</span>
+              <Pencil size={11} className="chat-wd-edit-icon" />
+            </button>
+          )}
+        </div>
         <div className="chat-input-wrapper">
           <textarea
             className="chat-input"

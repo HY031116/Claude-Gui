@@ -22,6 +22,8 @@ export interface ElectronAPI {
   deleteCliSession: (projectDirName: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   /** 删除某项目目录下所有 .jsonl 会话文件 */
   deleteAllCliSessions: (projectDirName: string) => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
+  /** 弹出系统目录选择对话框，返回选中路径或 null */
+  selectDirectory: (defaultPath?: string) => Promise<{ success: boolean; path: string | null }>;
   loadSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>;
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
   getAuthStatus: () => Promise<{ success: boolean; status?: any; error?: string }>;
@@ -49,6 +51,7 @@ const api: ElectronAPI = {
   loadCliHistory: () => ipcRenderer.invoke('cli:history'),
   deleteCliSession: (projectDirName, sessionId) => ipcRenderer.invoke('cli:delete-session', projectDirName, sessionId),
   deleteAllCliSessions: (projectDirName) => ipcRenderer.invoke('cli:delete-project-sessions', projectDirName),
+  selectDirectory: (defaultPath) => ipcRenderer.invoke('fs:selectDirectory', defaultPath),
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
   getAuthStatus: () => ipcRenderer.invoke('auth:status'),

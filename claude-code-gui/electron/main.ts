@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { CliService, type CliStartOptions } from './cli-service';
 import { FileService } from './file-service';
@@ -95,6 +95,17 @@ ipcMain.handle('cli:delete-session', async (_event, projectDirName: string, sess
 
 ipcMain.handle('cli:delete-project-sessions', async (_event, projectDirName: string) => {
   return fileService.deleteAllCliSessions(projectDirName);
+});
+
+// 选择目录对话框
+ipcMain.handle('fs:selectDirectory', async (_event, defaultPath?: string) => {
+  const win = BrowserWindow.getFocusedWindow();
+  const result = await dialog.showOpenDialog(win!, {
+    properties: ['openDirectory'],
+    defaultPath: defaultPath || undefined,
+  });
+  if (result.canceled || result.filePaths.length === 0) return { success: true, path: null };
+  return { success: true, path: result.filePaths[0] };
 });
 
 // IPC handlers for settings
