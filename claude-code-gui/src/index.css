@@ -467,6 +467,35 @@ pre code {
   font-size: 13px;
 }
 
+/* typing-indicator 内停止按钮 */
+.typing-stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.typing-stop-btn:hover {
+  color: #e53e3e;
+  border-color: #e53e3e;
+  background: rgba(229, 62, 62, 0.06);
+}
+
+/* 发送按钮 stop 状态（红色） */
+.chat-send-btn.stop {
+  background: #e53e3e;
+}
+.chat-send-btn.stop:hover:not(:disabled) {
+  background: #c53030;
+}
+
 /* 时间分隔线 */
 .time-divider {
   display: flex;

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square } from 'lucide-react';
 import { marked } from 'marked';
 import type { Message, ToolCall } from '../types';
 
@@ -317,6 +317,31 @@ export function ChatPanel() {
     }
   };
 
+  /** 停止当前生成 */
+  const handleStop = useCallback(async () => {
+    try {
+      await window.electronAPI.cliStopMessage();
+    } catch { /* 忽略 */ }
+    // 立即冲刷打字机剩余内容
+    if (assistantIdRef.current && targetContentRef.current) {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      updateMessage(assistantIdRef.current, { content: targetContentRef.current });
+      displayedLengthRef.current = targetContentRef.current.length;
+    }
+    addMessage({
+      id: `msg-${Date.now()}-stop`,
+      role: 'system',
+      content: '已手动停止生成。',
+      timestamp: Date.now(),
+    });
+    setIsProcessing(false);
+    assistantIdRef.current = null;
+    targetContentRef.current = '';
+    displayedLengthRef.current = 0;
+    stderrErrShownRef.current = false;
+    pendingToolCallsRef.current = [];
+  }, [updateMessage, addMessage]);
+
   return (
     <div className="chat-container">
       <div className="message-list">
@@ -365,6 +390,10 @@ export function ChatPanel() {
           <div className="typing-indicator">
             <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
             <span>Claude 正在思考...</span>
+            <button className="typing-stop-btn" onClick={handleStop} title="停止生成">
+              <Square size={11} />
+              停止
+            </button>
           </div>
         )}
 
@@ -388,12 +417,12 @@ export function ChatPanel() {
             }}
           />
           <button
-            className="chat-send-btn"
-            onClick={handleSend}
-            disabled={!session.isConnected || !input.trim() || isProcessing}
-            title="发送"
+            className={`chat-send-btn ${isProcessing ? 'stop' : ''}`}
+            onClick={isProcessing ? handleStop : handleSend}
+            disabled={!session.isConnected || (!isProcessing && !input.trim())}
+            title={isProcessing ? '停止生成' : '发送'}
           >
-            <Send size={16} />
+            {isProcessing ? <Square size={16} /> : <Send size={16} />}
           </button>
         </div>
         {/* 新对话按钮：清除 session ID，下次发送开启全新对话 */}
