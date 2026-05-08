@@ -6,7 +6,7 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { ToolCallView } from './components/ToolCallView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon } from 'lucide-react';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -93,8 +93,15 @@ function App() {
     addMessage,
     pendingPrompt,
     setPendingPrompt,
+    theme,
+    setTheme,
   } = useAppStore();
   const isWindows = navigator.userAgent.includes('Windows');
+
+  // 主题切换：更新 document 根元素的 data-theme 属性
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Buffer for accumulating terminal output to detect interactive prompts
   const outputBuffer = useRef('');
@@ -327,6 +334,14 @@ function App() {
           );
         })}
         <div style={{ flex: 1 }} />
+        {/* 主题切换 */}
+        <button
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          title={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
+          className="nav-button"
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
         <button
           onClick={() => setShowSettings(!showSettings)}
           title="设置"

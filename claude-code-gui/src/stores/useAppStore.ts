@@ -61,6 +61,9 @@ interface AppState {
   setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history') => void;
   sidebarVisible: boolean;
   setSidebarVisible: (visible: boolean) => void;
+  // 主题
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -133,4 +136,9 @@ export const useAppStore = create<AppState>((set) => ({
   setActivePanel: (panel) => set({ activePanel: panel }),
   sidebarVisible: true,
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
+  theme: (localStorage.getItem('claude-gui-theme') as 'dark' | 'light') ?? 'dark',
+  setTheme: (theme) => {
+    localStorage.setItem('claude-gui-theme', theme);
+    set({ theme });
+  },
 }));

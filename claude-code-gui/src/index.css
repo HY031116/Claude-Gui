@@ -22,12 +22,57 @@
   --warning: #d29922;
   --code-bg: #161b22;
   --radius: 6px;
+  --radius-sm: 4px;
   --radius-lg: 12px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --message-user-bg: linear-gradient(135deg, #1f6feb 0%, #58a6ff 100%);
 }
+
+/* 亮色主题 */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --bg-hover: #d0d7de;
+  --border-color: #d0d7de;
+  --text-primary: #24292f;
+  --text-secondary: #57606a;
+  --text-muted: #6e7781;
+  --accent-color: #0969da;
+  --accent-hover: #0550ae;
+  --success: #1a7f37;
+  --success-text: #1a7f37;
+  --error: #cf222e;
+  --error-text: #cf222e;
+  --warning: #9a6700;
+  --code-bg: #f6f8fa;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --message-user-bg: linear-gradient(135deg, #0969da 0%, #0550ae 100%);
+}
+
+/* 亮色主题下代码高亮色 */
+[data-theme="light"] .hljs {
+  background: #f6f8fa;
+  color: #24292f;
+}
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-selector-tag,
+[data-theme="light"] .hljs-subst { color: #cf222e; font-weight: bold; }
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-doctag { color: #0a3069; }
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-literal { color: #0550ae; }
+[data-theme="light"] .hljs-title,
+[data-theme="light"] .hljs-function .hljs-title { color: #8250df; }
+[data-theme="light"] .hljs-comment { color: #6e7781; font-style: italic; }
+[data-theme="light"] .hljs-built_in { color: #953800; }
+[data-theme="light"] .hljs-variable,
+[data-theme="light"] .hljs-params { color: #24292f; }
+[data-theme="light"] .hljs-type { color: #0550ae; }
 
 html, body, #root {
   height: 100%;
