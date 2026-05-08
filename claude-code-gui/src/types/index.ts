@@ -12,6 +12,8 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
   result?: string;
   status: 'pending' | 'success' | 'error';
+  /** Write 工具执行前的原始文件内容快照（用于 diff 展示） */
+  originalContent?: string;
 }
 
 export interface DirEntry {

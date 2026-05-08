@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode } from 'lucide-react';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
@@ -85,12 +85,14 @@ function formatTime(timestamp: number): string {
 }
 
 export function ChatPanel() {
-  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation } = useAppStore();
+  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation, setTodoItems } = useAppStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
   const [wdEditing, setWdEditing] = useState(false);
   const [wdDraft, setWdDraft] = useState('');
+  // 上下文文件附件（每次对话完成后清空，或手动移除）
+  const [contextFiles, setContextFiles] = useState<{ path: string; name: string; content: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const assistantIdRef = useRef<string | null>(null);
@@ -175,14 +177,29 @@ export function ChatPanel() {
               ensureAssistantMessage();
               hasNewText = true;
             }
-            // 工具调用 → 立即加入 toolCalls 列表
+            // 工具调用 → 立即加入 toolCalls 列表，并对 Write 工具捕获文件快照
             for (const toolUse of parsed.toolUses) {
               const msgId = ensureAssistantMessage();
-              pendingToolCallsRef.current = [
-                ...pendingToolCallsRef.current,
-                { id: toolUse.id, name: toolUse.name, arguments: toolUse.input, status: 'pending' },
-              ];
+              const newCall = { id: toolUse.id, name: toolUse.name, arguments: toolUse.input, status: 'pending' as const };
+              pendingToolCallsRef.current = [...pendingToolCallsRef.current, newCall];
               updateMessage(msgId, { toolCalls: [...pendingToolCallsRef.current] });
+
+              // Write 工具：异步读取执行前文件内容作为快照
+              if (toolUse.name === 'Write' || toolUse.name === 'write_file') {
+                const filePath = (toolUse.input?.file_path || toolUse.input?.path) as string | undefined;
+                if (filePath) {
+                  window.electronAPI.readFile(filePath.replace(/\\/g, '/')).then((res) => {
+                    if (res.success && res.content) {
+                      pendingToolCallsRef.current = pendingToolCallsRef.current.map((tc) =>
+                        tc.id === toolUse.id ? { ...tc, originalContent: res.content } : tc,
+                      );
+                      if (assistantIdRef.current) {
+                        updateMessage(assistantIdRef.current, { toolCalls: [...pendingToolCallsRef.current] });
+                      }
+                    }
+                  }).catch(() => {/* 文件不存在时忽略 */});
+                }
+              }
             }
           }
 
@@ -195,6 +212,20 @@ export function ChatPanel() {
                   i === idx ? { ...tc, result: res.content, status: 'success' as const } : tc,
                 );
                 updateMessage(assistantIdRef.current, { toolCalls: [...pendingToolCallsRef.current] });
+
+                // 解析 TodoWrite 的 input 参数（工具调用的 arguments.todos 字段）
+                const tc = pendingToolCallsRef.current[idx];
+                if ((tc.name === 'TodoWrite' || tc.name === 'mcp__ide__createTasks') && tc.arguments?.todos) {
+                  try {
+                    const todos = tc.arguments.todos as { id: string; content: string; status: string }[];
+                    setTodoItems(todos.map((t) => ({
+                      id: t.id,
+                      content: t.content,
+                      status: (['pending', 'in_progress', 'completed'].includes(t.status)
+                        ? t.status : 'pending') as 'pending' | 'in_progress' | 'completed',
+                    })));
+                  } catch { /* 解析失败忽略 */ }
+                }
               }
             }
           }
@@ -277,7 +308,7 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems]);
 
   // 组件卸载时清理 rAF
   useEffect(() => {
@@ -288,18 +319,24 @@ export function ChatPanel() {
     if (!input.trim() || !session.isConnected || isProcessing) return;
 
     const userMsg = input.trim();
-    // 发送前快照当前 sessionId（避免 stale closure）
     const currentSessionId = session.conversationSessionId;
+
+    // 构造最终消息：若有上下文文件，在消息前注入文件内容
+    let finalMsg = userMsg;
+    if (contextFiles.length > 0) {
+      const fileBlocks = contextFiles.map((f) => `=== ${f.name} ===\n${f.content}\n=== END ===`).join('\n\n');
+      finalMsg = `以下是附加的上下文文件，请结合文件内容回答：\n\n${fileBlocks}\n\n---\n${userMsg}`;
+    }
 
     addMessage({ id: `msg-${Date.now()}`, role: 'user', content: userMsg, timestamp: Date.now() });
     setInput('');
+    setContextFiles([]); // 发送后清空附件
     setIsProcessing(true);
     assistantIdRef.current = null;
     targetContentRef.current = '';
     displayedLengthRef.current = 0;
     stderrErrShownRef.current = false;
     pendingToolCallsRef.current = [];
-    // 如果是新对话（无 sessionId），记录第一条消息作为预览并记录开始时间
     if (!currentSessionId) {
       firstUserMessageRef.current = userMsg.slice(0, 100);
       conversationStartedAtRef.current = Date.now();
@@ -307,7 +344,7 @@ export function ChatPanel() {
 
     try {
       const result = await window.electronAPI.cliSendMessage(
-        userMsg,
+        finalMsg,
         session.workingDirectory || undefined,
         currentSessionId,
       );
@@ -319,7 +356,7 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage]);
+  }, [input, contextFiles, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -370,6 +407,18 @@ export function ChatPanel() {
     const result = await window.electronAPI.selectDirectory(wdDraft || session.workingDirectory || undefined);
     if (result.success && result.path) setWdDraft(result.path);
   }, [wdDraft, session.workingDirectory]);
+
+  /** 添加上下文附件文件 */
+  const handleAttachFile = useCallback(async () => {
+    const result = await window.electronAPI.selectFile({ defaultPath: session.workingDirectory || undefined });
+    if (!result.success || !result.path) return;
+    const filePath = result.path.replace(/\\/g, '/');
+    if (contextFiles.some((f) => f.path === filePath)) return;
+    const readResult = await window.electronAPI.readFile(filePath);
+    if (!readResult.success) return;
+    const name = filePath.split('/').pop() ?? filePath;
+    setContextFiles((prev) => [...prev, { path: filePath, name, content: readResult.content ?? '' }]);
+  }, [session.workingDirectory, contextFiles]);
 
   /** 路径显示：取最后两段 */
   const wdDisplayPath = useMemo(() => {
@@ -477,7 +526,30 @@ export function ChatPanel() {
             </button>
           )}
         </div>
+        {/* 附件文件 chips */}
+        {contextFiles.length > 0 && (
+          <div className="context-files-bar">
+            {contextFiles.map((f) => (
+              <div key={f.path} className="context-file-chip" title={f.path}>
+                <FileCode size={11} />
+                <span>{f.name}</span>
+                <button onClick={() => setContextFiles((prev) => prev.filter((x) => x.path !== f.path))}>
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="chat-input-wrapper">
+          {/* 附件按钮 */}
+          <button
+            className="chat-attach-btn"
+            onClick={handleAttachFile}
+            disabled={!session.isConnected}
+            title="附加文件到上下文"
+          >
+            <Paperclip size={16} />
+          </button>
           <textarea
             className="chat-input"
             value={input}

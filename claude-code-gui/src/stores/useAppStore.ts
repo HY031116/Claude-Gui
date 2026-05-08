@@ -57,8 +57,8 @@ interface AppState {
   clearConversationHistory: () => void;
 
   // UI
-  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills';
-  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills') => void;
+  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks';
+  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks') => void;
   sidebarVisible: boolean;
   setSidebarVisible: (visible: boolean) => void;
   // 主题
@@ -68,6 +68,9 @@ interface AppState {
   currentModel: string;
   currentAuthMode: string;
   setCurrentStatus: (model: string, authMode: string) => void;
+  // 任务追踪（来自 TodoWrite 工具调用）
+  todoItems: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[];
+  setTodoItems: (items: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[]) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -148,4 +151,6 @@ export const useAppStore = create<AppState>((set) => ({
   currentModel: '',
   currentAuthMode: '',
   setCurrentStatus: (model, authMode) => set({ currentModel: model, currentAuthMode: authMode }),
+  todoItems: [],
+  setTodoItems: (items) => set({ todoItems: items }),
 }));

@@ -553,6 +553,68 @@ pre code {
   cursor: not-allowed;
 }
 
+/* 附件文件 chips 区域 */
+.context-files-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 8px 0;
+}
+.context-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 7px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 200px;
+}
+.context-file-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-file-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.context-file-chip button:hover {
+  color: var(--error-text);
+}
+
+/* 附件按钮 */
+.chat-attach-btn {
+  height: 40px;
+  width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.chat-attach-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--accent-color);
+}
+.chat-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .chat-send-btn {
   height: 40px;
   width: 40px;

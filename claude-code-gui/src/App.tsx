@@ -7,7 +7,8 @@ import { ToolCallView } from './components/ToolCallView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen } from 'lucide-react';
+import { TaskPanel } from './components/TaskPanel';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList } from 'lucide-react';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -99,6 +100,7 @@ function App() {
     currentModel,
     currentAuthMode,
     setCurrentStatus,
+    todoItems,
   } = useAppStore();
   const isWindows = navigator.userAgent.includes('Windows');
 
@@ -350,6 +352,7 @@ function App() {
     { id: 'chat' as const, label: '对话', icon: MessageSquare },
     { id: 'files' as const, label: '文件', icon: FolderOpen },
     { id: 'tools' as const, label: '工具', icon: Wrench },
+    { id: 'tasks' as const, label: '任务', icon: ClipboardList, badge: todoItems.filter((t) => t.status !== 'completed').length },
     { id: 'skills' as const, label: 'Skills', icon: BookOpen },
     { id: 'history' as const, label: '历史', icon: History },
   ];
@@ -373,14 +376,37 @@ function App() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activePanel === item.id;
+          const badge = (item as { badge?: number }).badge;
           return (
             <button
               key={item.id}
               onClick={() => setActivePanel(item.id)}
               title={item.label}
               className={`nav-button ${isActive ? 'active' : ''}`}
+              style={{ position: 'relative' }}
             >
               <Icon size={20} />
+              {badge != null && badge > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  minWidth: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  background: 'var(--accent-color)',
+                  color: '#fff',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  lineHeight: 1,
+                  padding: '0 2px',
+                }}>
+                  {badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -540,6 +566,8 @@ function App() {
           <HistoryPanel />
         ) : activePanel === 'skills' ? (
           <SkillsPanel />
+        ) : activePanel === 'tasks' ? (
+          <TaskPanel />
         ) : (
           <>
             <ChatPanel />
