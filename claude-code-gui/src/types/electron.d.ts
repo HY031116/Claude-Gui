@@ -10,6 +10,8 @@ export interface ElectronAPI {
   /** 非交互模式：每条消息独立子进程，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
   cliSendMessage: (message: string, cwd?: string, sessionId?: string) => Promise<{ success: boolean; error?: string }>;
   cliStopMessage: () => Promise<{ success: boolean }>;
+  /** 向当前运行中的消息进程 stdin 写入数据（supervised 审批用：'y\n'/'n\n'） */
+  cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
   onCliOutput: (callback: (event: CliOutputEvent) => void) => () => void;
   listDirectory: (path: string) => Promise<{ success: boolean; entries?: any[]; error?: string }>;
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;

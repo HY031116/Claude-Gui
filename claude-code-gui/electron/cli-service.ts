@@ -308,7 +308,7 @@ export class CliService {
         env,
         cwd: workdir,
         windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
 
       this.activeMessageProcess = child;
@@ -352,6 +352,19 @@ export class CliService {
       this.emit('message-done', '-1');
     }
     return { success: true };
+  }
+
+  /** 向当前消息进程的 stdin 写入原始数据（用于 supervised 模式交互审批） */
+  sendToMessageStdin(data: string): { success: boolean; error?: string } {
+    if (!this.activeMessageProcess || !this.activeMessageProcess.stdin) {
+      return { success: false, error: 'No active message process or stdin not available' };
+    }
+    try {
+      this.activeMessageProcess.stdin.write(data);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
   }
 
   resize(cols: number, rows: number): void {

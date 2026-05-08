@@ -615,6 +615,47 @@ pre code {
   cursor: not-allowed;
 }
 
+/* Shell 命令审批按钮 */
+.btn-approve,
+.btn-deny {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+.btn-approve {
+  background: rgba(35, 134, 54, 0.15);
+  color: var(--success-text);
+  border-color: rgba(35, 134, 54, 0.3);
+}
+.btn-approve:hover:not(:disabled) {
+  background: rgba(35, 134, 54, 0.3);
+}
+.btn-deny {
+  background: rgba(218, 54, 51, 0.12);
+  color: var(--error-text);
+  border-color: rgba(218, 54, 51, 0.25);
+}
+.btn-deny:hover:not(:disabled) {
+  background: rgba(218, 54, 51, 0.25);
+}
+.btn-approve:disabled,
+.btn-deny:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Bash 工具调用卡片 */
+.tool-call-bash .tool-call-header {
+  background: rgba(88, 166, 255, 0.05);
+  border-left: 2px solid var(--accent-color);
+}
+
+
 .chat-send-btn {
   height: 40px;
   width: 40px;

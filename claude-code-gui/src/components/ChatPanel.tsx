@@ -592,11 +592,17 @@ export function ChatPanel() {
 /** 工具调用折叠卡片 */
 function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
+  const [approving, setApproving] = useState(false);
+
+  const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
+  const bashCommand = isBash
+    ? (toolCall.arguments?.command as string | undefined) ?? ''
+    : '';
 
   // 常见工具图标映射
   const toolIcon = useMemo(() => {
     const icons: Record<string, string> = {
-      Bash: '⚙️', Edit: '✏️', MultiEdit: '✏️',
+      Bash: '⚙️', bash: '⚙️', Edit: '✏️', MultiEdit: '✏️',
       Read: '📖', Write: '📝', LS: '📁',
       Glob: '🔎', Grep: '🔎',
       WebSearch: '🔍', WebFetch: '🌐',
@@ -604,6 +610,93 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
     };
     return icons[toolCall.name] ?? '🔧';
   }, [toolCall.name]);
+
+  /** supervised 模式下审批回调 */
+  const handleApprove = useCallback(async (allow: boolean) => {
+    setApproving(true);
+    try {
+      await window.electronAPI.cliSendToStdin(allow ? 'y\n' : 'n\n');
+    } finally {
+      setApproving(false);
+    }
+  }, []);
+
+  // Bash 工具的专属卡片
+  if (isBash) {
+    return (
+      <div className={`tool-call-card tool-call-${toolCall.status} tool-call-bash`}>
+        <div className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
+          <span style={{ fontSize: 13 }}>⚙️</span>
+          <span className="tool-call-name">Shell 命令</span>
+          <code style={{
+            flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', color: 'var(--text-secondary)',
+            marginLeft: 4, marginRight: 8,
+          }}>
+            {bashCommand.split('\n')[0].slice(0, 80)}
+          </code>
+          <span className={`tool-call-status tool-call-status-${toolCall.status}`}>
+            {toolCall.status === 'pending' ? '执行中…' : toolCall.status === 'success' ? '✓ 完成' : '✗ 失败'}
+          </span>
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </div>
+        {expanded && (
+          <div className="tool-call-body">
+            {/* 命令显示 */}
+            <div className="tool-call-section">
+              <div className="tool-call-section-label">命令</div>
+              <pre className="tool-call-pre" style={{
+                background: '#0d1117',
+                color: '#e6edf3',
+                borderLeft: '3px solid var(--accent-color)',
+                fontSize: 12,
+              }}>
+                <span style={{ color: '#7ee787', userSelect: 'none' }}>$ </span>
+                {bashCommand}
+              </pre>
+            </div>
+            {/* 审批按钮（仅 pending 状态显示） */}
+            {toolCall.status === 'pending' && (
+              <div style={{ display: 'flex', gap: 8, padding: '4px 0 8px 0' }}>
+                <button
+                  className="btn-approve"
+                  onClick={() => handleApprove(true)}
+                  disabled={approving}
+                  title="允许执行此命令"
+                >
+                  ✓ 允许
+                </button>
+                <button
+                  className="btn-deny"
+                  onClick={() => handleApprove(false)}
+                  disabled={approving}
+                  title="拒绝执行此命令"
+                >
+                  ✗ 拒绝
+                </button>
+              </div>
+            )}
+            {/* 执行结果 */}
+            {toolCall.result !== undefined && (
+              <div className="tool-call-section">
+                <div className="tool-call-section-label">输出</div>
+                <pre className="tool-call-pre" style={{
+                  background: '#0d1117',
+                  color: '#e6edf3',
+                  maxHeight: 300,
+                  fontSize: 12,
+                }}>
+                  {toolCall.result.length > 3000
+                    ? toolCall.result.slice(0, 3000) + '\n…（已截断）'
+                    : toolCall.result}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`tool-call-card tool-call-${toolCall.status}`}>

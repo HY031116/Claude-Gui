@@ -72,6 +72,10 @@ ipcMain.handle('cli:stopMessage', async () => {
   return cliService.stopMessage();
 });
 
+ipcMain.handle('cli:sendToStdin', async (_event, data: string) => {
+  return cliService.sendToMessageStdin(data);
+});
+
 // IPC handlers for filesystem
 ipcMain.handle('fs:list', async (_, dirPath: string) => {
   return fileService.listDirectory(dirPath);
