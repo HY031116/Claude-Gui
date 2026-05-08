@@ -1,0 +1,24 @@
+# 依赖和构建产物
+node_modules/
+claude-code-gui/node_modules/
+claude-code-gui/dist/
+claude-code-gui/dist-ssr/
+claude-code-gui/dist-electron/
+
+# 日志
+*.log
+npm-debug.log*
+
+# 本地敏感配置
+.env
+.env.local
+*.local
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# 打包产物
+release/
