@@ -23,7 +23,7 @@ function renderMarkdown(text: string): string {
 
 /** stream-json 解析结果类型 */
 type ParsedStreamEvent =
-  | { type: 'assistant'; text: string; toolUses: { id: string; name: string; input: Record<string, unknown> }[] }
+  | { type: 'assistant'; text: string; thinking: string; toolUses: { id: string; name: string; input: Record<string, unknown> }[] }
   | { type: 'tool_result'; results: { tool_use_id: string; content: string }[] }
   | { type: 'session_end'; sessionId: string; subtype: string };
 
@@ -35,14 +35,16 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
 
     if (obj.type === 'assistant' && obj.message?.content) {
       const textParts: string[] = [];
+      const thinkingParts: string[] = [];
       const toolUses: { id: string; name: string; input: Record<string, unknown> }[] = [];
       for (const block of obj.message.content) {
         if (block.type === 'text') textParts.push(block.text as string);
+        else if (block.type === 'thinking') thinkingParts.push(block.thinking as string);
         else if (block.type === 'tool_use') {
           toolUses.push({ id: block.id, name: block.name, input: (block.input as Record<string, unknown>) || {} });
         }
       }
-      return { type: 'assistant', text: textParts.join(''), toolUses };
+      return { type: 'assistant', text: textParts.join(''), thinking: thinkingParts.join('\n\n'), toolUses };
     }
 
     if (obj.type === 'tool' && Array.isArray(obj.content)) {
@@ -171,6 +173,11 @@ export function ChatPanel() {
           if (!parsed) continue;
 
           if (parsed.type === 'assistant') {
+            // 提取思考链内容 → 注入消息
+            if (parsed.thinking) {
+              const msgId = ensureAssistantMessage();
+              updateMessage(msgId, { thinking: parsed.thinking });
+            }
             // 累积文本内容 → 打字机队列
             if (parsed.text) {
               targetContentRef.current += parsed.text;
@@ -735,6 +742,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
 /** 消息气泡 */
 function MessageBubble({ msg }: { msg: Message }) {
   const [copied, setCopied] = useState(false);
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const isUser = msg.role === 'user';
   const isSystem = msg.role === 'system';
@@ -812,6 +820,28 @@ function MessageBubble({ msg }: { msg: Message }) {
             {msg.toolCalls.map((tc) => (
               <ToolCallCard key={tc.id} toolCall={tc} />
             ))}
+          </div>
+        )}
+
+        {/* 推理思考链（extended thinking 模式） */}
+        {!isUser && msg.thinking && (
+          <div className="thinking-block">
+            <button
+              className="thinking-toggle"
+              onClick={() => setThinkingExpanded((v) => !v)}
+            >
+              <span className="thinking-icon">🤔</span>
+              <span>推理过程</span>
+              <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 10 }}>
+                {thinkingExpanded ? '收起' : '展开'}
+              </span>
+              {thinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {thinkingExpanded && (
+              <div className="thinking-content">
+                {msg.thinking}
+              </div>
+            )}
           </div>
         )}
 

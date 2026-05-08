@@ -28,6 +28,8 @@ export interface CliConfig {
   httpProxy?: string;
   apiBaseUrl?: string;
   provider?: string;
+  /** 是否开启扩展思考（extended thinking）*/
+  enableThinking?: boolean;
   effortLevel?: string;
 }
 
@@ -273,6 +275,11 @@ export class CliService {
     // 传递 effort 等级
     if (this.config.effortLevel && this.config.effortLevel !== 'default') {
       args.push('--effort', this.config.effortLevel);
+    }
+
+    // 开启扩展思考（extended thinking）
+    if (this.config.enableThinking) {
+      args.push('--thinking');
     }
 
     // 解析 extraArgs

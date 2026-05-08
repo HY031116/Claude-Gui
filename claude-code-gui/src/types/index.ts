@@ -4,6 +4,8 @@ export interface Message {
   content: string;
   timestamp: number;
   toolCalls?: ToolCall[];
+  /** Claude 的扩展思考链内容（extended thinking 模式下可用） */
+  thinking?: string;
 }
 
 export interface ToolCall {
@@ -72,6 +74,8 @@ export interface AppSettings {
   apiBaseUrl: string;
   provider: string;
   effortLevel?: 'low' | 'medium' | 'high' | 'max';
+  /** 是否启用 Claude 扩展思考（extended thinking）功能 */
+  enableThinking?: boolean;
 }
 
 export interface AuthStatus {

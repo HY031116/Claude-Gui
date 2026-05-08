@@ -411,6 +411,22 @@ export function SettingsPanel() {
             </label>
           </div>
 
+          {/* 扩展思考 */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={settings.enableThinking ?? false}
+                onChange={(e) => setSettings({ ...settings, enableThinking: e.target.checked })}
+                style={{ cursor: 'pointer' }}
+              />
+              🤔 扩展思考（Extended Thinking）
+            </label>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, marginLeft: 20 }}>
+              启用后 Claude 会显示推理过程，需要支持思考链的模型（如 claude-sonnet-4-5）
+            </div>
+          </div>
+
           {/* API Base URL for proxies */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>

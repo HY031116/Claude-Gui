@@ -655,6 +655,46 @@ pre code {
   border-left: 2px solid var(--accent-color);
 }
 
+/* 推理思考链 */
+.thinking-block {
+  margin: 0 0 10px 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.thinking-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  background: rgba(139, 91, 234, 0.08);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+  text-align: left;
+}
+.thinking-toggle:hover {
+  background: rgba(139, 91, 234, 0.14);
+}
+.thinking-icon {
+  font-size: 13px;
+}
+.thinking-content {
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow: auto;
+  border-top: 1px solid var(--border-color);
+  font-family: var(--font-mono), monospace;
+}
 
 .chat-send-btn {
   height: 40px;
