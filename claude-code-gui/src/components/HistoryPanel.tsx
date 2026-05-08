@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { MessageSquare, Trash2, FolderOpen, ArrowLeft, Clock, RefreshCw } from 'lucide-react';
+import { MessageSquare, Trash2, FolderOpen, ArrowLeft, Clock, RefreshCw, Search, ArrowUpDown } from 'lucide-react';
 import type { ConversationRecord, CliSessionRecord } from '../types';
 
 /** 格式化相对时间 */
@@ -86,6 +86,10 @@ export function HistoryPanel() {
   const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set());
   /** 当前处于"待确认删除整个项目"的项目 key */
   const [deletingProjectKey, setDeletingProjectKey] = useState<string | null>(null);
+  /** 搜索关键词 */
+  const [searchQuery, setSearchQuery] = useState('');
+  /** 时间排序：false=最新优先，true=最旧优先 */
+  const [sortAsc, setSortAsc] = useState(false);
 
   /** 加载 CLI 本地历史会话 */
   const loadHistory = useCallback(async () => {
@@ -164,16 +168,39 @@ export function HistoryPanel() {
       }
     }
 
-    // 每组内按最后消息时间倒序排列
+    // 每组内按最后消息时间排列（受 sortAsc 控制）
     for (const group of groups.values()) {
-      group.sessions.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+      group.sessions.sort((a, b) =>
+        sortAsc ? a.lastMessageAt - b.lastMessageAt : b.lastMessageAt - a.lastMessageAt,
+      );
     }
 
-    // 分组按最新会话时间倒序
-    return Array.from(groups.values()).sort(
-      (a, b) => (b.sessions[0]?.lastMessageAt ?? 0) - (a.sessions[0]?.lastMessageAt ?? 0),
+    // 构建结果并按最新会话时间排列
+    let result = Array.from(groups.values()).sort(
+      (a, b) => sortAsc
+        ? (a.sessions.slice(-1)[0]?.lastMessageAt ?? 0) - (b.sessions.slice(-1)[0]?.lastMessageAt ?? 0)
+        : (b.sessions[0]?.lastMessageAt ?? 0) - (a.sessions[0]?.lastMessageAt ?? 0),
     );
-  }, [conversationHistory, cliSessions]);
+
+    // 搜索过滤
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result
+        .map((group) => {
+          // 项目名/路径匹配 → 保留全部会话；否则只保留预览内容匹配的会话
+          const projectMatch =
+            group.displayName.toLowerCase().includes(q) ||
+            group.displayPath.toLowerCase().includes(q);
+          const filteredSessions = projectMatch
+            ? group.sessions
+            : group.sessions.filter((s) => s.preview?.toLowerCase().includes(q));
+          return { ...group, sessions: filteredSessions };
+        })
+        .filter((group) => group.sessions.length > 0);
+    }
+
+    return result;
+  }, [conversationHistory, cliSessions, sortAsc, searchQuery]);
 
   /** 自动选中第一个项目（或当前会话所在项目） */
   useEffect(() => {
@@ -345,6 +372,15 @@ export function HistoryPanel() {
         >
           <RefreshCw size={13} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
         </button>
+        {/* 排序切换 */}
+        <button
+          className={`history-back-btn ${sortAsc ? 'active' : ''}`}
+          onClick={() => setSortAsc((prev) => !prev)}
+          title={sortAsc ? '当前：最旧优先，点击切换为最新优先' : '当前：最新优先，点击切换为最旧优先'}
+          style={sortAsc ? { color: 'var(--accent-color, #4299e1)' } : {}}
+        >
+          <ArrowUpDown size={13} />
+        </button>
         {/* 批量选择切换 */}
         {totalCount > 0 && (
           <button
@@ -360,6 +396,23 @@ export function HistoryPanel() {
         {!batchMode && conversationHistory.length > 0 && (
           <button className="history-clear-btn" onClick={clearConversationHistory} title="清空本地历史">
             清空全部
+          </button>
+        )}
+      </div>
+
+      {/* 搜索框 */}
+      <div className="history-search-bar">
+        <Search size={13} className="history-search-icon" />
+        <input
+          className="history-search-input"
+          type="text"
+          placeholder="搜索项目或对话内容..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button className="history-search-clear" onClick={() => setSearchQuery('')} title="清除搜索">
+            ×
           </button>
         )}
       </div>

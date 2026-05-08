@@ -1052,6 +1052,57 @@ pre code {
   background: var(--bg-secondary);
 }
 
+/* 搜索栏 */
+.history-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+  position: relative;
+}
+.history-search-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.history-search-input {
+  flex: 1;
+  height: 28px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0 28px 0 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.history-search-input:focus {
+  border-color: var(--accent-color, #4299e1);
+}
+.history-search-input::placeholder {
+  color: var(--text-muted);
+}
+.history-search-clear {
+  position: absolute;
+  right: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+  transition: color 0.12s;
+}
+.history-search-clear:hover {
+  color: var(--text-primary);
+}
+
 .history-page-title {
   font-size: 14px;
   font-weight: 600;
