@@ -3,6 +3,24 @@ import * as os from 'os';
 import * as path from 'path';
 
 /**
+ * MCP 服务器配置
+ */
+export interface McpServerConfig {
+  /** stdio（默认）或 sse */
+  type?: 'stdio' | 'sse';
+  /** stdio 模式下可执行程序 */
+  command?: string;
+  /** stdio 模式下命令行参数 */
+  args?: string[];
+  /** 环境变量（stdio/sse 均适用） */
+  env?: Record<string, string>;
+  /** sse 模式下服务端 URL */
+  url?: string;
+  /** sse 模式下请求头 */
+  headers?: Record<string, string>;
+}
+
+/**
  * Claude CLI 原生配置文件服务
  * 与 VSCode Claude Code 插件共享配置
  * 配置文件位置: ~/.claude/settings.json
@@ -23,6 +41,9 @@ export interface ClaudeCliSettings {
 
   // 插件设置
   enabledPlugins?: Record<string, boolean>;
+
+  // MCP 服务器（Model Context Protocol）
+  mcpServers?: Record<string, McpServerConfig>;
 
   // 扩展市场
   extraKnownMarketplaces?: Record<string, any>;
