@@ -77,6 +77,7 @@ export interface AppSettings {
   model: string;
   permissionMode: string;
   allowedTools: string;
+  disallowedTools?: string;
   extraArgs: string;
   useBareMode: boolean;
   httpProxy: string;

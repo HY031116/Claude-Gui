@@ -31,6 +31,8 @@ export interface CliConfig {
   /** 是否开启扩展思考（extended thinking）*/
   enableThinking?: boolean;
   effortLevel?: string;
+  /** 允许使用的工具列表（--tools），逗号或空格分隔，默认 'default' 使用所有工具 */
+  disallowedTools?: string;
   /** 附加自定义系统提示词（--append-system-prompt）*/
   systemPrompt?: string;
   /** 系统提示词模式：'append'（默认）= --append-system-prompt；'replace' = --system-prompt */
@@ -281,6 +283,16 @@ export class CliService {
     // 传递权限模式
     if (this.config.permissionMode && this.config.permissionMode !== 'default') {
       args.push('--permission-mode', this.config.permissionMode);
+    }
+
+    // 允许的工具（--tools）
+    if (this.config.allowedTools && this.config.allowedTools !== 'default') {
+      args.push('--tools', this.config.allowedTools);
+    }
+
+    // 禁止的工具（--disallowed-tools）
+    if (this.config.disallowedTools?.trim()) {
+      args.push('--disallowed-tools', this.config.disallowedTools.trim());
     }
 
     // 传递 effort 等级

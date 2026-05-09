@@ -136,6 +136,7 @@ export function SettingsPanel() {
           httpProxy: guiResult.settings.httpProxy || prev.httpProxy,
           useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
+          disallowedTools: guiResult.settings.disallowedTools ?? prev.disallowedTools,
           systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
           systemPromptMode: guiResult.settings.systemPromptMode ?? prev.systemPromptMode,
           agent: guiResult.settings.agent ?? prev.agent,
@@ -360,6 +361,35 @@ export function SettingsPanel() {
           <option value="dontAsk">不询问</option>
           <option value="plan">计划模式</option>
         </select>
+      </div>
+
+      {/* 工具控制 */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          工具控制
+        </label>
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>允许的工具 (--tools)：</div>
+          <input
+            type="text"
+            className="input"
+            value={settings.allowedTools === 'default' ? '' : (settings.allowedTools ?? '')}
+            onChange={(e) => setSettings({ ...settings, allowedTools: e.target.value || 'default' })}
+            placeholder="默认（全部工具），或填写 Bash,Edit,Read"
+            style={{ fontSize: 11, fontFamily: 'monospace' }}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>禁止的工具 (--disallowed-tools)：</div>
+          <input
+            type="text"
+            className="input"
+            value={settings.disallowedTools ?? ''}
+            onChange={(e) => setSettings({ ...settings, disallowedTools: e.target.value })}
+            placeholder="留空则不禁止，或填写 Bash(git:*) WebFetch"
+            style={{ fontSize: 11, fontFamily: 'monospace' }}
+          />
+        </div>
       </div>
 
       {/* Auth Status */}
