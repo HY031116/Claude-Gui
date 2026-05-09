@@ -397,7 +397,14 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage]);
+
+  // 工作目录变更时清空 @ 目录缓存
+  useEffect(() => {
+    setAtDirEntries([]);
+    setAtMenuOpen(false);
+    setAtQuery('');
+  }, [session.workingDirectory]);
 
   // 组件卸载时清理 rAF
   useEffect(() => {
@@ -421,6 +428,9 @@ export function ChatPanel() {
     setInput('');
     setContextFiles([]); // 发送后清空附件
     setPastedImages([]); // 发送后清空图片
+    setAtMenuOpen(false); // 发送后关闭 @ 菜单
+    setAtQuery('');
+    setTokenUsage(null); // 新对话开始时重置 token 用量
     setIsProcessing(true);
     assistantIdRef.current = null;
     targetContentRef.current = '';
@@ -447,7 +457,7 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage]);
+  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage, setTokenUsage]);
 
   /** 选中 @ 文件提及结果：替换输入中的 @查询 并将文件加入上下文 */
   const handleAtSelect = useCallback(async (entry: { name: string; type: string }) => {
