@@ -76,6 +76,8 @@ export interface AppSettings {
   effortLevel?: 'low' | 'medium' | 'high' | 'max';
   /** 是否启用 Claude 扩展思考（extended thinking）功能 */
   enableThinking?: boolean;
+  /** 附加系统提示词 (--append-system-prompt) */
+  systemPrompt?: string;
 }
 
 export interface AuthStatus {

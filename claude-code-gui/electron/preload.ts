@@ -90,6 +90,8 @@ const api: ElectronAPI = {
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
   // 系统通知
   notifySend: (title, body) => ipcRenderer.invoke('notify:send', title, body),
+  // 保存文件对话框（导出会话）
+  saveFileDialog: (options) => ipcRenderer.invoke('dialog:save-file', options),
   // Claude-Mem 插件集成
   checkClaudeMem: () => ipcRenderer.invoke('mem:check'),
   searchMemory: (query, options) => ipcRenderer.invoke('mem:search', query, options),

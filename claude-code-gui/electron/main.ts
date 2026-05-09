@@ -132,6 +132,17 @@ ipcMain.handle('fs:selectFile', async (_event, options?: { filters?: Electron.Fi
   return { success: true, path: result.filePaths[0] };
 });
 
+// 保存文件对话框（用于导出会话）
+ipcMain.handle('dialog:save-file', async (_event, options?: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
+  const win = BrowserWindow.getFocusedWindow();
+  const result = await dialog.showSaveDialog(win!, {
+    defaultPath: options?.defaultPath,
+    filters: options?.filters || [{ name: 'Markdown', extensions: ['md'] }, { name: '文本文件', extensions: ['txt'] }, { name: '所有文件', extensions: ['*'] }],
+  });
+  if (result.canceled || !result.filePath) return { success: true, path: null };
+  return { success: true, path: result.filePath };
+});
+
 // IPC handlers for settings
 ipcMain.handle('settings:load', async () => {
   const result = settingsService.load();

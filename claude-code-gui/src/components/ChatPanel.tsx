@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff, Search, Download } from 'lucide-react';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
@@ -88,7 +88,7 @@ function formatTime(timestamp: number): string {
 }
 
 export function ChatPanel() {
-  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation, setTodoItems, scrollBottomSeq } = useAppStore();
+  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation, setTodoItems, scrollBottomSeq, setCurrentStatus } = useAppStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
@@ -96,6 +96,16 @@ export function ChatPanel() {
   const [wdDraft, setWdDraft] = useState('');
   // 上下文文件附件（每次对话完成后清空，或手动移除）
   const [contextFiles, setContextFiles] = useState<{ path: string; name: string; content: string }[]>([]);
+  // 消息搜索
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // 导出会话加载中
+  const [exporting, setExporting] = useState(false);
+  // 模型快切（从 settings 读取当前值）
+  const [localModel, setLocalModel] = useState('');
+  // 拖拽上传
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const assistantIdRef = useRef<string | null>(null);
@@ -452,9 +462,150 @@ export function ChatPanel() {
     return `…/${parts.slice(-2).join('/')}`;
   }, [session.workingDirectory]);
 
+  // 搜索匹配的消息 ID 列表
+  const matchingMsgIds = useMemo(() => {
+    if (!searchQuery.trim()) return new Set<string>();
+    const q = searchQuery.toLowerCase();
+    return new Set(messages.filter((m) => m.content.toLowerCase().includes(q)).map((m) => m.id));
+  }, [messages, searchQuery]);
+
+  // Ctrl+F 打开搜索
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape' && showSearch) {
+        setShowSearch(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showSearch]);
+
+  // 模型快切：加载当前设置
+  useEffect(() => {
+    window.electronAPI.loadSettings().then((res) => {
+      if (res.success && res.settings?.model) {
+        setLocalModel(res.settings.model);
+      }
+    });
+  }, []);
+
+  const handleModelChange = useCallback(async (model: string) => {
+    setLocalModel(model);
+    const res = await window.electronAPI.loadSettings();
+    if (res.success && res.settings) {
+      const newSettings = { ...res.settings, model };
+      await window.electronAPI.saveSettings(newSettings);
+      setCurrentStatus(model, res.settings.authMode ?? '');
+    }
+  }, [setCurrentStatus]);
+
+  /** 导出会话为 Markdown */
+  const handleExport = useCallback(async () => {
+    if (messages.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+      const defaultPath = `claude-conversation-${ts}.md`;
+      const res = await window.electronAPI.saveFileDialog({ defaultPath, filters: [{ name: 'Markdown', extensions: ['md'] }, { name: 'Text', extensions: ['txt'] }] });
+      if (!res.success || !res.path) return;
+      const lines: string[] = [`# Claude 对话导出\n`, `**时间**: ${new Date().toLocaleString()}`];
+      if (session.conversationSessionId) lines.push(`**会话 ID**: ${session.conversationSessionId}`);
+      lines.push(`\n---\n`);
+      for (const msg of messages) {
+        if (msg.role === 'system') { lines.push(`> *${msg.content}*\n`); continue; }
+        lines.push(`## ${msg.role === 'user' ? '用户' : 'Claude'}\n`);
+        lines.push(msg.content + '\n');
+      }
+      await window.electronAPI.writeFile(res.path, lines.join('\n'));
+    } finally {
+      setExporting(false);
+    }
+  }, [messages, exporting, session.conversationSessionId]);
+
+  /** 处理拖拽文件 */
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    for (const file of files) {
+      // Electron 中 File.path 包含完整路径
+      const filePath = (file as File & { path?: string }).path;
+      if (!filePath) continue;
+      const normalizedPath = filePath.replace(/\\/g, '/');
+      if (contextFiles.some((f) => f.path === normalizedPath)) continue;
+      // 只支持文本文件（< 500KB）
+      if (file.size > 500 * 1024) {
+        addMessage({ id: `msg-${Date.now()}`, role: 'system', content: `文件 ${file.name} 超过 500KB，跳过`, timestamp: Date.now() });
+        continue;
+      }
+      const readResult = await window.electronAPI.readFile(normalizedPath);
+      if (!readResult.success) {
+        addMessage({ id: `msg-${Date.now()}`, role: 'system', content: `无法读取文件: ${file.name}`, timestamp: Date.now() });
+        continue;
+      }
+      setContextFiles((prev) => [...prev, { path: normalizedPath, name: file.name, content: readResult.content ?? '' }]);
+    }
+  }, [contextFiles, addMessage]);
+
   return (
-    <div className="chat-container">
-      <div className="message-list">
+    <div
+      className="chat-container"
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); }}
+      onDrop={handleDrop}
+    >
+      {/* 拖拽遮罩 */}
+      {isDragging && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 100,
+          background: 'rgba(var(--accent-rgb),0.12)',
+          border: '2px dashed var(--accent-color)',
+          borderRadius: 8,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontSize: 15, color: 'var(--accent-color)', fontWeight: 600 }}>
+            拖放文件以附加到对话
+          </div>
+        </div>
+      )}
+      {/* 搜索栏 */}
+      {showSearch && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border-color)',
+          padding: '8px 12px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <Search size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索消息内容…"
+            style={{
+              flex: 1, border: 'none', outline: 'none',
+              background: 'transparent', color: 'var(--text-primary)', fontSize: 13,
+            }}
+          />
+          {searchQuery && (
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              {matchingMsgIds.size} 条匹配
+            </span>
+          )}
+          <button className="btn" style={{ padding: '2px 6px' }} onClick={() => { setShowSearch(false); setSearchQuery(''); }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+      <div className="message-list" style={{ paddingTop: showSearch ? 48 : undefined }}>
         <div className="message-list-inner">
         {/* 多轮对话状态徽章 */}
         {session.conversationSessionId && (
@@ -494,7 +645,12 @@ export function ChatPanel() {
         )}
 
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} msg={msg} />
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
+            searchQuery={searchQuery}
+            isMatch={matchingMsgIds.has(msg.id)}
+          />
         ))}
 
         {isProcessing && (
@@ -605,6 +761,55 @@ export function ChatPanel() {
             + 新对话
           </button>
         )}
+
+        {/* 底部工具栏：模型快切 + 搜索 + 导出 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 4 }}>
+          {/* 模型快切 */}
+          <select
+            value={localModel}
+            onChange={(e) => handleModelChange(e.target.value)}
+            title="快速切换模型（立即保存）"
+            style={{
+              flex: 1,
+              fontSize: 11,
+              padding: '3px 6px',
+              border: '1px solid var(--border-color)',
+              borderRadius: 4,
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              maxWidth: 200,
+            }}
+          >
+            <option value="default">模型: 默认</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="opus">Opus</option>
+            <option value="haiku">Haiku</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+            <option value="claude-opus-4-7">Claude Opus 4.7</option>
+            <option value="ark-code-latest">Ark Code Latest</option>
+          </select>
+          <div style={{ flex: 1 }} />
+          {/* 消息搜索 */}
+          <button
+            className="btn"
+            title="搜索消息 (Ctrl+F)"
+            onClick={() => { setShowSearch(!showSearch); setTimeout(() => searchInputRef.current?.focus(), 50); }}
+            style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <Search size={13} />
+          </button>
+          {/* 导出会话 */}
+          <button
+            className="btn"
+            title="导出会话为 Markdown"
+            onClick={handleExport}
+            disabled={messages.length === 0 || exporting}
+            style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            {exporting ? <Loader2 size={13} className="spin" /> : <Download size={13} />}
+          </button>
+        </div>
         </div>
       </div>
     </div>
@@ -827,7 +1032,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
 }
 
 /** 消息气泡 */
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, searchQuery = '', isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -890,7 +1095,10 @@ function MessageBubble({ msg }: { msg: Message }) {
   }
 
   return (
-    <div className={`message-bubble ${isUser ? 'message-bubble-user' : ''}`}>
+    <div
+      className={`message-bubble ${isUser ? 'message-bubble-user' : ''}`}
+      style={isMatch ? { outline: '2px solid var(--accent-color)', outlineOffset: 2, borderRadius: 6 } : undefined}
+    >
       <div className={`message-avatar ${isUser ? 'message-avatar-user' : 'message-avatar-assistant'}`}>
         {isUser ? <User size={14} /> : <Bot size={14} />}
       </div>

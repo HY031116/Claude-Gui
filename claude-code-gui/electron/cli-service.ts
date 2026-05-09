@@ -31,6 +31,8 @@ export interface CliConfig {
   /** 是否开启扩展思考（extended thinking）*/
   enableThinking?: boolean;
   effortLevel?: string;
+  /** 附加自定义系统提示词（--append-system-prompt）*/
+  systemPrompt?: string;
 }
 
 export interface CliStartOptions {
@@ -287,6 +289,11 @@ export class CliService {
     if (this.config.extraArgs) {
       const extraArgList = this.config.extraArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
       args.push(...extraArgList);
+    }
+
+    // 附加系统提示词
+    if (this.config.systemPrompt?.trim()) {
+      args.push('--append-system-prompt', this.config.systemPrompt.trim());
     }
 
     // 准备环境变量

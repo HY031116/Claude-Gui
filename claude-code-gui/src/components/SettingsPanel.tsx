@@ -128,6 +128,7 @@ export function SettingsPanel() {
           httpProxy: guiResult.settings.httpProxy || prev.httpProxy,
           useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
+          systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
         }));
       }
 
@@ -519,7 +520,7 @@ export function SettingsPanel() {
           </div>
 
           {/* Extra CLI Args */}
-          <div>
+          <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
               额外命令行参数
             </label>
@@ -530,6 +531,21 @@ export function SettingsPanel() {
               onChange={(e) => setSettings({ ...settings, extraArgs: e.target.value })}
               placeholder="--verbose --no-stream"
               style={{ fontSize: 11, fontFamily: 'monospace' }}
+            />
+          </div>
+
+          {/* 附加系统提示词 */}
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+              附加系统提示词
+            </label>
+            <textarea
+              className="input"
+              value={settings.systemPrompt ?? ''}
+              onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
+              placeholder="每次对话自动附加到 Claude 的自定义指令（--append-system-prompt）"
+              rows={3}
+              style={{ fontSize: 11, fontFamily: 'monospace', resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
             />
           </div>
         </div>
