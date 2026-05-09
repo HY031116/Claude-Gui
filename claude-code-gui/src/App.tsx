@@ -9,13 +9,14 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server } from 'lucide-react';
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import { SessionList } from './components/SessionList';
 import { MemSearchPanel } from './components/MemSearchPanel';
 import { MemoryEditPanel } from './components/MemoryEditPanel';
 import { CheckpointPanel } from './components/CheckpointPanel';
+import { McpPanel } from './components/McpPanel';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -357,6 +358,7 @@ function App() {
     { id: 'mem' as const, label: '记忆搜索', icon: Brain },
     { id: 'claude-md' as const, label: 'CLAUDE.md', icon: FileEdit },
     { id: 'checkpoints' as const, label: '文件快照', icon: RotateCcw },
+    { id: 'mcp' as const, label: 'MCP', icon: Server },
   ];
 
   return (
@@ -592,6 +594,8 @@ function App() {
           <MemoryEditPanel />
         ) : activePanel === 'checkpoints' ? (
           <CheckpointPanel />
+        ) : activePanel === 'mcp' ? (
+          <McpPanel />
         ) : (
           <>
             <ChatPanel />
