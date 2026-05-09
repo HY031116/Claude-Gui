@@ -1,10 +1,30 @@
+import { useEffect, useState } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { CheckCircle2, Circle, Loader2, ClipboardList, XCircle, Zap } from 'lucide-react';
 
 export function TaskPanel() {
   const { todoItems, activePlanSteps } = useAppStore();
+  const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
 
-  if (todoItems.length === 0 && activePlanSteps.length === 0) {
+  // 所有步骤完成后触发淡出 → 1.5s 后清空，避免区域常驻遮挡任务列表
+  const [fadingOut, setFadingOut] = useState(false);
+  useEffect(() => {
+    if (activePlanSteps.length === 0) {
+      setFadingOut(false);
+      return;
+    }
+    const allDone = activePlanSteps.every((s) => s.status === 'done' || s.status === 'error');
+    if (allDone) {
+      setFadingOut(true);
+      const timer = setTimeout(() => {
+        clearPlanSteps();
+        setFadingOut(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [activePlanSteps, clearPlanSteps]);
+
+  if (todoItems.length === 0 && activePlanSteps.length === 0 && !fadingOut) {
     return (
       <div style={{
         display: 'flex',
@@ -32,13 +52,15 @@ export function TaskPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* 实时执行步骤（对标 Codex turn/plan/updated） */}
+      {/* 实时执行步骤（对标 Codex turn/plan/updated），完成后淡出 */}
       {activePlanSteps.length > 0 && (
         <div style={{
           padding: '10px 16px',
           borderBottom: '1px solid var(--border-color)',
           flexShrink: 0,
           background: 'rgba(88, 166, 255, 0.04)',
+          opacity: fadingOut ? 0 : 1,
+          transition: 'opacity 1.2s ease',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Zap size={12} color="var(--accent-color)" />
