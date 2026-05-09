@@ -75,6 +75,29 @@
 [data-theme="light"] .hljs-params { color: #24292f; }
 [data-theme="light"] .hljs-type { color: #0550ae; }
 
+/* 亮色主题覆盖：inline code、表格、滚动条 */
+[data-theme="light"] .markdown-body code {
+  background: rgba(9, 105, 218, 0.07);
+  color: #0550ae;
+  border-color: rgba(9, 105, 218, 0.18);
+}
+[data-theme="light"] .markdown-body th {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+[data-theme="light"] .markdown-body tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.025);
+}
+[data-theme="light"] .markdown-body tr:hover {
+  background: rgba(9, 105, 218, 0.06);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
 /* 底部状态栏 */
 .status-bar {
   position: fixed;
