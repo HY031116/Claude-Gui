@@ -94,6 +94,11 @@ function App() {
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const todoItems = useAppStore((s) => s.todoItems);
+  const tabs = useAppStore((s) => s.tabs);
+  const activeTabId = useAppStore((s) => s.activeTabId);
+  const addTab = useAppStore((s) => s.addTab);
+  const closeTab = useAppStore((s) => s.closeTab);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
   const isWindows = navigator.userAgent.includes('Windows');
 
   // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
@@ -602,7 +607,74 @@ function App() {
           <AgentPanel />
         ) : (
           <>
-            <ChatPanel />
+            {/* 多会话标签条 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: 'var(--bg-secondary)',
+              borderBottom: '1px solid var(--border-color)',
+              flexShrink: 0,
+              minHeight: 32,
+              overflowX: 'auto',
+              overflowY: 'hidden',
+            }}>
+              {tabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    borderRight: '1px solid var(--border-color)',
+                    borderBottom: tab.id === activeTabId ? '2px solid var(--accent-color)' : '2px solid transparent',
+                    background: tab.id === activeTabId ? 'var(--bg-primary)' : 'transparent',
+                    color: tab.id === activeTabId ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    userSelect: 'none',
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  {tabs.length > 1 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        fontSize: 13,
+                        lineHeight: 1,
+                        padding: '0 2px',
+                        marginLeft: 2,
+                        borderRadius: 3,
+                      }}
+                      title="关闭标签"
+                    >×</button>
+                  )}
+                </div>
+              ))}
+              {/* 新建标签按钮 */}
+              <button
+                onClick={() => addTab()}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  fontSize: 16,
+                  padding: '2px 10px',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+                title="新建会话标签 (Ctrl+T)"
+              >+</button>
+            </div>
+            <ChatPanel key={activeTabId} />
             <TerminalPanel />
           </>
         )}

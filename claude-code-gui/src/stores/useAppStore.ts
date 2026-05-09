@@ -20,7 +20,42 @@ function saveHistory(history: ConversationRecord[]): void {
   } catch { /* 忽略存储失败 */ }
 }
 
+/** 每个 Tab 的状态快照 */
+interface TabSnapshot {
+  messages: Message[];
+  session: SessionState;
+  tokenUsage: { inputTokens: number; outputTokens: number; costUsd?: number } | null;
+  todoItems: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[];
+  activePlanSteps: PlanStep[];
+}
+
+/** Tab 描述符 */
+export interface ChatTab {
+  id: string;
+  label: string;
+}
+
+const DEFAULT_SESSION: SessionState = { isConnected: false, workingDirectory: '' };
+const DEFAULT_SNAPSHOT: TabSnapshot = {
+  messages: [],
+  session: DEFAULT_SESSION,
+  tokenUsage: null,
+  todoItems: [],
+  activePlanSteps: [],
+};
+
+let tabCounter = 1;
+
 interface AppState {
+  // ─── 多标签 ───────────────────────────────────────────────
+  tabs: ChatTab[];
+  activeTabId: string;
+  tabSnapshots: Record<string, TabSnapshot>;
+  addTab: () => string;          // 创建新 tab，返回 tabId
+  closeTab: (tabId: string) => void;
+  setActiveTab: (tabId: string) => void;
+  renameTab: (tabId: string, label: string) => void;
+
   // Session
   session: SessionState;
   setSession: (session: Partial<SessionState>) => void;
@@ -88,7 +123,94 @@ interface AppState {
   clearPlanSteps: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
+  // ─── 多标签 ───────────────────────────────────────────────
+  tabs: [{ id: 'tab-1', label: '会话 1' }],
+  activeTabId: 'tab-1',
+  tabSnapshots: {},
+
+  addTab: () => {
+    tabCounter++;
+    const id = `tab-${tabCounter}`;
+    const label = `会话 ${tabCounter}`;
+    // 保存当前 tab 状态快照
+    const state = get();
+    const snapshot: TabSnapshot = {
+      messages: state.messages,
+      session: state.session,
+      tokenUsage: state.tokenUsage,
+      todoItems: state.todoItems,
+      activePlanSteps: state.activePlanSteps,
+    };
+    set((s) => ({
+      tabs: [...s.tabs, { id, label }],
+      activeTabId: id,
+      tabSnapshots: { ...s.tabSnapshots, [s.activeTabId]: snapshot },
+      // 新 tab 从空白状态开始
+      messages: [],
+      session: DEFAULT_SESSION,
+      tokenUsage: null,
+      todoItems: [],
+      activePlanSteps: [],
+    }));
+    return id;
+  },
+
+  closeTab: (tabId: string) => {
+    const state = get();
+    if (state.tabs.length <= 1) return; // 至少保留一个 tab
+    const idx = state.tabs.findIndex((t) => t.id === tabId);
+    const newTabs = state.tabs.filter((t) => t.id !== tabId);
+    // 确定新 activeTabId
+    let newActiveId: string;
+    if (state.activeTabId === tabId) {
+      // 切换到相邻 tab
+      newActiveId = newTabs[Math.max(0, idx - 1)].id;
+      const snapshot = state.tabSnapshots[newActiveId] ?? DEFAULT_SNAPSHOT;
+      const { [tabId]: _, ...restSnapshots } = state.tabSnapshots;
+      set({
+        tabs: newTabs,
+        activeTabId: newActiveId,
+        tabSnapshots: restSnapshots,
+        messages: snapshot.messages,
+        session: snapshot.session,
+        tokenUsage: snapshot.tokenUsage,
+        todoItems: snapshot.todoItems,
+        activePlanSteps: snapshot.activePlanSteps,
+      });
+    } else {
+      const { [tabId]: _, ...restSnapshots } = state.tabSnapshots;
+      set({ tabs: newTabs, tabSnapshots: restSnapshots });
+    }
+  },
+
+  setActiveTab: (tabId: string) => {
+    const state = get();
+    if (state.activeTabId === tabId) return;
+    // 保存当前 tab 快照
+    const snapshot: TabSnapshot = {
+      messages: state.messages,
+      session: state.session,
+      tokenUsage: state.tokenUsage,
+      todoItems: state.todoItems,
+      activePlanSteps: state.activePlanSteps,
+    };
+    const targetSnapshot = state.tabSnapshots[tabId] ?? DEFAULT_SNAPSHOT;
+    set({
+      activeTabId: tabId,
+      tabSnapshots: { ...state.tabSnapshots, [state.activeTabId]: snapshot },
+      messages: targetSnapshot.messages,
+      session: targetSnapshot.session,
+      tokenUsage: targetSnapshot.tokenUsage,
+      todoItems: targetSnapshot.todoItems,
+      activePlanSteps: targetSnapshot.activePlanSteps,
+    });
+  },
+
+  renameTab: (tabId: string, label: string) => {
+    set((s) => ({ tabs: s.tabs.map((t) => t.id === tabId ? { ...t, label } : t) }));
+  },
+
   session: {
     isConnected: false,
     workingDirectory: '',
