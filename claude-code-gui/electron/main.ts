@@ -197,6 +197,17 @@ ipcMain.handle('cli:list-agents', async () => {
   return cliService.listAgents();
 });
 
+// CLI 健康诊断
+ipcMain.handle('cli:doctor', async () => {
+  return cliService.runDoctor();
+});
+
+// CLI 更新 / 升级
+ipcMain.handle('cli:update', async (_, subcmd: 'update' | 'upgrade' = 'update') => {
+  return cliService.runUpdate(subcmd);
+});
+
+
 // IPC handlers for Claude CLI native config (shared with VSCode)
 ipcMain.handle('cli-config:load', async () => {
   const result = cliConfigService.load();

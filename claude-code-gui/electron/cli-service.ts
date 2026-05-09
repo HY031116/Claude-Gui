@@ -515,4 +515,60 @@ export class CliService {
       return { success: false, error: String(error) };
     }
   }
+
+  /** 运行 claude doctor 健康诊断，返回纯文本输出 */
+  runDoctor(): { success: boolean; output?: string; error?: string } {
+    try {
+      const isWin = os.platform() === 'win32';
+      const claudePath = isWin ? 'C:\\Users\\Administrator\\.local\\bin\\claude.exe' : 'claude';
+      const result = spawnSync(claudePath, ['doctor'], {
+        encoding: 'utf8',
+        env: process.env,
+        windowsHide: true,
+        timeout: 15000,
+      });
+      const output = (result.stdout || '') + (result.stderr ? `\n[stderr]\n${result.stderr}` : '');
+      return { success: result.status === 0, output: output.trim() || '（无输出）' };
+    } catch (error) {
+      console.error('[CLI] doctor failed:', error);
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** 运行 claude update / upgrade，返回异步输出 */
+  runUpdate(subcmd: 'update' | 'upgrade' = 'update'): Promise<{ success: boolean; output: string }> {
+    return new Promise((resolve) => {
+      const isWin = os.platform() === 'win32';
+      const claudePath = isWin ? 'C:\\Users\\Administrator\\.local\\bin\\claude.exe' : 'claude';
+      const chunks: string[] = [];
+      let timedOut = false;
+
+      const child = spawn(claudePath, [subcmd], {
+        env: process.env,
+        windowsHide: true,
+        shell: false,
+      });
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, 60000);
+
+      child.stdout.on('data', (d: Buffer) => chunks.push(d.toString()));
+      child.stderr.on('data', (d: Buffer) => chunks.push(d.toString()));
+
+      child.on('close', (code: number | null) => {
+        clearTimeout(timer);
+        const output = chunks.join('').trim() || '（无输出）';
+        if (timedOut) resolve({ success: false, output: output + '\n[超时 60s，已终止]' });
+        else resolve({ success: code === 0, output });
+      });
+
+      child.on('error', (err: Error) => {
+        clearTimeout(timer);
+        resolve({ success: false, output: String(err) });
+      });
+    });
+  }
 }
+

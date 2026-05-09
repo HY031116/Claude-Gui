@@ -80,6 +80,10 @@ export function SettingsPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [doctorResult, setDoctorResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [doctorRunning, setDoctorRunning] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [updateRunning, setUpdateRunning] = useState(false);
 
   // MCP 服务器状态
   const [mcpServers, setMcpServers] = useState<Record<string, any>>({});
@@ -490,6 +494,57 @@ export function SettingsPanel() {
           官方登录
         </button>
       )}
+
+      {/* CLI 维护 */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 500 }}>CLI 维护</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+          <button
+            className="btn"
+            disabled={doctorRunning}
+            style={{ fontSize: 12, flex: 1 }}
+            onClick={async () => {
+              setDoctorRunning(true);
+              setDoctorResult(null);
+              const res = await window.electronAPI.cliDoctor();
+              setDoctorResult({ ok: res.success, text: res.output ?? res.error ?? '（无输出）' });
+              setDoctorRunning(false);
+            }}
+          >
+            {doctorRunning ? '检查中...' : '🩺 健康诊断 (doctor)'}
+          </button>
+          <button
+            className="btn"
+            disabled={updateRunning}
+            style={{ fontSize: 12, flex: 1 }}
+            onClick={async () => {
+              setUpdateRunning(true);
+              setUpdateResult(null);
+              const res = await window.electronAPI.cliUpdate('update');
+              setUpdateResult({ ok: res.success, text: res.output });
+              setUpdateRunning(false);
+            }}
+          >
+            {updateRunning ? '更新中...' : '⬆ 更新 CLI (update)'}
+          </button>
+        </div>
+        {doctorResult && (
+          <pre style={{
+            fontSize: 10, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+            background: doctorResult.ok ? 'var(--success-bg)' : 'var(--warning-bg)',
+            color: doctorResult.ok ? 'var(--success-text)' : 'var(--warning-text)',
+            padding: '8px 10px', borderRadius: 4, margin: 0, maxHeight: 160, overflow: 'auto',
+          }}>{doctorResult.text}</pre>
+        )}
+        {updateResult && (
+          <pre style={{
+            fontSize: 10, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+            background: updateResult.ok ? 'var(--success-bg)' : 'var(--warning-bg)',
+            color: updateResult.ok ? 'var(--success-text)' : 'var(--warning-text)',
+            padding: '8px 10px', borderRadius: 4, margin: 0, maxHeight: 160, overflow: 'auto',
+          }}>{updateResult.text}</pre>
+        )}
+      </div>
 
       {/* Advanced Settings Toggle */}
       <div

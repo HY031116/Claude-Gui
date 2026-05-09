@@ -34,6 +34,8 @@ export interface ElectronAPI {
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
   setNativeTheme: (theme: 'dark' | 'light') => Promise<{ success: boolean }>;
   listAgents: () => Promise<{ success: boolean; agents?: Array<{ name: string; model: string; type: 'builtin' | 'custom' }>; error?: string }>;
+  cliDoctor: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  cliUpdate: (subcmd?: 'update' | 'upgrade') => Promise<{ success: boolean; output: string }>;
   getAuthStatus: () => Promise<{ success: boolean; status?: any; error?: string }>;
   launchOfficialLogin: () => Promise<{ success: boolean; error?: string }>;
   // Claude CLI native config (shared with VSCode)
@@ -113,6 +115,8 @@ const api: ElectronAPI = {
   // Claude-Mem 插件集成
   checkClaudeMem: () => ipcRenderer.invoke('mem:check'),
   searchMemory: (query, options) => ipcRenderer.invoke('mem:search', query, options),
+  cliDoctor: () => ipcRenderer.invoke('cli:doctor'),
+  cliUpdate: (subcmd = 'update') => ipcRenderer.invoke('cli:update', subcmd),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

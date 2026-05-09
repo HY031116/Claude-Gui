@@ -58,6 +58,9 @@ export interface ElectronAPI {
   // Claude-Mem 插件集成
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
   searchMemory: (query: string, options?: { limit?: number; offset?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
+  // CLI 维护
+  cliDoctor: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  cliUpdate: (subcmd?: 'update' | 'upgrade') => Promise<{ success: boolean; output: string }>;
 }
 
 export interface GitFile {
