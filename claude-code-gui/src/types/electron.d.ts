@@ -48,7 +48,7 @@ export interface ElectronAPI {
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
   // Claude-Mem 插件集成
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
-  searchMemory: (query: string, options?: { limit?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
+  searchMemory: (query: string, options?: { limit?: number; offset?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
 }
 
 export interface GitFile {

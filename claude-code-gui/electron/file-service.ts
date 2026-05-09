@@ -414,7 +414,7 @@ export class FileService {
    */
   async searchClaudeMem(
     query: string,
-    options: { limit?: number; project?: string; type?: string } = {},
+    options: { limit?: number; offset?: number; project?: string; type?: string } = {},
   ): Promise<{ success: boolean; content?: string; error?: string }> {
     return new Promise((resolve) => {
       const pluginDir = this.findClaudeMemPluginDir();
@@ -482,6 +482,7 @@ export class FileService {
 
       // 发送 MCP 协议握手 + 搜索请求（换行分隔 JSON-RPC）
       const searchArgs: Record<string, unknown> = { query, limit: options.limit ?? 20 };
+      if (options.offset) searchArgs.offset = options.offset;
       if (options.project) searchArgs.project = options.project;
       if (options.type) searchArgs.type = options.type;
 
