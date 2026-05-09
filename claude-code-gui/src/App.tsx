@@ -24,15 +24,6 @@ function stripAnsi(str: string): string {
 function detectInteractivePrompt(text: string): CliPrompt | null {
   const clean = stripAnsi(text);
 
-  // Debug: log what we're checking
-  console.log('[App] =============================');
-  console.log('[App] Checking for prompts in output:');
-  console.log('[App] Raw length:', text.length);
-  console.log('[App] Clean length:', clean.length);
-  console.log('[App] Clean preview (first 500 chars):');
-  console.log(clean.slice(0, 500));
-  console.log('[App] --- end preview ---');
-
   // Check for key markers
   const hasChooseText = clean.includes('Choose the text style');
   const hasTextStyle = clean.includes('text style');
@@ -40,15 +31,10 @@ function detectInteractivePrompt(text: string): CliPrompt | null {
   const hasDarkMode = clean.includes('Dark mode');
   const hasLightMode = clean.includes('Light mode');
 
-  console.log('[App] Markers - chooseText:', hasChooseText, 'textStyle:', hasTextStyle, 'welcome:', hasWelcome, 'darkMode:', hasDarkMode, 'lightMode:', hasLightMode);
-
   // Theme selection prompt - multiple detection patterns
   const hasThemePrompt = hasChooseText || hasTextStyle || (hasWelcome && hasDarkMode && hasLightMode);
 
-  console.log('[App] hasThemePrompt:', hasThemePrompt);
-
   if (hasThemePrompt) {
-    console.log('[App] >>> MATCHED theme-selection prompt!');
     return {
       id: 'theme-selection',
       title: '选择终端主题',
@@ -67,10 +53,8 @@ function detectInteractivePrompt(text: string): CliPrompt | null {
   // Syntax theme selection
   const hasSyntaxTheme = clean.includes('Syntax theme');
   const hasMonokai = clean.includes('Monokai');
-  console.log('[App] Markers - syntaxTheme:', hasSyntaxTheme, 'monokai:', hasMonokai);
 
   if (hasSyntaxTheme || hasMonokai) {
-    console.log('[App] >>> MATCHED syntax-theme prompt!');
     return {
       id: 'syntax-theme',
       title: '选择语法主题',
@@ -82,8 +66,6 @@ function detectInteractivePrompt(text: string): CliPrompt | null {
     };
   }
 
-  console.log('[App] No prompt matched');
-  console.log('[App] =============================');
   return null;
 }
 
@@ -248,32 +230,24 @@ function App() {
       // Accumulate output for prompt detection
       if (event.type === 'stdout') {
         outputBuffer.current += event.data;
-        console.log('[App] Output buffer now length:', outputBuffer.current.length);
 
         // Debounce prompt detection
         if (promptCheckTimer.current) {
           clearTimeout(promptCheckTimer.current);
         }
         promptCheckTimer.current = setTimeout(() => {
-          console.log('[App] === DEBOUNCE FIRE ===');
-          console.log('[App] pendingPrompt:', pendingPrompt ? pendingPrompt.id : 'null');
-          console.log('[App] resolved prompts:', Array.from(promptResolved.current));
-
           // Skip if a prompt is already showing
           if (pendingPrompt) {
-            console.log('[App] Prompt already showing, skipping detection');
             return;
           }
           const prompt = detectInteractivePrompt(outputBuffer.current);
           if (prompt && !promptResolved.current.has(prompt.id)) {
-            console.log('[App] >>> MATCHED interactive prompt:', prompt.id);
             if (isWindows && (prompt.id === 'theme-selection' || prompt.id === 'syntax-theme')) {
               void restartInCompatibilityMode(prompt);
             } else {
               setPendingPrompt(prompt);
             }
           }
-          console.log('[App] === END DEBOUNCE ===');
         }, 1500);
       }
 
