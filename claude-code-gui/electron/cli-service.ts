@@ -263,7 +263,7 @@ export class CliService {
    * 非交互模式发送消息：使用 claude -p --output-format stream-json
    * 每条消息独立启动子进程，流式推送响应到渲染进程
    */
-  sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[]): { success: boolean; error?: string } {
+  sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string): { success: boolean; error?: string } {
     // 如果有正在运行的消息进程，先终止
     if (this.activeMessageProcess) {
       this.activeMessageProcess.kill();
@@ -342,6 +342,12 @@ export class CliService {
       } else {
         args.push('--append-system-prompt', this.config.systemPrompt.trim());
       }
+    }
+
+    // 指定 agent（--agent <name>），优先使用本次调用的临时 override
+    const agentName = agentOverride ?? this.config.agent;
+    if (agentName && agentName !== 'default') {
+      args.push('--agent', agentName);
     }
 
     // 图片附件（--image /path/to/img.png）

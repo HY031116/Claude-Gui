@@ -10,7 +10,7 @@ export interface ElectronAPI {
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
   cliStop: () => Promise<{ success: boolean; error?: string }>;
   /** 非交互模式：每条消息独立子违，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
-  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[]) => Promise<{ success: boolean; error?: string }>;
+  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string) => Promise<{ success: boolean; error?: string }>;
   cliStopMessage: () => Promise<{ success: boolean }>;
   /** 向当前运行中的消息进程 stdin 写入数据（用于 supervised 模式审批：'y\n' 或 'n\n'） */
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
@@ -73,7 +73,7 @@ const api: ElectronAPI = {
   cliStart: (options) => ipcRenderer.invoke('cli:start', options),
   cliSend: (message) => ipcRenderer.invoke('cli:send', message),
   cliStop: () => ipcRenderer.invoke('cli:stop'),
-  cliSendMessage: (message, cwd, sessionId, imagePaths) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId, imagePaths),
+  cliSendMessage: (message, cwd, sessionId, imagePaths, agentOverride) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId, imagePaths, agentOverride),
   cliStopMessage: () => ipcRenderer.invoke('cli:stopMessage'),
   cliSendToStdin: (data: string) => ipcRenderer.invoke('cli:sendToStdin', data),
   onCliOutput: (callback) => {

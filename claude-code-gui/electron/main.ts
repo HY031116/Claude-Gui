@@ -73,8 +73,8 @@ ipcMain.handle('cli:stop', async () => {
 });
 
 // 非交互模式发送消息（每条消息独立子进程）
-ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[]) => {
-  return cliService.sendMessage(message, cwd, sessionId, imagePaths);
+ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string) => {
+  return cliService.sendMessage(message, cwd, sessionId, imagePaths, agentOverride);
 });
 
 ipcMain.handle('cli:stopMessage', async () => {

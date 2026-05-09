@@ -209,6 +209,9 @@ export function ChatPanel() {
   const [exporting, setExporting] = useState(false);
   // 模型快切（从 settings 读取当前值）
   const [localModel, setLocalModel] = useState('');
+  // Agent 快切
+  const [localAgent, setLocalAgent] = useState('');
+  const [customAgentNames, setCustomAgentNames] = useState<string[]>([]);
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
   // Slash 命令补全
@@ -513,6 +516,7 @@ export function ChatPanel() {
         session.workingDirectory || undefined,
         currentSessionId,
         pastedImages.length > 0 ? pastedImages.map((img) => img.path) : undefined,
+        localAgent && localAgent !== 'default' ? localAgent : undefined,
       );
       if (!result.success) {
         addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: result.error || '消息发送失败。', timestamp: Date.now() });
@@ -522,7 +526,7 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage, setTokenUsage, clearPlanSteps]);
+  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, addMessage, setTokenUsage, clearPlanSteps]);
 
   /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
   const loadAtDir = useCallback(async (query: string) => {
@@ -802,6 +806,12 @@ export function ChatPanel() {
     window.electronAPI.loadSettings().then((res) => {
       if (res.success && res.settings?.model) {
         setLocalModel(res.settings.model);
+      }
+    });
+    // 加载自定义 Agent 列表
+    window.electronAPI.agentList().then((res) => {
+      if (res.success && res.agents) {
+        setCustomAgentNames(res.agents.map((a) => a.name || a.filename.replace('.md', '')));
       }
     });
   }, []);
@@ -1219,6 +1229,32 @@ export function ChatPanel() {
             <option value="claude-opus-4-7">Claude Opus 4.7</option>
             <option value="ark-code-latest">Ark Code Latest</option>
           </select>
+          {/* Agent 快切 */}
+          {customAgentNames.length > 0 && (
+            <select
+              value={localAgent}
+              onChange={(e) => setLocalAgent(e.target.value)}
+              title="快速切换 Agent"
+              disabled={!!session.conversationSessionId}
+              style={{
+                flex: 1,
+                fontSize: 11,
+                padding: '3px 6px',
+                border: '1px solid var(--border-color)',
+                borderRadius: 4,
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-secondary)',
+                cursor: session.conversationSessionId ? 'not-allowed' : 'pointer',
+                maxWidth: 160,
+                opacity: session.conversationSessionId ? 0.5 : 1,
+              }}
+            >
+              <option value="">Agent: 默认</option>
+              {customAgentNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          )}
           <div style={{ flex: 1 }} />
           {/* 消息搜索 */}
           <button
