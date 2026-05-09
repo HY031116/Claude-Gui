@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff, Search, Download } from 'lucide-react';
 import { marked } from 'marked';
@@ -88,7 +88,16 @@ function formatTime(timestamp: number): string {
 }
 
 export function ChatPanel() {
-  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation, setTodoItems, scrollBottomSeq, setCurrentStatus } = useAppStore();
+  // 精确订阅各自所需字段，避免无关 store 更新触发 ChatPanel 整体重渲
+  const messages = useAppStore((s) => s.messages);
+  const session = useAppStore((s) => s.session);
+  const scrollBottomSeq = useAppStore((s) => s.scrollBottomSeq);
+  const addMessage = useAppStore((s) => s.addMessage);
+  const updateMessage = useAppStore((s) => s.updateMessage);
+  const setSession = useAppStore((s) => s.setSession);
+  const addOrUpdateConversation = useAppStore((s) => s.addOrUpdateConversation);
+  const setTodoItems = useAppStore((s) => s.setTodoItems);
+  const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
@@ -882,8 +891,8 @@ export function ChatPanel() {
   );
 }
 
-/** 工具调用折叠卡片 */
-function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
+/** 工具调用折叠卡片 — memo 防止父消息文本更新时未变工具卡片重渲 */
+const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
 
   const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
@@ -1076,10 +1085,10 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
       )}
     </div>
   );
-}
+});
 
-/** 消息气泡 */
-function MessageBubble({ msg, searchQuery: _searchQuery = '', isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
+/** 消息气泡 — memo 防止流式输出时历史消息无效重渲 */
+const MessageBubble = memo(function MessageBubble({ msg, searchQuery: _searchQuery = '', isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1226,4 +1235,4 @@ function MessageBubble({ msg, searchQuery: _searchQuery = '', isMatch = false }:
       </div>
     </div>
   );
-}
+});
