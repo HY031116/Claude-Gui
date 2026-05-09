@@ -9,8 +9,8 @@ export interface ElectronAPI {
   cliStart: (options: { cwd: string; args?: string[]; forceBareMode?: boolean }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
   cliStop: () => Promise<{ success: boolean; error?: string }>;
-  /** 非交互模式：每条消息独立子进程，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
-  cliSendMessage: (message: string, cwd?: string, sessionId?: string) => Promise<{ success: boolean; error?: string }>;
+  /** 非交互模式：每条消息独立子违，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
+  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[]) => Promise<{ success: boolean; error?: string }>;
   cliStopMessage: () => Promise<{ success: boolean }>;
   /** 向当前运行中的消息进程 stdin 写入数据（用于 supervised 模式审批：'y\n' 或 'n\n'） */
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
@@ -51,6 +51,8 @@ export interface ElectronAPI {
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
   // 保存文件对话框（导出会话）
   saveFileDialog: (options?: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<{ success: boolean; path: string | null }>;
+  /** 将 base64 图片保存到系统临时目录，返回文件路径（图片粘贴功能用） */
+  saveTempImage: (base64: string, ext?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
   // Claude-Mem 插件集成
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
   searchMemory: (query: string, options?: { limit?: number; offset?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
@@ -60,7 +62,7 @@ const api: ElectronAPI = {
   cliStart: (options) => ipcRenderer.invoke('cli:start', options),
   cliSend: (message) => ipcRenderer.invoke('cli:send', message),
   cliStop: () => ipcRenderer.invoke('cli:stop'),
-  cliSendMessage: (message, cwd, sessionId) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId),
+  cliSendMessage: (message, cwd, sessionId, imagePaths) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId, imagePaths),
   cliStopMessage: () => ipcRenderer.invoke('cli:stopMessage'),
   cliSendToStdin: (data: string) => ipcRenderer.invoke('cli:sendToStdin', data),
   onCliOutput: (callback) => {
@@ -97,6 +99,7 @@ const api: ElectronAPI = {
   notifySend: (title, body) => ipcRenderer.invoke('notify:send', title, body),
   // 保存文件对话框（导出会话）
   saveFileDialog: (options) => ipcRenderer.invoke('dialog:save-file', options),
+  saveTempImage: (base64, ext) => ipcRenderer.invoke('fs:saveTempImage', base64, ext),
   // Claude-Mem 插件集成
   checkClaudeMem: () => ipcRenderer.invoke('mem:check'),
   searchMemory: (query, options) => ipcRenderer.invoke('mem:search', query, options),

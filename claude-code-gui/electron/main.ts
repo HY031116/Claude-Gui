@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { CliService, type CliStartOptions } from './cli-service';
 import { FileService } from './file-service';
 import { SettingsService } from './settings-service';
@@ -68,8 +69,8 @@ ipcMain.handle('cli:stop', async () => {
 });
 
 // 非交互模式发送消息（每条消息独立子进程）
-ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string) => {
-  return cliService.sendMessage(message, cwd, sessionId);
+ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[]) => {
+  return cliService.sendMessage(message, cwd, sessionId, imagePaths);
 });
 
 ipcMain.handle('cli:stopMessage', async () => {
@@ -91,6 +92,20 @@ ipcMain.handle('fs:read', async (_, filePath: string) => {
 
 ipcMain.handle('fs:write', async (_, filePath: string, content: string) => {
   return fileService.writeFile(filePath, content);
+});
+
+// 将 base64 图片写入系统临时目录，返回文件路径（用于图片粘贴发送）
+ipcMain.handle('fs:saveTempImage', async (_event, base64: string, ext: string = 'png') => {
+  try {
+    const tmpDir = app.getPath('temp');
+    const filename = `claude-paste-${Date.now()}.${ext}`;
+    const filePath = path.join(tmpDir, filename);
+    const buffer = Buffer.from(base64, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    return { success: true, path: filePath };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
 });
 
 ipcMain.handle('cli:history', async () => {

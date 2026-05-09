@@ -246,7 +246,7 @@ export class CliService {
    * 非交互模式发送消息：使用 claude -p --output-format stream-json
    * 每条消息独立启动子进程，流式推送响应到渲染进程
    */
-  sendMessage(message: string, cwd?: string, sessionId?: string): { success: boolean; error?: string } {
+  sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[]): { success: boolean; error?: string } {
     // 如果有正在运行的消息进程，先终止
     if (this.activeMessageProcess) {
       this.activeMessageProcess.kill();
@@ -294,6 +294,13 @@ export class CliService {
     // 附加系统提示词
     if (this.config.systemPrompt?.trim()) {
       args.push('--append-system-prompt', this.config.systemPrompt.trim());
+    }
+
+    // 图片附件（--image /path/to/img.png）
+    if (imagePaths?.length) {
+      for (const imgPath of imagePaths) {
+        args.push('--image', imgPath);
+      }
     }
 
     // 准备环境变量
