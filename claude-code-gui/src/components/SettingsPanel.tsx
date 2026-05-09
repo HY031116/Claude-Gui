@@ -137,6 +137,7 @@ export function SettingsPanel() {
           useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
           systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
+          systemPromptMode: guiResult.settings.systemPromptMode ?? prev.systemPromptMode,
           agent: guiResult.settings.agent ?? prev.agent,
         }));
       }
@@ -570,13 +571,36 @@ export function SettingsPanel() {
           {/* 附加系统提示词 */}
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
-              附加系统提示词
+              系统提示词
             </label>
+            {/* 模式选择 */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+              {(['append', 'replace'] as const).map(mode => (
+                <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  <input
+                    type="radio"
+                    name="systemPromptMode"
+                    value={mode}
+                    checked={(settings.systemPromptMode ?? 'append') === mode}
+                    onChange={() => setSettings({ ...settings, systemPromptMode: mode })}
+                    style={{ accentColor: 'var(--accent-color)' }}
+                  />
+                  {mode === 'append' ? '追加到默认提示词' : '完全替换系统提示词'}
+                </label>
+              ))}
+            </div>
+            {(settings.systemPromptMode ?? 'append') === 'replace' && (
+              <div style={{ fontSize: 11, color: '#f59e0b', marginBottom: 6, padding: '4px 8px', background: 'rgba(245,158,11,0.1)', borderRadius: 4 }}>
+                ⚠ 替换模式会完全覆盖 Claude 的默认系统提示词，仅在了解影响时使用
+              </div>
+            )}
             <textarea
               className="input"
               value={settings.systemPrompt ?? ''}
               onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
-              placeholder="每次对话自动附加到 Claude 的自定义指令（--append-system-prompt）"
+              placeholder={(settings.systemPromptMode ?? 'append') === 'replace'
+                ? '自定义系统提示词，将完全替换默认提示词（--system-prompt）'
+                : '每次对话自动追加的自定义指令（--append-system-prompt）'}
               rows={3}
               style={{ fontSize: 11, fontFamily: 'monospace', resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
             />

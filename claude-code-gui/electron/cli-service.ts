@@ -33,6 +33,8 @@ export interface CliConfig {
   effortLevel?: string;
   /** 附加自定义系统提示词（--append-system-prompt）*/
   systemPrompt?: string;
+  /** 系统提示词模式：'append'（默认）= --append-system-prompt；'replace' = --system-prompt */
+  systemPromptMode?: 'append' | 'replace';
   /** 指定 agent 名称（--agent <name>）*/
   agent?: string;
 }
@@ -298,9 +300,13 @@ export class CliService {
       args.push(...extraArgList);
     }
 
-    // 附加系统提示词
+    // 附加系统提示词 / 替换系统提示词
     if (this.config.systemPrompt?.trim()) {
-      args.push('--append-system-prompt', this.config.systemPrompt.trim());
+      if (this.config.systemPromptMode === 'replace') {
+        args.push('--system-prompt', this.config.systemPrompt.trim());
+      } else {
+        args.push('--append-system-prompt', this.config.systemPrompt.trim());
+      }
     }
 
     // 图片附件（--image /path/to/img.png）

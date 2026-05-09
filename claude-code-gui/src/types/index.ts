@@ -85,8 +85,10 @@ export interface AppSettings {
   effortLevel?: 'low' | 'medium' | 'high' | 'max';
   /** 是否启用 Claude 扩展思考（extended thinking）功能 */
   enableThinking?: boolean;
-  /** 附加系统提示词 (--append-system-prompt) */
+  /** 附加系统提示词 (--append-system-prompt) 或替换系统提示词 (--system-prompt) */
   systemPrompt?: string;
+  /** 系统提示词模式：'append'（默认，追加）或 'replace'（完全替换） */
+  systemPromptMode?: 'append' | 'replace';
   /** 指定 agent 名称（--agent <name>），默认 'default' 表示不传参 */
   agent?: string;
 }

@@ -16,6 +16,8 @@ export interface AppSettings {
   effortLevel?: 'low' | 'medium' | 'high' | 'max';
   enableThinking?: boolean;
   systemPrompt?: string;
+  /** 'append'（默认）= --append-system-prompt；'replace' = --system-prompt */
+  systemPromptMode?: 'append' | 'replace';
   agent?: string;
 }
 
