@@ -49,6 +49,11 @@ export interface ElectronAPI {
   gitBranch: (cwd: string) => Promise<{ success: boolean; branch: string }>;
   // 系统通知
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
+  // 保存文件对话框（导出会话）
+  saveFileDialog: (options?: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<{ success: boolean; path: string | null }>;
+  // Claude-Mem 插件集成
+  checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
+  searchMemory: (query: string, options?: { limit?: number; offset?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
 }
 
 const api: ElectronAPI = {
