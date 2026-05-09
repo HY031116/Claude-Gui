@@ -87,10 +87,18 @@ export function SettingsPanel() {
   const [newMcp, setNewMcp] = useState({ name: '', type: 'stdio' as 'stdio' | 'sse', command: '', args: '', url: '' });
   // Plugins 状态
   const [enabledPlugins, setEnabledPlugins] = useState<Record<string, boolean>>({});
+  // 可用 agents 列表（从 CLI 加载）
+  const [availableAgents, setAvailableAgents] = useState<Array<{ name: string; model: string; type: 'builtin' | 'custom' }>>([]);
 
   // Load settings on mount
   useEffect(() => {
     loadSettings();
+    // 加载 agent 列表
+    window.electronAPI?.listAgents?.().then((result) => {
+      if (result?.success && result.agents) {
+        setAvailableAgents(result.agents);
+      }
+    });
   }, []);
 
   const loadSettings = useCallback(async () => {
@@ -129,6 +137,7 @@ export function SettingsPanel() {
           useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
           systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
+          agent: guiResult.settings.agent ?? prev.agent,
         }));
       }
 
@@ -306,6 +315,30 @@ export function SettingsPanel() {
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
+      </div>
+
+      {/* Agent 选择（--agent 参数） */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          <Cpu size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+          Agent
+        </label>
+        <select
+          className="input"
+          value={settings.agent || 'default'}
+          onChange={(e) => setSettings({ ...settings, agent: e.target.value })}
+          style={{ fontSize: 12, cursor: 'pointer' }}
+        >
+          <option value="default">默认 (不指定)</option>
+          {availableAgents.map((a) => (
+            <option key={a.name} value={a.name}>
+              {a.name} · {a.model} {a.type === 'custom' ? '(自定义)' : ''}
+            </option>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          对应 CLI 参数 --agent，用于指定子代理策略
+        </div>
       </div>
 
       {/* Permission Mode */}

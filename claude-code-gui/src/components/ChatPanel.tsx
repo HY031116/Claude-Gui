@@ -112,6 +112,11 @@ function formatPlanStep(name: string, input: Record<string, unknown>): { label: 
     const cmd = (input.command as string | undefined) ?? '';
     return { label: '执行命令', description: cmd.slice(0, 80) };
   }
+  if (n === 'task') {
+    const desc = (input.description ?? input.prompt ?? input.task) as string | undefined;
+    const agent = input.agent as string | undefined;
+    return { label: '子代理任务', description: agent ? `[${agent}] ${(desc ?? '').slice(0, 50)}` : (desc ?? '').slice(0, 60) };
+  }
   if (n === 'write' || n === 'write_file' || n === 'str_replace_based_edit_tool') {
     const p = (input.file_path || input.path || input.filename) as string | undefined;
     return { label: '写入文件', description: p ?? '' };

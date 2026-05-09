@@ -33,6 +33,8 @@ export interface CliConfig {
   effortLevel?: string;
   /** 附加自定义系统提示词（--append-system-prompt）*/
   systemPrompt?: string;
+  /** 指定 agent 名称（--agent <name>）*/
+  agent?: string;
 }
 
 export interface CliStartOptions {
@@ -113,6 +115,11 @@ export class CliService {
         // Parse extra args safely
         const extraArgList = this.config.extraArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
         args.push(...extraArgList);
+      }
+
+      // Agent selection（subagent 功能）
+      if (this.config.agent && this.config.agent !== 'default') {
+        args.push('--agent', this.config.agent);
       }
 
       // Add any additional args passed in
@@ -435,6 +442,35 @@ export class CliService {
       return { success: true };
     } catch (error) {
       console.error('[CLI] Launch login failed:', error);
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** 列出所有可用 agents（调用 claude agents 命令解析输出） */
+  listAgents(): { success: boolean; agents?: Array<{ name: string; model: string; type: 'builtin' | 'custom' }>; error?: string } {
+    try {
+      const isWin = os.platform() === 'win32';
+      const claudePath = isWin ? 'C:\\Users\\Administrator\\.local\\bin\\claude.exe' : 'claude';
+      const result = spawnSync(claudePath, ['agents'], {
+        encoding: 'utf8',
+        env: process.env,
+        windowsHide: true,
+      });
+      const output = result.stdout || '';
+      const agents: Array<{ name: string; model: string; type: 'builtin' | 'custom' }> = [];
+      let currentType: 'builtin' | 'custom' = 'builtin';
+      for (const line of output.split('\n')) {
+        if (line.includes('Built-in agents')) { currentType = 'builtin'; continue; }
+        if (line.includes('Custom agents') || line.includes('User agents')) { currentType = 'custom'; continue; }
+        // 格式：  name · model
+        const match = line.match(/^\s{2}(.+?)\s·\s(.+)$/);
+        if (match) {
+          agents.push({ name: match[1].trim(), model: match[2].trim(), type: currentType });
+        }
+      }
+      return { success: true, agents };
+    } catch (error) {
+      console.error('[CLI] List agents failed:', error);
       return { success: false, error: String(error) };
     }
   }

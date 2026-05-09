@@ -192,6 +192,11 @@ ipcMain.handle('auth:login', async () => {
   return cliService.launchOfficialLogin();
 });
 
+// Agent 列表
+ipcMain.handle('cli:list-agents', async () => {
+  return cliService.listAgents();
+});
+
 // IPC handlers for Claude CLI native config (shared with VSCode)
 ipcMain.handle('cli-config:load', async () => {
   const result = cliConfigService.load();

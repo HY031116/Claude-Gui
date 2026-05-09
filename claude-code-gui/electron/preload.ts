@@ -33,6 +33,7 @@ export interface ElectronAPI {
   loadSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>;
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
   setNativeTheme: (theme: 'dark' | 'light') => Promise<{ success: boolean }>;
+  listAgents: () => Promise<{ success: boolean; agents?: Array<{ name: string; model: string; type: 'builtin' | 'custom' }>; error?: string }>;
   getAuthStatus: () => Promise<{ success: boolean; status?: any; error?: string }>;
   launchOfficialLogin: () => Promise<{ success: boolean; error?: string }>;
   // Claude CLI native config (shared with VSCode)
@@ -83,6 +84,7 @@ const api: ElectronAPI = {
   loadSettings: () => ipcRenderer.invoke('settings:load'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
   setNativeTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke('theme:set', theme),
+  listAgents: () => ipcRenderer.invoke('cli:list-agents'),
   getAuthStatus: () => ipcRenderer.invoke('auth:status'),
   launchOfficialLogin: () => ipcRenderer.invoke('auth:login'),
   loadCliConfig: () => ipcRenderer.invoke('cli-config:load'),

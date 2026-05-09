@@ -87,6 +87,8 @@ export interface AppSettings {
   enableThinking?: boolean;
   /** 附加系统提示词 (--append-system-prompt) */
   systemPrompt?: string;
+  /** 指定 agent 名称（--agent <name>），默认 'default' 表示不传参 */
+  agent?: string;
 }
 
 export interface AuthStatus {

@@ -1,5 +1,5 @@
 import { useAppStore } from '../stores/useAppStore';
-import { Wrench, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, FileDiff } from 'lucide-react';
+import { Wrench, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, FileDiff, Bot } from 'lucide-react';
 import { useState } from 'react';
 import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
 
@@ -99,7 +99,17 @@ export function ToolCallView() {
               {getStatusIcon(call.status)}
 
               <span style={{ fontWeight: 500, fontSize: 13, flex: 1 }}>
-                {call.name}
+                {call.name === 'Task' ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Bot size={14} color="var(--accent-color)" />
+                    <span style={{ color: 'var(--accent-color)' }}>子代理任务</span>
+                    {call.arguments?.agent != null && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
+                        [{String(call.arguments.agent)}]
+                      </span>
+                    )}
+                  </span>
+                ) : call.name}
               </span>
 
               <span
@@ -127,6 +137,42 @@ export function ToolCallView() {
 
             {isExpanded && (
               <div style={{ padding: 12, fontSize: 12 }}>
+                {/* Task/subagent 展示 */}
+                {call.name === 'Task' && (
+                  <div style={{ marginBottom: 10 }}>
+                    {(call.arguments?.description != null || call.arguments?.prompt != null || call.arguments?.task != null) && (
+                      <div style={{
+                        padding: '8px 12px',
+                        background: 'rgba(88, 166, 255, 0.06)',
+                        border: '1px solid rgba(88, 166, 255, 0.2)',
+                        borderRadius: 6,
+                        marginBottom: 8,
+                      }}>
+                        <div style={{ fontSize: 11, color: 'var(--accent-color)', marginBottom: 4, fontWeight: 600 }}>子代理任务描述</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          {String(call.arguments?.description ?? call.arguments?.prompt ?? call.arguments?.task ?? '')}
+                        </div>
+                      </div>
+                    )}
+                    {call.result && (
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>子代理执行结果</div>
+                        <pre style={{
+                          background: 'var(--bg-primary)',
+                          padding: 8,
+                          borderRadius: 4,
+                          overflow: 'auto',
+                          maxHeight: 400,
+                          fontSize: 11,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                        }}>
+                          {call.result}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* 文件变更 Diff 区域 */}
                 {call.name === 'Edit' && call.arguments?.old_string !== undefined && call.arguments?.new_string !== undefined && (
                   <div style={{ marginBottom: 10 }}>
