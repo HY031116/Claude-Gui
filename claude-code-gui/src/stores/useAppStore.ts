@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, DirEntry, TerminalLine, SessionState, CliPrompt, ConversationRecord } from '../types';
+import type { Message, DirEntry, TerminalLine, SessionState, CliPrompt, ConversationRecord, PlanStep } from '../types';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
@@ -80,6 +80,12 @@ interface AppState {
   // 任务追踪（来自 TodoWrite 工具调用）
   todoItems: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[];
   setTodoItems: (items: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[]) => void;
+
+  // 实时执行步骤（当前 turn 的工具调用进度，对标 Codex turn/plan/updated）
+  activePlanSteps: PlanStep[];
+  addPlanStep: (step: PlanStep) => void;
+  updatePlanStep: (id: string, status: 'done' | 'error') => void;
+  clearPlanSteps: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -170,4 +176,11 @@ export const useAppStore = create<AppState>((set) => ({
   setTokenUsage: (usage) => set({ tokenUsage: usage }),
   todoItems: [],
   setTodoItems: (items) => set({ todoItems: items }),
+
+  activePlanSteps: [],
+  addPlanStep: (step) => set((state) => ({ activePlanSteps: [...state.activePlanSteps, step] })),
+  updatePlanStep: (id, status) => set((state) => ({
+    activePlanSteps: state.activePlanSteps.map((s) => s.id === id ? { ...s, status } : s),
+  })),
+  clearPlanSteps: () => set({ activePlanSteps: [] }),
 }));

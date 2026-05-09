@@ -18,6 +18,15 @@ export interface ToolCall {
   originalContent?: string;
 }
 
+/** 实时执行步骤（对标 Codex turn/plan/updated） */
+export interface PlanStep {
+  id: string;          // tool_use id
+  toolName: string;    // 原始工具名
+  label: string;       // 人类可读标签（工具类型）
+  description: string; // 关键参数摘要（文件路径、命令内容等）
+  status: 'running' | 'done' | 'error';
+}
+
 export interface DirEntry {
   name: string;
   path: string;

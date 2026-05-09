@@ -1,10 +1,10 @@
 import { useAppStore } from '../stores/useAppStore';
-import { CheckCircle2, Circle, Loader2, ClipboardList } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, ClipboardList, XCircle, Zap } from 'lucide-react';
 
 export function TaskPanel() {
-  const { todoItems } = useAppStore();
+  const { todoItems, activePlanSteps } = useAppStore();
 
-  if (todoItems.length === 0) {
+  if (todoItems.length === 0 && activePlanSteps.length === 0) {
     return (
       <div style={{
         display: 'flex',
@@ -31,6 +31,75 @@ export function TaskPanel() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+      {/* 实时执行步骤（对标 Codex turn/plan/updated） */}
+      {activePlanSteps.length > 0 && (
+        <div style={{
+          padding: '10px 16px',
+          borderBottom: '1px solid var(--border-color)',
+          flexShrink: 0,
+          background: 'rgba(88, 166, 255, 0.04)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Zap size={12} color="var(--accent-color)" />
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-color)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              实时执行步骤
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {activePlanSteps.map((step) => (
+              <div key={step.id} style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                opacity: step.status === 'done' ? 0.55 : 1,
+                transition: 'opacity 0.3s',
+              }}>
+                {/* 状态图标 */}
+                <div style={{ flexShrink: 0, marginTop: 1 }}>
+                  {step.status === 'running' ? (
+                    <Loader2
+                      size={13}
+                      color="var(--accent-color)"
+                      style={{ animation: 'spin 1s linear infinite' }}
+                    />
+                  ) : step.status === 'done' ? (
+                    <CheckCircle2 size={13} color="var(--success-text)" />
+                  ) : (
+                    <XCircle size={13} color="var(--error-text, #f85149)" />
+                  )}
+                </div>
+                {/* 标签 + 描述 */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: step.status === 'running' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  }}>
+                    {step.label}
+                  </span>
+                  {step.description && (
+                    <span style={{
+                      fontSize: 11,
+                      color: 'var(--text-muted)',
+                      marginLeft: 6,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-block',
+                      maxWidth: '160px',
+                      verticalAlign: 'bottom',
+                    }}>
+                      {step.description}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 进度概览 */}
       <div style={{
         padding: '12px 16px',

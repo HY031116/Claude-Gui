@@ -105,6 +105,50 @@ function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
+/** 将工具调用映射为人类可读标签 + 描述（对标 Codex plan item） */
+function formatPlanStep(name: string, input: Record<string, unknown>): { label: string; description: string } {
+  const n = name.toLowerCase();
+  if (n === 'bash' || n === 'shell') {
+    const cmd = (input.command as string | undefined) ?? '';
+    return { label: '执行命令', description: cmd.slice(0, 80) };
+  }
+  if (n === 'write' || n === 'write_file' || n === 'str_replace_based_edit_tool') {
+    const p = (input.file_path || input.path || input.filename) as string | undefined;
+    return { label: '写入文件', description: p ?? '' };
+  }
+  if (n === 'read' || n === 'read_file') {
+    const p = (input.file_path || input.path) as string | undefined;
+    return { label: '读取文件', description: p ?? '' };
+  }
+  if (n === 'edit' || n === 'edit_file' || n === 'str_replace_editor' || n === 'multiedit') {
+    const p = (input.file_path || input.path) as string | undefined;
+    return { label: '编辑文件', description: p ?? '' };
+  }
+  if (n === 'todowrite' || n === 'mcp__ide__createtasks') {
+    return { label: '更新任务清单', description: '' };
+  }
+  if (n === 'glob' || n === 'find_files') {
+    const pat = (input.pattern || input.glob) as string | undefined;
+    return { label: '查找文件', description: pat ?? '' };
+  }
+  if (n === 'grep' || n === 'search' || n === 'search_files') {
+    const pat = (input.pattern || input.query) as string | undefined;
+    return { label: '搜索内容', description: pat ?? '' };
+  }
+  if (n === 'ls' || n === 'list_directory') {
+    const p = (input.path || input.dir) as string | undefined;
+    return { label: '列出目录', description: p ?? '' };
+  }
+  if (n.startsWith('mcp__')) {
+    return { label: 'MCP 工具', description: name.replace(/^mcp__/, '').replace(/__/g, '/') };
+  }
+  if (n === 'websearch' || n === 'web_search') {
+    const q = (input.query) as string | undefined;
+    return { label: '搜索网页', description: q ?? '' };
+  }
+  return { label: '工具调用', description: name };
+}
+
 /** Slash 命令列表 */
 const SLASH_COMMANDS: { cmd: string; desc: string }[] = [
   { cmd: '/clear',       desc: '清空当前对话' },
@@ -132,6 +176,9 @@ export function ChatPanel() {
   const setTodoItems = useAppStore((s) => s.setTodoItems);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const setTokenUsage = useAppStore((s) => s.setTokenUsage);
+  const addPlanStep = useAppStore((s) => s.addPlanStep);
+  const updatePlanStep = useAppStore((s) => s.updatePlanStep);
+  const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
@@ -269,6 +316,10 @@ export function ChatPanel() {
               pendingToolCallsRef.current = [...pendingToolCallsRef.current, newCall];
               updateMessage(msgId, { toolCalls: [...pendingToolCallsRef.current] });
 
+              // 实时计划步骤：添加 running 状态
+              const { label, description } = formatPlanStep(toolUse.name, toolUse.input);
+              addPlanStep({ id: toolUse.id, toolName: toolUse.name, label, description, status: 'running' });
+
               // Write 工具：异步读取执行前文件内容作为快照
               if (toolUse.name === 'Write' || toolUse.name === 'write_file') {
                 const filePath = (toolUse.input?.file_path || toolUse.input?.path) as string | undefined;
@@ -297,6 +348,9 @@ export function ChatPanel() {
                   i === idx ? { ...tc, result: res.content, status: 'success' as const } : tc,
                 );
                 updateMessage(assistantIdRef.current, { toolCalls: [...pendingToolCallsRef.current] });
+
+                // 实时计划步骤：标记为 done
+                updatePlanStep(res.tool_use_id, 'done');
 
                 // 解析 TodoWrite 的 input 参数（工具调用的 arguments.todos 字段）
                 const tc = pendingToolCallsRef.current[idx];
@@ -400,7 +454,7 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addPlanStep, updatePlanStep]);
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {
@@ -435,6 +489,7 @@ export function ChatPanel() {
     setAtMenuOpen(false); // 发送后关闭 @ 菜单
     setAtQuery('');
     setTokenUsage(null); // 新对话开始时重置 token 用量
+    clearPlanSteps();    // 新消息时清空上一轮步骤
     setIsProcessing(true);
     assistantIdRef.current = null;
     targetContentRef.current = '';
@@ -461,7 +516,7 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage, setTokenUsage]);
+  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage, setTokenUsage, clearPlanSteps]);
 
   /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
   const loadAtDir = useCallback(async (query: string) => {
