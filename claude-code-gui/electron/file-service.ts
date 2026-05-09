@@ -62,9 +62,17 @@ export class FileService {
     }
   }
 
+  /** 将路径中的 ~ 展开为用户主目录 */
+  private expandTilde(filePath: string): string {
+    if (filePath.startsWith('~/') || filePath === '~') {
+      return path.join(os.homedir(), filePath.slice(1));
+    }
+    return filePath;
+  }
+
   async readFile(filePath: string): Promise<{ success: boolean; content?: string; error?: string }> {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(this.expandTilde(filePath), 'utf-8');
       return { success: true, content };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -73,7 +81,10 @@ export class FileService {
 
   async writeFile(filePath: string, content: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await fs.writeFile(filePath, content, 'utf-8');
+      const resolved = this.expandTilde(filePath);
+      // 确保父目录存在
+      await fs.mkdir(path.dirname(resolved), { recursive: true });
+      await fs.writeFile(resolved, content, 'utf-8');
       return { success: true };
     } catch (error) {
       return { success: false, error: String(error) };
