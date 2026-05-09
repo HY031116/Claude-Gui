@@ -11,6 +11,7 @@ import { TaskPanel } from './components/TaskPanel';
 import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff } from 'lucide-react';
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
+import { SessionList } from './components/SessionList';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -512,39 +513,46 @@ function App() {
             </div>
           </div>
 
-          <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {showSettings ? (
               <SettingsPanel />
             ) : (
               <>
                 {activePanel === 'chat' && (
-                  <div style={{ padding: 12 }}>
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-                        工作目录
-                      </label>
-                      <input
-                        type="text"
-                        className="input"
-                        value={session.workingDirectory}
-                        onChange={(e) => setSession({ workingDirectory: e.target.value })}
-                        placeholder="选择工作目录..."
-                        style={{ fontSize: 12 }}
-                      />
+                  <>
+                    <div style={{ padding: 12, flexShrink: 0 }}>
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
+                          工作目录
+                        </label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={session.workingDirectory}
+                          onChange={(e) => setSession({ workingDirectory: e.target.value })}
+                          placeholder="选择工作目录..."
+                          style={{ fontSize: 12 }}
+                        />
+                      </div>
+                      {session.isConnected ? (
+                        <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
+                          断开连接
+                        </button>
+                      ) : (
+                        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
+                          启动 Claude Code
+                        </button>
+                      )}
                     </div>
-                    {session.isConnected ? (
-                      <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
-                        断开连接
-                      </button>
-                    ) : (
-                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
-                        启动 Claude Code
-                      </button>
-                    )}
+                    <SessionList />
+                  </>
+                )}
+                {activePanel !== 'chat' && (
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    {activePanel === 'files' && <FileExplorer />}
+                    {activePanel === 'tools' && <ToolCallView />}
                   </div>
                 )}
-                {activePanel === 'files' && <FileExplorer />}
-                {activePanel === 'tools' && <ToolCallView />}
               </>
             )}
           </div>
