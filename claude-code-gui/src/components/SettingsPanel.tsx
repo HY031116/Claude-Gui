@@ -138,6 +138,8 @@ export function SettingsPanel() {
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
           disallowedTools: guiResult.settings.disallowedTools ?? prev.disallowedTools,
           addDirs: guiResult.settings.addDirs ?? prev.addDirs,
+          sessionName: guiResult.settings.sessionName ?? prev.sessionName,
+          maxBudgetUsd: guiResult.settings.maxBudgetUsd ?? prev.maxBudgetUsd,
           systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
           systemPromptMode: guiResult.settings.systemPromptMode ?? prev.systemPromptMode,
           agent: guiResult.settings.agent ?? prev.agent,
@@ -642,6 +644,38 @@ export function SettingsPanel() {
               placeholder="--verbose --no-stream"
               style={{ fontSize: 11, fontFamily: 'monospace' }}
             />
+          </div>
+
+          {/* 会话命名 + 费用上限 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+                默认会话名称 (--name)
+              </label>
+              <input
+                type="text"
+                className="input"
+                value={settings.sessionName ?? ''}
+                onChange={(e) => setSettings({ ...settings, sessionName: e.target.value })}
+                placeholder="我的项目 · Sprint 3"
+                style={{ fontSize: 12 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+                费用上限 USD (--max-budget-usd)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={0.1}
+                className="input"
+                value={settings.maxBudgetUsd ?? ''}
+                onChange={(e) => setSettings({ ...settings, maxBudgetUsd: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="0 = 不限制"
+                style={{ fontSize: 12 }}
+              />
+            </div>
           </div>
 
           {/* 附加系统提示词 */}

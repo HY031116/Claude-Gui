@@ -35,6 +35,10 @@ export interface CliConfig {
   disallowedTools?: string;
   /** 额外授权访问的目录列表（--add-dir）*/
   addDirs?: string[];
+  /** 为新会话设置显示名称（--name）*/
+  sessionName?: string;
+  /** API 费用上限（USD），仅 --print 模式有效（--max-budget-usd）*/
+  maxBudgetUsd?: number;
   /** 附加自定义系统提示词（--append-system-prompt）*/
   systemPrompt?: string;
   /** 系统提示词模式：'append'（默认）= --append-system-prompt；'replace' = --system-prompt */
@@ -302,6 +306,16 @@ export class CliService {
       for (const dir of this.config.addDirs.filter(Boolean)) {
         args.push('--add-dir', dir);
       }
+    }
+
+    // 新会话命名（--name），仅在没有 sessionId 时生效（首条消息）
+    if (!sessionId && this.config.sessionName?.trim()) {
+      args.push('--name', this.config.sessionName.trim());
+    }
+
+    // API 费用上限（--max-budget-usd），仅 --print 模式有效
+    if (this.config.maxBudgetUsd && this.config.maxBudgetUsd > 0) {
+      args.push('--max-budget-usd', String(this.config.maxBudgetUsd));
     }
 
     // 传递 effort 等级

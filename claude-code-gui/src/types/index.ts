@@ -80,6 +80,8 @@ export interface AppSettings {
   disallowedTools?: string;
   extraArgs: string;
   addDirs?: string[];
+  sessionName?: string;
+  maxBudgetUsd?: number;
   useBareMode: boolean;
   httpProxy: string;
   apiBaseUrl: string;
