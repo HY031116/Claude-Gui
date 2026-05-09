@@ -144,7 +144,10 @@ export function ChatPanel() {
   // @ 文件提及状态
   const [atMenuOpen, setAtMenuOpen] = useState(false);
   const [atQuery, setAtQuery] = useState('');
-  const [atDirEntries, setAtDirEntries] = useState<{ name: string; type: string }[]>([]);
+  // 当前列出目录的条目（根据 atQuery 目录部分动态加载）
+  const [atCurrentDirEntries, setAtCurrentDirEntries] = useState<{ name: string; type: string }[]>([]);
+  // 目录内容缓存（key: 绝对路径, value: 条目列表）
+  const atDirCacheRef = useRef<Map<string, { name: string; type: string }[]>>(new Map());
   const [atMenuIndex, setAtMenuIndex] = useState(0);
   // 消息搜索
   const [showSearch, setShowSearch] = useState(false);
@@ -401,7 +404,8 @@ export function ChatPanel() {
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {
-    setAtDirEntries([]);
+    atDirCacheRef.current.clear();
+    setAtCurrentDirEntries([]);
     setAtMenuOpen(false);
     setAtQuery('');
   }, [session.workingDirectory]);
@@ -459,29 +463,70 @@ export function ChatPanel() {
     }
   }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage, setTokenUsage]);
 
+  /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
+  const loadAtDir = useCallback(async (query: string) => {
+    const lastSlash = query.lastIndexOf('/');
+    const subDir = lastSlash >= 0 ? query.slice(0, lastSlash) : '';
+    const wd = (session.workingDirectory || '').replace(/\\/g, '/').replace(/\/$/, '');
+    const targetDir = subDir ? `${wd}/${subDir}` : wd;
+
+    const cached = atDirCacheRef.current.get(targetDir);
+    if (cached) {
+      setAtCurrentDirEntries(cached);
+      return;
+    }
+    const res = await window.electronAPI.listDirectory(targetDir);
+    if (res.success && res.entries) {
+      const entries = res.entries as { name: string; type: string }[];
+      atDirCacheRef.current.set(targetDir, entries);
+      setAtCurrentDirEntries(entries);
+    }
+  }, [session.workingDirectory]);
+
+  // @ 查询变化时自动加载对应目录（放在 loadAtDir 定义之后）
+  useEffect(() => {
+    if (!atMenuOpen) return;
+    loadAtDir(atQuery);
+  }, [atMenuOpen, atQuery, loadAtDir]);
+
   /** 选中 @ 文件提及结果：替换输入中的 @查询 并将文件加入上下文 */
   const handleAtSelect = useCallback(async (entry: { name: string; type: string }) => {
+    const lastSlash = atQuery.lastIndexOf('/');
+    const prefix = lastSlash >= 0 ? atQuery.slice(0, lastSlash + 1) : '';
     const wd = (session.workingDirectory || '').replace(/\\/g, '/').replace(/\/$/, '');
-    const filePath = `${wd}/${entry.name}`;
-    // 替换输入中的 @{atQuery} 为 @{entry.name}
+
+    if (entry.type === 'directory') {
+      // 导航进入子目录：更新 query 并重新加载
+      const newQuery = `${prefix}${entry.name}/`;
+      const atPart = '@' + atQuery;
+      setInput((prev) => {
+        const idx = prev.lastIndexOf(atPart);
+        if (idx === -1) return prev;
+        return prev.slice(0, idx) + `@${newQuery}` + prev.slice(idx + atPart.length);
+      });
+      setAtQuery(newQuery);
+      setAtMenuIndex(0);
+      // loadAtDir 会通过 useEffect 自动触发
+      return;
+    }
+
+    // 文件：关闭菜单并加入上下文
+    const filePath = `${wd}/${prefix}${entry.name}`;
     const atPart = '@' + atQuery;
     setInput((prev) => {
       const idx = prev.lastIndexOf(atPart);
       if (idx === -1) return prev;
-      return prev.slice(0, idx) + `@${entry.name} ` + prev.slice(idx + atPart.length);
+      return prev.slice(0, idx) + `@${prefix}${entry.name} ` + prev.slice(idx + atPart.length);
     });
     setAtMenuOpen(false);
     setAtQuery('');
     setAtMenuIndex(0);
-    // 自动将文件加入上下文附件（目录不加载）
-    if (entry.type !== 'directory') {
-      const readResult = await window.electronAPI.readFile(filePath);
-      if (readResult.success) {
-        setContextFiles((prev) => {
-          if (prev.some((f) => f.path === filePath)) return prev;
-          return [...prev, { path: filePath, name: entry.name, content: readResult.content ?? '' }];
-        });
-      }
+    const readResult = await window.electronAPI.readFile(filePath);
+    if (readResult.success) {
+      setContextFiles((prev) => {
+        if (prev.some((f) => f.path === filePath)) return prev;
+        return [...prev, { path: filePath, name: `${prefix}${entry.name}`, content: readResult.content ?? '' }];
+      });
     }
     textareaRef.current?.focus();
   }, [atQuery, session.workingDirectory]);
@@ -652,14 +697,14 @@ export function ChatPanel() {
     return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
   }, [input]);
 
-  // @ 文件提及过滤
+  // @ 文件提及过滤：根据 query 的最后一段过滤当前目录条目
   const atSuggestions = useMemo(() => {
     if (!atMenuOpen) return [];
-    const q = atQuery.toLowerCase();
-    return atDirEntries
-      .filter((e) => !q || e.name.toLowerCase().includes(q))
-      .slice(0, 10);
-  }, [atMenuOpen, atQuery, atDirEntries]);
+    const lastSlash = atQuery.lastIndexOf('/');
+    const filter = lastSlash >= 0 ? atQuery.slice(lastSlash + 1) : atQuery;
+    if (!filter) return atCurrentDirEntries.slice(0, 12);
+    return atCurrentDirEntries.filter((e) => e.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 12);
+  }, [atMenuOpen, atQuery, atCurrentDirEntries]);
 
   // 检测最新的待审批 Bash 工具调用（supervised 模式）
   const pendingApproval = useMemo(() => {
@@ -972,7 +1017,14 @@ export function ChatPanel() {
         {/* @ 文件提及下拉菜单 */}
         {atMenuOpen && atSuggestions.length > 0 && (
           <div className="at-menu">
-            <div className="at-menu-header">📂 {session.workingDirectory?.split(/[\\/]/).pop() ?? '工作目录'}</div>
+            <div className="at-menu-header">
+              📂 {(() => {
+                const lastSlash = atQuery.lastIndexOf('/');
+                const subDir = lastSlash >= 0 ? atQuery.slice(0, lastSlash) : '';
+                const wd = session.workingDirectory?.split(/[\\/]/).pop() ?? '工作目录';
+                return subDir ? `${wd}/${subDir}` : wd;
+              })()}
+            </div>
             {atSuggestions.map((entry, i) => (
               <button
                 key={entry.name}
@@ -1029,12 +1081,6 @@ export function ChatPanel() {
                 const newQuery = atMatch[1];
                 setAtQuery(newQuery);
                 if (!atMenuOpen) {
-                  // 首次出现 @ 时加载工作目录文件列表
-                  window.electronAPI.listDirectory(session.workingDirectory || '').then((res) => {
-                    if (res.success && res.entries) {
-                      setAtDirEntries((res.entries as { name: string; type: string }[]));
-                    }
-                  });
                   setAtMenuOpen(true);
                   setAtMenuIndex(0);
                 }
