@@ -43,7 +43,7 @@ function renderMarkdown(text: string): string {
 type ParsedStreamEvent =
   | { type: 'assistant'; text: string; thinking: string; toolUses: { id: string; name: string; input: Record<string, unknown> }[] }
   | { type: 'tool_result'; results: { tool_use_id: string; content: string }[] }
-  | { type: 'session_end'; sessionId: string; subtype: string; usage?: { input_tokens: number; output_tokens: number } };
+  | { type: 'session_end'; sessionId: string; subtype: string; usage?: { input_tokens: number; output_tokens: number }; costUsd?: number };
 
 /** 解析 claude --output-format stream-json 输出的单行 */
 function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
@@ -83,7 +83,8 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
 
     if (obj.type === 'result' && obj.session_id) {
       const usage = obj.usage as { input_tokens?: number; output_tokens?: number } | undefined;
-      return { type: 'session_end', sessionId: obj.session_id as string, subtype: (obj.subtype as string) || 'success', usage: usage ? { input_tokens: usage.input_tokens ?? 0, output_tokens: usage.output_tokens ?? 0 } : undefined };
+      const costUsd = typeof obj.total_cost_usd === 'number' ? obj.total_cost_usd : undefined;
+      return { type: 'session_end', sessionId: obj.session_id as string, subtype: (obj.subtype as string) || 'success', usage: usage ? { input_tokens: usage.input_tokens ?? 0, output_tokens: usage.output_tokens ?? 0 } : undefined, costUsd };
     }
   } catch {
     // 非 JSON 行忽略
@@ -383,7 +384,7 @@ export function ChatPanel() {
             setSession({ conversationSessionId: parsed.sessionId });
             // 更新 Token 用量
             if (parsed.usage) {
-              setTokenUsage({ inputTokens: parsed.usage.input_tokens, outputTokens: parsed.usage.output_tokens });
+              setTokenUsage({ inputTokens: parsed.usage.input_tokens, outputTokens: parsed.usage.output_tokens, costUsd: parsed.costUsd });
             }
             // 将此次会话保存到历史记录
             addOrUpdateConversation({

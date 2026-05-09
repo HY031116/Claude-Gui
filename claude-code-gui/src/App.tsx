@@ -631,8 +631,11 @@ function App() {
         {tokenUsage && (
           <>
             <span className="status-sep">|</span>
-            <span className="status-item status-tokens" title={`输入 ${tokenUsage.inputTokens.toLocaleString()} tokens，输出 ${tokenUsage.outputTokens.toLocaleString()} tokens`}>
+            <span className="status-item status-tokens" title={`输入 ${tokenUsage.inputTokens.toLocaleString()} tokens，输出 ${tokenUsage.outputTokens.toLocaleString()} tokens${tokenUsage.costUsd != null ? `，费用 $${tokenUsage.costUsd.toFixed(4)}` : ''}`}>
               ↑{tokenUsage.inputTokens.toLocaleString()} ↓{tokenUsage.outputTokens.toLocaleString()} tokens
+              {tokenUsage.costUsd != null && (
+                <> · ${tokenUsage.costUsd.toFixed(4)}</>
+              )}
             </span>
           </>
         )}

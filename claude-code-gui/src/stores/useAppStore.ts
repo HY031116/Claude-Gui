@@ -75,8 +75,8 @@ interface AppState {
   currentAuthMode: string;
   setCurrentStatus: (model: string, authMode: string) => void;
   // Token 用量（每次会话结束后更新）
-  tokenUsage: { inputTokens: number; outputTokens: number } | null;
-  setTokenUsage: (usage: { inputTokens: number; outputTokens: number } | null) => void;
+  tokenUsage: { inputTokens: number; outputTokens: number; costUsd?: number } | null;
+  setTokenUsage: (usage: { inputTokens: number; outputTokens: number; costUsd?: number } | null) => void;
   // 任务追踪（来自 TodoWrite 工具调用）
   todoItems: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[];
   setTodoItems: (items: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[]) => void;
