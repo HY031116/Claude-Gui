@@ -506,4 +506,84 @@ export class FileService {
       proc.stdin?.write(msgs);
     });
   }
+
+  // ==================== 自定义 Agent 管理 ====================
+
+  private get agentsDir(): string {
+    return path.join(os.homedir(), '.claude', 'agents');
+  }
+
+  /** 解析 agent Markdown 文件，提取 frontmatter 和 system prompt */
+  private parseAgentFile(content: string): { name: string; model: string; description: string; prompt: string } {
+    const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
+    if (!fmMatch) return { name: '', model: '', description: '', prompt: content.trim() };
+    const fm = fmMatch[1];
+    const prompt = fmMatch[2].trim();
+    const get = (key: string) => { const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm')); return m ? m[1].trim() : ''; };
+    return { name: get('name'), model: get('model'), description: get('description'), prompt };
+  }
+
+  /** 序列化 agent 到 Markdown frontmatter 格式 */
+  private serializeAgent(a: { name: string; model: string; description: string; prompt: string }): string {
+    const lines = ['---', `name: ${a.name}`];
+    if (a.model) lines.push(`model: ${a.model}`);
+    if (a.description) lines.push(`description: ${a.description}`);
+    lines.push('---', '', a.prompt);
+    return lines.join('\n');
+  }
+
+  /** 列出所有自定义 agents */
+  async listCustomAgents(): Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }> {
+    try {
+      await fs.mkdir(this.agentsDir, { recursive: true });
+      const entries = await fs.readdir(this.agentsDir);
+      const agents = [];
+      for (const entry of entries.filter((e) => e.endsWith('.md'))) {
+        const content = await fs.readFile(path.join(this.agentsDir, entry), 'utf8');
+        agents.push({ filename: entry, ...this.parseAgentFile(content) });
+      }
+      return { success: true, agents };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
+
+  /** 读取单个自定义 agent */
+  async readCustomAgent(filename: string): Promise<{ success: boolean; content?: string; error?: string }> {
+    try {
+      const content = await fs.readFile(path.join(this.agentsDir, filename), 'utf8');
+      return { success: true, content };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
+
+  /** 写入/覆盖一个自定义 agent（filename 如 my-agent.md） */
+  async writeCustomAgent(filename: string, data: { name: string; model: string; description: string; prompt: string }): Promise<{ success: boolean; error?: string }> {
+    // 安全校验：仅允许文件名（禁止路径穿越）
+    if (path.basename(filename) !== filename || !filename.endsWith('.md') || filename.includes('..')) {
+      return { success: false, error: '非法文件名' };
+    }
+    try {
+      await fs.mkdir(this.agentsDir, { recursive: true });
+      await fs.writeFile(path.join(this.agentsDir, filename), this.serializeAgent(data), 'utf8');
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
+
+  /** 删除一个自定义 agent */
+  async deleteCustomAgent(filename: string): Promise<{ success: boolean; error?: string }> {
+    if (path.basename(filename) !== filename || filename.includes('..')) {
+      return { success: false, error: '非法文件名' };
+    }
+    try {
+      await fs.unlink(path.join(this.agentsDir, filename));
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
+  }
 }
+

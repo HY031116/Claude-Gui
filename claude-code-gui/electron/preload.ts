@@ -63,6 +63,10 @@ export interface ElectronAPI {
   // Claude-Mem 插件集成
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
   searchMemory: (query: string, options?: { limit?: number; offset?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
+  // 自定义 Agent 管理
+  agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
+  agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
+  agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const api: ElectronAPI = {
@@ -117,6 +121,9 @@ const api: ElectronAPI = {
   searchMemory: (query, options) => ipcRenderer.invoke('mem:search', query, options),
   cliDoctor: () => ipcRenderer.invoke('cli:doctor'),
   cliUpdate: (subcmd = 'update') => ipcRenderer.invoke('cli:update', subcmd),
+  agentList: () => ipcRenderer.invoke('agent:list'),
+  agentWrite: (filename, data) => ipcRenderer.invoke('agent:write', filename, data),
+  agentDelete: (filename) => ipcRenderer.invoke('agent:delete', filename),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

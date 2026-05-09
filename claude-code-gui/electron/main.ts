@@ -319,3 +319,10 @@ ipcMain.handle('mem:check', async () => {
 ipcMain.handle('mem:search', async (_e, query: string, options: { limit?: number; project?: string; type?: string }) => {
   return fileService.searchClaudeMem(query, options);
 });
+
+// 自定义 Agent CRUD
+ipcMain.handle('agent:list', async () => fileService.listCustomAgents());
+ipcMain.handle('agent:write', async (_e, filename: string, data: { name: string; model: string; description: string; prompt: string }) =>
+  fileService.writeCustomAgent(filename, data)
+);
+ipcMain.handle('agent:delete', async (_e, filename: string) => fileService.deleteCustomAgent(filename));

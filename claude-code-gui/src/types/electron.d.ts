@@ -61,6 +61,10 @@ export interface ElectronAPI {
   // CLI 维护
   cliDoctor: () => Promise<{ success: boolean; output?: string; error?: string }>;
   cliUpdate: (subcmd?: 'update' | 'upgrade') => Promise<{ success: boolean; output: string }>;
+  // 自定义 Agent 管理
+  agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
+  agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
+  agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface GitFile {
