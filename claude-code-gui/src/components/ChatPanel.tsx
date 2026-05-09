@@ -853,7 +853,6 @@ export function ChatPanel() {
 /** 工具调用折叠卡片 */
 function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
-  const [approving, setApproving] = useState(false);
 
   const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
   const bashCommand = isBash
@@ -873,14 +872,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   }, [toolCall.name]);
 
   /** supervised 模式下审批回调 */
-  const handleApprove = useCallback(async (allow: boolean) => {
-    setApproving(true);
-    try {
-      await window.electronAPI.cliSendToStdin(allow ? 'y\n' : 'n\n');
-    } finally {
-      setApproving(false);
-    }
-  }, []);
+  // 已移至 ChatPanel 输入框横幅，这里不再需要
 
   // Bash 工具的专属卡片
   if (isBash) {
@@ -916,25 +908,14 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
                 {bashCommand}
               </pre>
             </div>
-            {/* 审批按钮（仅 pending 状态显示） */}
+            {/* 待审批状态提示（操作入口在输入框上方横幅） */}
             {toolCall.status === 'pending' && (
-              <div style={{ display: 'flex', gap: 8, padding: '4px 0 8px 0' }}>
-                <button
-                  className="btn-approve"
-                  onClick={() => handleApprove(true)}
-                  disabled={approving}
-                  title="允许执行此命令"
-                >
-                  ✓ 允许
-                </button>
-                <button
-                  className="btn-deny"
-                  onClick={() => handleApprove(false)}
-                  disabled={approving}
-                  title="拒绝执行此命令"
-                >
-                  ✗ 拒绝
-                </button>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 0 8px 0', fontSize: 11, color: 'var(--text-muted)',
+              }}>
+                <span style={{ opacity: 0.6 }}>⏳</span>
+                <span>等待审批中，请在输入框上方操作</span>
               </div>
             )}
             {/* 执行结果 */}
