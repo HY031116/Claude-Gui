@@ -1,7 +1,9 @@
 {
   "name": "claude-code-gui",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Claude Code GUI — 为 Claude Code CLI 提供图形界面的 Electron 桌面应用",
+  "author": "Claude Code GUI Contributors",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -47,8 +49,9 @@
     "wait-on": "^9.0.5"
   },
   "build": {
-    "appId": "com.yourcompany.claude-code-gui",
+    "appId": "com.claude.code-gui",
     "productName": "Claude Code GUI",
+    "copyright": "Copyright © 2025 Claude Code GUI Contributors",
     "directories": {
       "output": "release"
     },
