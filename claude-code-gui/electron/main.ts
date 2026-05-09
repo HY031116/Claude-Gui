@@ -105,6 +105,10 @@ ipcMain.handle('cli:delete-project-sessions', async (_event, projectDirName: str
   return fileService.deleteAllCliSessions(projectDirName);
 });
 
+ipcMain.handle('cli:load-messages', async (_event, projectDirName: string, sessionId: string) => {
+  return fileService.loadSessionMessages(projectDirName, sessionId);
+});
+
 // 选择目录对话框
 ipcMain.handle('fs:selectDirectory', async (_event, defaultPath?: string) => {
   const win = BrowserWindow.getFocusedWindow();

@@ -174,6 +174,138 @@ export class FileService {
   }
 
   /**
+   * 读取指定会话的完整消息记录（~/.claude/projects/{projectDirName}/{sessionId}.jsonl）
+   * 解析 stream-json 格式，重建用户/AI 消息列表
+   */
+  async loadSessionMessages(
+    projectDirName: string,
+    sessionId: string,
+  ): Promise<{
+    success: boolean;
+    messages?: Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      content: string;
+      timestamp: number;
+      thinking?: string;
+      toolCalls?: Array<{
+        id: string;
+        name: string;
+        arguments: Record<string, unknown>;
+        result?: string;
+        status: 'success' | 'error' | 'pending';
+      }>;
+    }>;
+    error?: string;
+  }> {
+    type HistMsg = {
+      id: string;
+      role: 'user' | 'assistant';
+      content: string;
+      timestamp: number;
+      thinking?: string;
+      toolCalls?: Array<{
+        id: string;
+        name: string;
+        arguments: Record<string, unknown>;
+        result?: string;
+        status: 'success' | 'error' | 'pending';
+      }>;
+    };
+
+    try {
+      const filePath = path.join(os.homedir(), '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
+      let raw: string;
+      try {
+        raw = await fs.readFile(filePath, 'utf-8');
+      } catch {
+        return { success: false, error: '文件不存在或无法读取' };
+      }
+
+      const lines = raw.split('\n').filter((l) => l.trim());
+      const messages: HistMsg[] = [];
+      // tool_use_id → 所属 assistant 消息索引
+      const toolUseToMsg = new Map<string, number>();
+
+      for (const line of lines) {
+        try {
+          const obj = JSON.parse(line) as Record<string, unknown>;
+
+          // 用户消息：queue-operation/enqueue
+          if (obj['type'] === 'queue-operation' && obj['operation'] === 'enqueue') {
+            const rawContent = obj['content'];
+            const content =
+              typeof rawContent === 'string'
+                ? rawContent
+                : Array.isArray(rawContent)
+                  ? (rawContent as Array<{ type: string; text?: string }>)
+                      .filter((b) => b.type === 'text')
+                      .map((b) => b.text ?? '')
+                      .join('')
+                  : '';
+            if (!content.trim()) continue;
+            const ts = obj['timestamp'] ? new Date(obj['timestamp'] as string).getTime() : Date.now();
+            messages.push({ id: `hist-u-${messages.length}`, role: 'user', content, timestamp: ts });
+          }
+
+          // AI 回复：assistant（stream-json 格式）
+          if (obj['type'] === 'assistant' && obj['message'] && typeof obj['message'] === 'object') {
+            const msg = obj['message'] as { content?: unknown[] };
+            const blocks = Array.isArray(msg.content) ? msg.content : [];
+            const textParts: string[] = [];
+            const thinkingParts: string[] = [];
+            const toolCalls: NonNullable<HistMsg['toolCalls']> = [];
+
+            for (const block of blocks as Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown> }>) {
+              if (block.type === 'text') textParts.push(block.text ?? '');
+              else if (block.type === 'thinking') thinkingParts.push(block.thinking ?? '');
+              else if (block.type === 'tool_use' && block.id) {
+                toolCalls.push({ id: block.id, name: block.name ?? '', arguments: block.input ?? {}, status: 'pending' });
+              }
+            }
+
+            const msgIdx = messages.length;
+            messages.push({
+              id: `hist-a-${msgIdx}`,
+              role: 'assistant',
+              content: textParts.join(''),
+              timestamp: Date.now(),
+              thinking: thinkingParts.length ? thinkingParts.join('\n\n') : undefined,
+              toolCalls: toolCalls.length ? toolCalls : undefined,
+            });
+
+            for (const tc of toolCalls) toolUseToMsg.set(tc.id, msgIdx);
+          }
+
+          // 工具结果：tool（stream-json 格式）
+          if (obj['type'] === 'tool' && Array.isArray(obj['content'])) {
+            for (const block of obj['content'] as Array<{ type: string; tool_use_id?: string; content?: unknown }>) {
+              if (block.type !== 'tool_result' || !block.tool_use_id) continue;
+              const msgIdx = toolUseToMsg.get(block.tool_use_id);
+              if (msgIdx === undefined || !messages[msgIdx]?.toolCalls) continue;
+              const result =
+                typeof block.content === 'string'
+                  ? block.content
+                  : Array.isArray(block.content)
+                    ? (block.content as Array<{ type: string; text?: string }>)
+                        .filter((b) => b.type === 'text')
+                        .map((b) => b.text ?? '')
+                        .join('')
+                    : '';
+              const tc = messages[msgIdx].toolCalls!.find((t) => t.id === block.tool_use_id);
+              if (tc) { tc.result = result; tc.status = 'success'; }
+            }
+          }
+        } catch { /* 忽略单行解析错误 */ }
+      }
+
+      return { success: true, messages };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /**
    * 删除 CLI 历史会话文件（~/.claude/projects/{projectDirName}/{sessionId}.jsonl）
    */
   async deleteCliSession(projectDirName: string, sessionId: string): Promise<{ success: boolean; error?: string }> {

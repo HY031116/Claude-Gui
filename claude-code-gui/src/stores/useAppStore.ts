@@ -30,6 +30,8 @@ interface AppState {
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   clearMessages: () => void;
+  /** 批量设置消息列表（加载历史会话时使用） */
+  setMessages: (messages: Message[]) => void;
 
   // File Explorer
   currentPath: string;
@@ -86,6 +88,7 @@ export const useAppStore = create<AppState>((set) => ({
     messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
   })),
   clearMessages: () => set({ messages: [] }),
+  setMessages: (messages) => set({ messages }),
 
   currentPath: '',
   entries: [],

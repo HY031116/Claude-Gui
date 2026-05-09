@@ -22,6 +22,8 @@ export interface ElectronAPI {
   deleteCliSession: (projectDirName: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   /** 删除某项目目录下所有 .jsonl 会话文件 */
   deleteAllCliSessions: (projectDirName: string) => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
+  /** 加载指定会话的完整消息记录（解析 .jsonl 文件重建消息列表） */
+  loadSessionMessages: (projectDirName: string, sessionId: string) => Promise<{ success: boolean; messages?: import('./index').Message[]; error?: string }>;
   /** 弹出系统目录选择对话框，返回选中路径或 null */
   selectDirectory: (defaultPath?: string) => Promise<{ success: boolean; path: string | null }>;
   selectFile: (options?: { defaultPath?: string }) => Promise<{ success: boolean; path: string | null }>;

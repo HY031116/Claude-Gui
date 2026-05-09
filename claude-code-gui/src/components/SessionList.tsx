@@ -39,11 +39,13 @@ export function SessionList() {
     session,
     setSession,
     clearMessages,
+    setMessages,
   } = useAppStore();
 
   const [cliSessions, setCliSessions] = useState<CliSessionRecord[]>([]);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // 加载 CLI 原生会话
   const loadSessions = useCallback(async () => {
@@ -98,15 +100,33 @@ export function SessionList() {
   }, [conversationHistory, cliSessions, search]);
 
   const handleSelect = useCallback(
-    (record: ConversationRecord) => {
+    async (record: ConversationRecord) => {
       if (record.sessionId === session.conversationSessionId) return;
       clearMessages();
       setSession({
         conversationSessionId: record.sessionId,
         workingDirectory: record.workingDirectory || session.workingDirectory,
       });
+
+      // 查找对应的 projectDirName：先从 cliSessions 匹配，否则用工作目录推算
+      const cliRecord = cliSessions.find((c) => c.sessionId === record.sessionId);
+      const projectDirName =
+        cliRecord?.projectDirName ||
+        (record.workingDirectory ? encodePathLikeCli(record.workingDirectory) : '');
+
+      if (!projectDirName) return;
+
+      try {
+        setLoading(true);
+        const res = await window.electronAPI.loadSessionMessages(projectDirName, record.sessionId);
+        if (res.success && res.messages && res.messages.length > 0) {
+          setMessages(res.messages as import('../types').Message[]);
+        }
+      } catch { /* 非 Electron 环境忽略 */ } finally {
+        setLoading(false);
+      }
     },
-    [clearMessages, setSession, session.conversationSessionId, session.workingDirectory],
+    [clearMessages, setSession, setMessages, session.conversationSessionId, session.workingDirectory, cliSessions],
   );
 
   const handleNew = useCallback(() => {
@@ -167,7 +187,12 @@ export function SessionList() {
       )}
 
       {/* 会话列表 */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+        {loading && (
+          <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+            加载历史消息…
+          </div>
+        )}
         {sessions.length === 0 ? (
           <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
             <MessageSquare size={20} style={{ display: 'block', margin: '0 auto 6px', opacity: 0.3 }} />
