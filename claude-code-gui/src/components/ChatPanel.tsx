@@ -88,7 +88,7 @@ function formatTime(timestamp: number): string {
 }
 
 export function ChatPanel() {
-  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation, setTodoItems } = useAppStore();
+  const { messages, addMessage, updateMessage, session, setSession, addOrUpdateConversation, setTodoItems, scrollBottomSeq } = useAppStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
@@ -124,6 +124,17 @@ export function ChatPanel() {
   useEffect(() => {
     scrollToBottom();
   }, [messages.length, scrollToBottom]);
+
+  // 历史消息批量加载时，立即滚到底部（instant 避免 smooth 的渲染时序问题）
+  useEffect(() => {
+    if (scrollBottomSeq > 0) {
+      // 延迟一帧，确保 React 已完成渲染
+      const id = requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [scrollBottomSeq]);
 
   /** 打字机驱动：每帧追加 8 个字符，约 480字/秒 */
   const runTypewriter = useCallback(() => {

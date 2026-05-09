@@ -32,6 +32,8 @@ interface AppState {
   clearMessages: () => void;
   /** 批量设置消息列表（加载历史会话时使用） */
   setMessages: (messages: Message[]) => void;
+  /** 每次需要立即滚到底部时自增（供 ChatPanel 监听） */
+  scrollBottomSeq: number;
 
   // File Explorer
   currentPath: string;
@@ -88,7 +90,9 @@ export const useAppStore = create<AppState>((set) => ({
     messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
   })),
   clearMessages: () => set({ messages: [] }),
-  setMessages: (messages) => set({ messages }),
+  setMessages: (messages) => set((state) => ({ messages, scrollBottomSeq: state.scrollBottomSeq + 1 })),
+
+  scrollBottomSeq: 0,
 
   currentPath: '',
   entries: [],
