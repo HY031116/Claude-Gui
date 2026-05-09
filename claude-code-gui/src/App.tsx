@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAppStore } from './stores/useAppStore';
+import type { TerminalLine } from './types';
 import { ChatPanel } from './components/ChatPanel';
 import { FileExplorer } from './components/FileExplorer';
 import { TerminalPanel } from './components/TerminalPanel';
@@ -70,24 +71,24 @@ function detectInteractivePrompt(text: string): CliPrompt | null {
 }
 
 function App() {
-  const {
-    activePanel,
-    setActivePanel,
-    sidebarVisible,
-    setSidebarVisible,
-    session,
-    setSession,
-    addTerminalLine,
-    addMessage,
-    pendingPrompt,
-    setPendingPrompt,
-    theme,
-    setTheme,
-    currentModel,
-    currentAuthMode,
-    setCurrentStatus,
-    todoItems,
-  } = useAppStore();
+  // 精确订阅各自所需字段，避免 messages/terminalLines 等高频更新触发 App 整体重渲
+  const activePanel = useAppStore((s) => s.activePanel);
+  const setActivePanel = useAppStore((s) => s.setActivePanel);
+  const sidebarVisible = useAppStore((s) => s.sidebarVisible);
+  const setSidebarVisible = useAppStore((s) => s.setSidebarVisible);
+  const session = useAppStore((s) => s.session);
+  const setSession = useAppStore((s) => s.setSession);
+  const addTerminalLine = useAppStore((s) => s.addTerminalLine);
+  const addTerminalLines = useAppStore((s) => s.addTerminalLines);
+  const addMessage = useAppStore((s) => s.addMessage);
+  const pendingPrompt = useAppStore((s) => s.pendingPrompt);
+  const setPendingPrompt = useAppStore((s) => s.setPendingPrompt);
+  const theme = useAppStore((s) => s.theme);
+  const setTheme = useAppStore((s) => s.setTheme);
+  const currentModel = useAppStore((s) => s.currentModel);
+  const currentAuthMode = useAppStore((s) => s.currentAuthMode);
+  const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
+  const todoItems = useAppStore((s) => s.todoItems);
   const isWindows = navigator.userAgent.includes('Windows');
 
   // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
@@ -148,6 +149,10 @@ function App() {
   const compatibilityRestartPending = useRef(false);
   const compatibilityFallbackUsed = useRef(false);
   const skipNextExitCleanup = useRef(false);
+
+  // RAF 批次写入终端行，避免高频输出时每行一次 setState
+  const terminalLineBuffer = useRef<TerminalLine[]>([]);
+  const terminalRafPending = useRef(false);
 
   const [autofillStatus, setAutofillStatus] = useState<string | null>(null);
 
@@ -219,12 +224,23 @@ function App() {
     const unsubscribe = window.electronAPI.onCliOutput((event) => {
       // message-* 类型属于非交互聊天通道，不加入 terminalLines
       if (event.type === 'stdout' || event.type === 'stderr' || event.type === 'exit') {
-        addTerminalLine({
+        // RAF 批次刷新：收集到 buffer，下一帧一次批量写入 store
+        terminalLineBuffer.current.push({
           id: `${Date.now()}-${Math.random()}`,
           type: event.type,
           content: event.data,
           timestamp: Date.now(),
         });
+        if (!terminalRafPending.current) {
+          terminalRafPending.current = true;
+          requestAnimationFrame(() => {
+            if (terminalLineBuffer.current.length > 0) {
+              addTerminalLines(terminalLineBuffer.current);
+              terminalLineBuffer.current = [];
+            }
+            terminalRafPending.current = false;
+          });
+        }
       }
 
       // Accumulate output for prompt detection
@@ -281,7 +297,7 @@ function App() {
         clearTimeout(promptCheckTimer.current);
       }
     };
-  }, [addTerminalLine, isWindows, pendingPrompt, restartInCompatibilityMode, setSession, setPendingPrompt]);
+  }, [addTerminalLines, isWindows, pendingPrompt, restartInCompatibilityMode, setSession, setPendingPrompt]);
 
   const handlePromptSelect = useCallback(async (value: string) => {
     console.log('[App] handlePromptSelect CALLED, value:', JSON.stringify(value));

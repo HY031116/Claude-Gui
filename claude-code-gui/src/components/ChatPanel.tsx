@@ -16,10 +16,27 @@ renderer.code = function({ text, lang }: { text: string; lang?: string }) {
 };
 marked.use({ gfm: true, breaks: true, renderer });
 
-/** 将 Markdown 文本渲染为 HTML 字符串 */
+/** 模块级 LRU 缓存：同一内容不重复调用 marked.parse（容量 30 条）*/
+const markdownCache = new Map<string, string>();
+const MARKDOWN_CACHE_LIMIT = 30;
+
+/** 将 Markdown 文本渲染为 HTML 字符串（带 LRU 缓存） */
 function renderMarkdown(text: string): string {
   if (!text) return '';
-  return marked.parse(text) as string;
+  if (markdownCache.has(text)) {
+    // 访问时移至末尾（LRU 最近使用）
+    const cached = markdownCache.get(text)!;
+    markdownCache.delete(text);
+    markdownCache.set(text, cached);
+    return cached;
+  }
+  const html = marked.parse(text) as string;
+  if (markdownCache.size >= MARKDOWN_CACHE_LIMIT) {
+    // 淘汰最久未使用的第一个键
+    markdownCache.delete(markdownCache.keys().next().value!);
+  }
+  markdownCache.set(text, html);
+  return html;
 }
 
 /** stream-json 解析结果类型 */

@@ -48,6 +48,8 @@ interface AppState {
   // Terminal
   terminalLines: TerminalLine[];
   addTerminalLine: (line: TerminalLine) => void;
+  /** 批量写入终端行（RAF 缓冲用），减少每行一次 setState */
+  addTerminalLines: (lines: TerminalLine[]) => void;
   clearTerminal: () => void;
 
   // CLI Interactive Prompts
@@ -106,6 +108,9 @@ export const useAppStore = create<AppState>((set) => ({
   terminalLines: [],
   addTerminalLine: (line) => set((state) => ({
     terminalLines: [...state.terminalLines.slice(-500), line],
+  })),
+  addTerminalLines: (lines) => set((state) => ({
+    terminalLines: [...state.terminalLines, ...lines].slice(-500),
   })),
   clearTerminal: () => set({ terminalLines: [] }),
 

@@ -12,7 +12,10 @@ const ansiConverter = new Convert({
 });
 
 export function TerminalPanel() {
-  const { terminalLines, clearTerminal, session } = useAppStore();
+  // 精确订阅，避免消息/文件等无关状态变化触发重渲
+  const terminalLines = useAppStore((s) => s.terminalLines);
+  const clearTerminal = useAppStore((s) => s.clearTerminal);
+  const session = useAppStore((s) => s.session);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
