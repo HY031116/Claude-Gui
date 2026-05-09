@@ -139,6 +139,11 @@ export function ChatPanel() {
   const [contextFiles, setContextFiles] = useState<{ path: string; name: string; content: string }[]>([]);
   // 粘贴图片附件（Ctrl+V 截图直发）
   const [pastedImages, setPastedImages] = useState<{ preview: string; path: string; name: string }[]>([]);
+  // @ 文件提及状态
+  const [atMenuOpen, setAtMenuOpen] = useState(false);
+  const [atQuery, setAtQuery] = useState('');
+  const [atDirEntries, setAtDirEntries] = useState<{ name: string; type: string }[]>([]);
+  const [atMenuIndex, setAtMenuIndex] = useState(0);
   // 消息搜索
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -438,6 +443,33 @@ export function ChatPanel() {
     }
   }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage]);
 
+  /** 选中 @ 文件提及结果：替换输入中的 @查询 并将文件加入上下文 */
+  const handleAtSelect = useCallback(async (entry: { name: string; type: string }) => {
+    const wd = (session.workingDirectory || '').replace(/\\/g, '/').replace(/\/$/, '');
+    const filePath = `${wd}/${entry.name}`;
+    // 替换输入中的 @{atQuery} 为 @{entry.name}
+    const atPart = '@' + atQuery;
+    setInput((prev) => {
+      const idx = prev.lastIndexOf(atPart);
+      if (idx === -1) return prev;
+      return prev.slice(0, idx) + `@${entry.name} ` + prev.slice(idx + atPart.length);
+    });
+    setAtMenuOpen(false);
+    setAtQuery('');
+    setAtMenuIndex(0);
+    // 自动将文件加入上下文附件（目录不加载）
+    if (entry.type !== 'directory') {
+      const readResult = await window.electronAPI.readFile(filePath);
+      if (readResult.success) {
+        setContextFiles((prev) => {
+          if (prev.some((f) => f.path === filePath)) return prev;
+          return [...prev, { path: filePath, name: entry.name, content: readResult.content ?? '' }];
+        });
+      }
+    }
+    textareaRef.current?.focus();
+  }, [atQuery, session.workingDirectory]);
+
   /** 拦截 textarea 粘贴事件，若剪贴板有图片则保存到临时目录并添加为附件 */
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = Array.from(e.clipboardData.items);
@@ -468,6 +500,29 @@ export function ChatPanel() {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // @ 菜单键盘导航
+    if (atSuggestions.length > 0 && atMenuOpen) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setAtMenuIndex((i) => (i <= 0 ? atSuggestions.length - 1 : i - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setAtMenuIndex((i) => (i >= atSuggestions.length - 1 ? 0 : i + 1));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        handleAtSelect(atSuggestions[atMenuIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setAtMenuOpen(false);
+        setAtQuery('');
+        return;
+      }
+    }
     // Slash 菜单键盘导航
     if (slashSuggestions.length > 0) {
       if (e.key === 'ArrowUp') {
@@ -580,6 +635,15 @@ export function ChatPanel() {
     const q = input.toLowerCase();
     return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
   }, [input]);
+
+  // @ 文件提及过滤
+  const atSuggestions = useMemo(() => {
+    if (!atMenuOpen) return [];
+    const q = atQuery.toLowerCase();
+    return atDirEntries
+      .filter((e) => !q || e.name.toLowerCase().includes(q))
+      .slice(0, 10);
+  }, [atMenuOpen, atQuery, atDirEntries]);
 
   // 检测最新的待审批 Bash 工具调用（supervised 模式）
   const pendingApproval = useMemo(() => {
@@ -919,7 +983,32 @@ export function ChatPanel() {
             ref={textareaRef}
             className="chat-input"
             value={input}
-            onChange={(e) => { setInput(e.target.value); setSlashMenuIndex(-1); }}
+            onChange={(e) => {
+              const val = e.target.value;
+              setInput(val);
+              setSlashMenuIndex(-1);
+              // 检测 @ 文件提及：光标前最后一个 @ 及其后的非空格字符
+              const cursor = e.target.selectionStart ?? val.length;
+              const textBefore = val.slice(0, cursor);
+              const atMatch = textBefore.match(/@(\S*)$/);
+              if (atMatch) {
+                const newQuery = atMatch[1];
+                setAtQuery(newQuery);
+                if (!atMenuOpen) {
+                  // 首次出现 @ 时加载工作目录文件列表
+                  window.electronAPI.listDirectory(session.workingDirectory || '').then((res) => {
+                    if (res.success && res.entries) {
+                      setAtDirEntries((res.entries as { name: string; type: string }[]));
+                    }
+                  });
+                  setAtMenuOpen(true);
+                  setAtMenuIndex(0);
+                }
+              } else if (atMenuOpen) {
+                setAtMenuOpen(false);
+                setAtQuery('');
+              }
+            }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={session.isConnected ? '输入消息... (Enter 发送，Shift+Enter 换行)' : '请先启动会话'}
