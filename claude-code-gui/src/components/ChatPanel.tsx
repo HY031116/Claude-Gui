@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff } from 'lucide-react';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import type { Message, ToolCall } from '../types';
+import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
 
 // 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
 const renderer = new marked.Renderer();
@@ -710,6 +711,24 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
       <div className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
         <Wrench size={11} className="tool-call-icon-svg" />
         <span className="tool-call-name">{toolIcon} {toolCall.name}</span>
+        {/* 文件路径摘要（Read/Edit/Write/LS 等有 path 参数时直接显示） */}
+        {!!(toolCall.arguments?.file_path || toolCall.arguments?.path) && (
+          <code style={{
+            flex: 1, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', color: 'var(--text-muted)', marginLeft: 4, marginRight: 8,
+          }}>
+            {String(toolCall.arguments.file_path ?? toolCall.arguments.path)}
+          </code>
+        )}
+        {/* Grep/Glob 的 pattern 摘要 */}
+        {!!(toolCall.arguments?.pattern) && !toolCall.arguments?.file_path && !toolCall.arguments?.path && (
+          <code style={{
+            flex: 1, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', color: 'var(--text-muted)', marginLeft: 4, marginRight: 8,
+          }}>
+            {String(toolCall.arguments.pattern)}
+          </code>
+        )}
         <span className={`tool-call-status tool-call-status-${toolCall.status}`}>
           {toolCall.status === 'pending' ? '执行中…' : toolCall.status === 'success' ? '✓ 完成' : '✗ 失败'}
         </span>
@@ -717,13 +736,67 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
       </div>
       {expanded && (
         <div className="tool-call-body">
-          {Object.keys(toolCall.arguments).length > 0 && (
+          {/* Edit 工具：行级 Diff 可视化 */}
+          {toolCall.name === 'Edit' &&
+           toolCall.arguments?.old_string !== undefined &&
+           toolCall.arguments?.new_string !== undefined && (
+            <div className="tool-call-section">
+              <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <FileDiff size={11} /> 文件变更
+              </div>
+              <InlineDiff
+                oldStr={String(toolCall.arguments.old_string)}
+                newStr={String(toolCall.arguments.new_string)}
+              />
+            </div>
+          )}
+          {/* MultiEdit 工具：多段 Diff */}
+          {toolCall.name === 'MultiEdit' && Array.isArray(toolCall.arguments?.edits) && (
+            <div className="tool-call-section">
+              <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <FileDiff size={11} /> 多段变更
+              </div>
+              {(toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => (
+                <div key={idx} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
+                  <InlineDiff oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Write 工具：有原内容时展示 diff，否则展示新内容预览 */}
+          {toolCall.name === 'Write' && toolCall.arguments?.content !== undefined && (
+            <div className="tool-call-section">
+              <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <FileDiff size={11} /> {toolCall.originalContent !== undefined ? '文件变更' : '写入内容'}
+              </div>
+              {toolCall.originalContent !== undefined
+                ? <WriteDiff originalContent={toolCall.originalContent} newContent={String(toolCall.arguments.content)} />
+                : <WritePreview content={String(toolCall.arguments.content)} />
+              }
+            </div>
+          )}
+          {/* Read 工具结果：显示文件内容而非 JSON */}
+          {toolCall.name === 'Read' && toolCall.result !== undefined && (
+            <div className="tool-call-section">
+              <div className="tool-call-section-label">文件内容</div>
+              <pre className="tool-call-pre" style={{ maxHeight: 300 }}>
+                {toolCall.result.length > 3000
+                  ? toolCall.result.slice(0, 3000) + '\n…（已截断）'
+                  : toolCall.result}
+              </pre>
+            </div>
+          )}
+          {/* 非 Read/Edit/Write/MultiEdit 的通用参数展示 */}
+          {!['Edit', 'MultiEdit', 'Write', 'Read'].includes(toolCall.name) &&
+           Object.keys(toolCall.arguments).length > 0 && (
             <div className="tool-call-section">
               <div className="tool-call-section-label">输入参数</div>
               <pre className="tool-call-pre">{JSON.stringify(toolCall.arguments, null, 2)}</pre>
             </div>
           )}
-          {toolCall.result !== undefined && (
+          {/* Read 不重复显示结果 */}
+          {toolCall.name !== 'Read' && toolCall.result !== undefined && (
             <div className="tool-call-section">
               <div className="tool-call-section-label">执行结果</div>
               <pre className="tool-call-pre">
