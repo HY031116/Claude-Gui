@@ -696,6 +696,54 @@ pre code {
   border-top: 1px solid var(--border-color);
   font-family: var(--font-mono), monospace;
 }
+/* 思考摘要预览（折叠时显示） */
+.thinking-preview {
+  padding: 5px 12px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+  font-family: var(--font-mono), monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+/* 命令审批横幅（输入框上方） */
+.approval-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  margin-bottom: 6px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.28);
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.approval-banner-cmd {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.approval-banner-cmd code {
+  font-size: 11px;
+  font-family: var(--font-mono), monospace;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.approval-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 
 .chat-send-btn {
   height: 40px;

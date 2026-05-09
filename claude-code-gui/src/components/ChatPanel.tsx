@@ -422,6 +422,11 @@ export function ChatPanel() {
     pendingToolCallsRef.current = [];
   }, [updateMessage, addMessage]);
 
+  /** 输入框上方横幅的审批操作 */
+  const handleApprovalAction = useCallback(async (allow: boolean) => {
+    await window.electronAPI.cliSendToStdin(allow ? 'y\n' : 'n\n');
+  }, []);
+
   /** 开始编辑工作目录 */
   const handleWdEdit = useCallback(() => {
     setWdDraft(session.workingDirectory || '');
@@ -468,6 +473,19 @@ export function ChatPanel() {
     const q = searchQuery.toLowerCase();
     return new Set(messages.filter((m) => m.content.toLowerCase().includes(q)).map((m) => m.id));
   }, [messages, searchQuery]);
+
+  // 检测最新的待审批 Bash 工具调用（supervised 模式）
+  const pendingApproval = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== 'assistant') continue;
+      const pending = m.toolCalls?.find(
+        (tc) => tc.status === 'pending' && (tc.name === 'Bash' || tc.name === 'bash'),
+      );
+      if (pending) return pending;
+    }
+    return null;
+  }, [messages]);
 
   // Ctrl+F 打开搜索
   useEffect(() => {
@@ -716,6 +734,22 @@ export function ChatPanel() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {/* 命令审批横幅（有待审批 Bash 命令时显示于输入框上方） */}
+        {pendingApproval && (
+          <div className="approval-banner">
+            <div className="approval-banner-cmd">
+              <span style={{ color: '#7ee787', userSelect: 'none', marginRight: 6, fontSize: 13 }}>$</span>
+              <code>
+                {String(pendingApproval.arguments?.command ?? '').split('\n')[0].slice(0, 120)}
+              </code>
+            </div>
+            <div className="approval-banner-actions">
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>等待审批</span>
+              <button className="btn-approve" onClick={() => handleApprovalAction(true)}>✓ 允许</button>
+              <button className="btn-deny" onClick={() => handleApprovalAction(false)}>✗ 拒绝</button>
+            </div>
           </div>
         )}
         <div className="chat-input-wrapper">
@@ -1032,7 +1066,7 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
 }
 
 /** 消息气泡 */
-function MessageBubble({ msg, searchQuery = '', isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
+function MessageBubble({ msg, searchQuery: _searchQuery = '', isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1077,6 +1111,14 @@ function MessageBubble({ msg, searchQuery = '', isMatch = false }: { msg: Messag
       wrapper.appendChild(pre);
     });
   }, [htmlContent, isUser, isSystem]);
+
+  // 思考摘要：折叠时显示前两行非空内容
+  const thinkingPreview = useMemo(() => {
+    if (!msg.thinking) return '';
+    const lines = msg.thinking.split('\n').filter((l) => l.trim());
+    const preview = lines.slice(0, 2).join(' ');
+    return preview.length > 140 ? preview.slice(0, 140) + '…' : preview;
+  }, [msg.thinking]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -1127,11 +1169,19 @@ function MessageBubble({ msg, searchQuery = '', isMatch = false }: { msg: Messag
             >
               <span className="thinking-icon">🤔</span>
               <span>推理过程</span>
+              <span style={{ marginLeft: 4, opacity: 0.45, fontSize: 10 }}>
+                {msg.thinking.length} 字
+              </span>
               <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 10 }}>
                 {thinkingExpanded ? '收起' : '展开'}
               </span>
               {thinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
+            {!thinkingExpanded && thinkingPreview && (
+              <div className="thinking-preview">
+                {thinkingPreview}
+              </div>
+            )}
             {thinkingExpanded && (
               <div className="thinking-content">
                 {msg.thinking}
