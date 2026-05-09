@@ -384,7 +384,7 @@ pre code {
 }
 
 .message-content-assistant {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-bottom-left-radius: 4px;
 }
@@ -1344,15 +1344,37 @@ pre code {
   line-height: 1.6;
 }
 
+.markdown-body ul li::marker {
+  color: var(--accent-color);
+  font-size: 0.85em;
+}
+
+.markdown-body ol li::marker {
+  color: var(--accent-color);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.markdown-body strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.markdown-body em {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 .markdown-body code {
   font-family: 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
-  font-size: 0.88em;
-  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+  padding: 0.15em 0.4em;
   border-radius: 4px;
-  background: var(--code-bg);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  white-space: nowrap;
+  background: rgba(88, 166, 255, 0.08);
+  color: #79b8ff;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .markdown-body pre {
@@ -1399,12 +1421,19 @@ pre code {
 }
 
 .markdown-body th {
-  background: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.88em;
+  letter-spacing: 0.02em;
 }
 
 .markdown-body tr:nth-child(even) {
-  background: var(--bg-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-body tr:hover {
+  background: rgba(88, 166, 255, 0.04);
 }
 
 .markdown-body a {
