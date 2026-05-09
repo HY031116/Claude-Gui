@@ -13,6 +13,10 @@ export interface AppSettings {
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
+  effortLevel?: 'low' | 'medium' | 'high' | 'max';
+  enableThinking?: boolean;
+  systemPrompt?: string;
+  agent?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
