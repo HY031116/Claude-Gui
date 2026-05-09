@@ -5,14 +5,14 @@
 }
 
 :root {
-  --bg-primary: #0d1117;
-  --bg-secondary: #161b22;
-  --bg-tertiary: #21262d;
-  --bg-hover: #30363d;
-  --border-color: #30363d;
-  --text-primary: #c9d1d9;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
+  --bg-primary: #09090b;
+  --bg-secondary: #0f0f12;
+  --bg-tertiary: #17171c;
+  --bg-hover: #25252d;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-primary: #ededf0;
+  --text-secondary: #9193a1;
+  --text-muted: #5c5e6e;
   --accent-color: #58a6ff;
   --accent-hover: #79b8ff;
   --success: #238636;
@@ -20,14 +20,15 @@
   --error: #da3633;
   --error-text: #f85149;
   --warning: #d29922;
-  --code-bg: #161b22;
-  --radius: 6px;
+  --code-bg: #0f0f12;
+  --radius: 8px;
   --radius-sm: 4px;
-  --radius-lg: 12px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --message-user-bg: linear-gradient(135deg, #1f6feb 0%, #58a6ff 100%);
+  --radius-lg: 14px;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.7);
+  --message-user-bg: linear-gradient(135deg, #1a5bb5 0%, #3b8ee8 100%);
 }
 
 /* 亮色主题 */
@@ -81,8 +82,9 @@
   left: 0;
   right: 0;
   height: 24px;
-  background: var(--accent-color);
-  color: #fff;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -125,7 +127,7 @@ body.is-resizing * {
   box-shadow: 0 0 4px #4ade80;
 }
 .status-dot.disconnected {
-  background: rgba(255, 255, 255, 0.45);
+  background: var(--text-muted);
 }
 .status-item {
   opacity: 0.9;
@@ -142,7 +144,7 @@ html, body, #root {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 14px;
@@ -150,8 +152,8 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -159,12 +161,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-hover);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .btn {
@@ -383,7 +385,6 @@ pre code {
 .message-content-assistant {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-left: 2px solid var(--accent-color);
   border-bottom-left-radius: 4px;
 }
 
@@ -505,9 +506,9 @@ pre code {
 
 /* 输入区域 */
 .chat-input-area {
-  padding: 12px 20px;
+  padding: 10px 20px 16px;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 
 /* 输入区内容与消息列表同宽 */
@@ -525,24 +526,24 @@ pre code {
 
 .chat-input {
   resize: none;
-  min-height: 40px;
-  max-height: 120px;
-  padding: 10px 12px;
+  min-height: 44px;
+  max-height: 140px;
+  padding: 11px 14px;
   flex: 1;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
   line-height: 1.5;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .chat-input:focus {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+  border-color: rgba(88, 166, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
 }
 
 .chat-input::placeholder {
@@ -984,23 +985,22 @@ pre code {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .nav-button:hover {
-  transform: scale(1.05);
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .nav-button.active {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent-color);
 }
 
 /* 模态框动画 */
