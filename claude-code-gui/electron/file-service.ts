@@ -215,9 +215,25 @@ export class FileService {
 
     try {
       const filePath = path.join(os.homedir(), '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
+      /** 单次最多读取 2MB（大文件只取末尾，保留最新对话） */
+      const MAX_READ_BYTES = 2 * 1024 * 1024;
+      /** 最多保留的消息条数 */
+      const MAX_MESSAGES = 200;
       let raw: string;
       try {
-        raw = await fs.readFile(filePath, 'utf-8');
+        const stat = await fs.stat(filePath);
+        if (stat.size > MAX_READ_BYTES) {
+          // 只读取最后 2MB，首行可能不完整，跳过第一个换行符之前的内容
+          const fd = await fs.open(filePath, 'r');
+          const buf = Buffer.alloc(MAX_READ_BYTES);
+          await fd.read(buf, 0, MAX_READ_BYTES, stat.size - MAX_READ_BYTES);
+          await fd.close();
+          raw = buf.toString('utf-8');
+          const firstNewline = raw.indexOf('\n');
+          if (firstNewline !== -1) raw = raw.slice(firstNewline + 1);
+        } else {
+          raw = await fs.readFile(filePath, 'utf-8');
+        }
       } catch {
         return { success: false, error: '文件不存在或无法读取' };
       }
@@ -299,7 +315,7 @@ export class FileService {
         } catch { /* 忽略单行解析错误 */ }
       }
 
-      return { success: true, messages };
+      return { success: true, messages: messages.slice(-MAX_MESSAGES) };
     } catch (error) {
       return { success: false, error: String(error) };
     }
