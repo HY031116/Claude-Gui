@@ -36,15 +36,14 @@ function encodePathLikeCli(workingDir: string): string {
 /** 从 workingDirectory 或 projectDirName 提取可读项目名 */
 function getProjectLabel(workingDir?: string, projectDirName?: string): string {
   if (workingDir) {
+    // 有完整路径时取最后一级目录名（如 "D:\My Project\claude" → "claude"）
     const parts = workingDir.replace(/\\/g, '/').replace(/\/$/, '').split('/');
-    const last = parts[parts.length - 1];
-    return last || workingDir;
+    return parts[parts.length - 1] || workingDir;
   }
   if (projectDirName) {
-    // "d--My-Project-claude" → 取最后一个 "--" 后的部分，再去掉最后一段拼接的内容
-    const afterDrive = projectDirName.includes('--') ? projectDirName.split('--').slice(1).join('--') : projectDirName;
-    const parts = afterDrive.split('-').filter(Boolean);
-    return parts[parts.length - 1] || projectDirName;
+    // 纯 CLI 历史：去掉驱动器前缀（"d--"），保留完整路径段便于识别
+    // "D--My-Project-claude-claude-code-gui" → "My-Project-claude-claude-code-gui"
+    return projectDirName.replace(/^[a-zA-Z]--/, '');
   }
   return '其他';
 }
