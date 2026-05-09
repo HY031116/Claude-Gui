@@ -87,6 +87,11 @@ export function GitPanel() {
   const [committing, setCommitting] = useState(false);
   const [commitResult, setCommitResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  // Push / Pull
+  const [pushing, setPushing] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const [pushPullResult, setPushPullResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   // 日志展开
   const [showLog, setShowLog] = useState(false);
   const [log, setLog] = useState<GitLogEntry[]>([]);
@@ -157,6 +162,34 @@ export function GitPanel() {
       }
     } finally {
       setCommitting(false);
+    }
+  };
+
+  const doPush = async () => {
+    if (!cwd) return;
+    setPushing(true);
+    setPushPullResult(null);
+    try {
+      // 如果没有远端追踪分支，尝试 --set-upstream
+      const setUpstream = (status?.ahead ?? 0) > 0 && (status?.behind ?? 0) === 0;
+      const r = await window.electronAPI.gitPush(cwd, 'origin', undefined, setUpstream);
+      setPushPullResult({ ok: r.success, msg: r.success ? (r.output || '推送成功') : (r.error ?? '推送失败') });
+      if (r.success) refresh();
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  const doPull = async () => {
+    if (!cwd) return;
+    setPulling(true);
+    setPushPullResult(null);
+    try {
+      const r = await window.electronAPI.gitPull(cwd, 'origin');
+      setPushPullResult({ ok: r.success, msg: r.success ? (r.output || '拉取成功') : (r.error ?? '拉取失败') });
+      if (r.success) refresh();
+    } finally {
+      setPulling(false);
     }
   };
 
@@ -318,6 +351,44 @@ export function GitPanel() {
             {commitResult && (
               <div style={{ marginTop: 4, fontSize: 11, color: commitResult.ok ? '#22c55e' : '#ef4444' }}>
                 {commitResult.msg}
+              </div>
+            )}
+            {/* Push / Pull 区 */}
+            <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+              <button
+                onClick={doPull}
+                disabled={pulling || pushing}
+                title="git pull origin"
+                style={{
+                  flex: 1, padding: '5px 4px',
+                  borderRadius: 4, border: '1px solid var(--border-color)',
+                  background: 'var(--bg-hover)', color: pulling ? 'var(--text-muted)' : 'var(--text-secondary)',
+                  cursor: pulling || pushing ? 'not-allowed' : 'pointer',
+                  fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                }}
+              >
+                <ArrowDown size={11} />
+                {pulling ? '拉取中…' : `拉取${status?.behind ? ` (${status.behind})` : ''}`}
+              </button>
+              <button
+                onClick={doPush}
+                disabled={pushing || pulling}
+                title="git push origin"
+                style={{
+                  flex: 1, padding: '5px 4px',
+                  borderRadius: 4, border: '1px solid var(--border-color)',
+                  background: 'var(--bg-hover)', color: pushing ? 'var(--text-muted)' : 'var(--text-secondary)',
+                  cursor: pushing || pulling ? 'not-allowed' : 'pointer',
+                  fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                }}
+              >
+                <ArrowUp size={11} />
+                {pushing ? '推送中…' : `推送${status?.ahead ? ` (${status.ahead})` : ''}`}
+              </button>
+            </div>
+            {pushPullResult && (
+              <div style={{ marginTop: 4, fontSize: 11, color: pushPullResult.ok ? '#22c55e' : '#ef4444', wordBreak: 'break-all' }}>
+                {pushPullResult.msg}
               </div>
             )}
           </div>

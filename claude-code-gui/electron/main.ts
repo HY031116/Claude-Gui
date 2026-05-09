@@ -7,7 +7,7 @@ import { SettingsService } from './settings-service';
 import { CliConfigService } from './cli-config-service';
 import {
   getGitStatus, getGitDiff, gitAdd, gitUnstage, gitCommit,
-  getGitLog, isGitRepo, getGitBranch,
+  getGitLog, isGitRepo, getGitBranch, gitPush, gitPull, getGitRemotes,
 } from './git-service';
 
 const cliService = new CliService();
@@ -275,6 +275,18 @@ ipcMain.handle('git:isRepo', async (_e, cwd: string) => {
 
 ipcMain.handle('git:branch', async (_e, cwd: string) => {
   return { success: true, branch: getGitBranch(cwd) };
+});
+
+ipcMain.handle('git:remotes', async (_e, cwd: string) => {
+  return { success: true, remotes: getGitRemotes(cwd) };
+});
+
+ipcMain.handle('git:push', async (_e, cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => {
+  return gitPush(cwd, remote, branch, setUpstream);
+});
+
+ipcMain.handle('git:pull', async (_e, cwd: string, remote?: string, branch?: string) => {
+  return gitPull(cwd, remote, branch);
 });
 
 // ── 系统通知 ──────────────────────────────────────────────────────────────────

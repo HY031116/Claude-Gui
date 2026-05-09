@@ -2,7 +2,7 @@
  * Git 服务 — 封装常用 git 命令，供 IPC handler 调用
  * 所有操作基于 spawnSync，保持同步简洁
  */
-import { spawnSync } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
 import * as path from 'path';
 
 export interface GitStatus {
@@ -137,4 +137,69 @@ export function getGitLog(cwd: string, limit = 20): Array<{ hash: string; messag
 export function isGitRepo(cwd: string): boolean {
   const r = run(['rev-parse', '--is-inside-work-tree'], cwd);
   return r.code === 0;
+}
+
+/** 异步执行 git 命令（用于网络操作如 push/pull），超时 60s */
+function runAsync(args: string[], cwd: string): Promise<{ stdout: string; stderr: string; code: number }> {
+  return new Promise((resolve) => {
+    const proc = spawn('git', args, { cwd, env: process.env });
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => {
+      proc.kill();
+      resolve({ stdout, stderr: stderr || '操作超时（60s）', code: 1 });
+    }, 60000);
+    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ stdout: stdout.trim(), stderr: stderr.trim(), code: code ?? 1 });
+    });
+    proc.on('error', (e) => {
+      clearTimeout(timer);
+      resolve({ stdout: '', stderr: e.message, code: 1 });
+    });
+  });
+}
+
+/** 获取远端列表 */
+export function getGitRemotes(cwd: string): string[] {
+  const r = run(['remote'], cwd);
+  if (r.code !== 0 || !r.stdout) return [];
+  return r.stdout.split('\n').filter(Boolean);
+}
+
+/** 推送到远端（异步，避免阻塞主进程） */
+export async function gitPush(
+  cwd: string,
+  remote = 'origin',
+  branch?: string,
+  setUpstream = false,
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  const args: string[] = ['push'];
+  if (setUpstream) args.push('-u');
+  args.push(remote);
+  if (branch) args.push(branch);
+
+  const r = await runAsync(args, cwd);
+  // git push 进度信息写到 stderr，成功时 stderr 也可能有内容
+  const output = [r.stdout, r.stderr].filter(Boolean).join('\n').trim();
+  if (r.code === 0) return { success: true, output };
+  return { success: false, error: output || '推送失败' };
+}
+
+/** 从远端拉取（异步，避免阻塞主进程） */
+export async function gitPull(
+  cwd: string,
+  remote = 'origin',
+  branch?: string,
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  const args: string[] = ['pull'];
+  args.push(remote);
+  if (branch) args.push(branch);
+
+  const r = await runAsync(args, cwd);
+  const output = [r.stdout, r.stderr].filter(Boolean).join('\n').trim();
+  if (r.code === 0) return { success: true, output };
+  return { success: false, error: output || '拉取失败' };
 }

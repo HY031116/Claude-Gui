@@ -46,6 +46,9 @@ export interface ElectronAPI {
   gitLog: (cwd: string, limit?: number) => Promise<{ success: boolean; log?: GitLogEntry[]; error?: string }>;
   gitIsRepo: (cwd: string) => Promise<{ success: boolean; isRepo: boolean }>;
   gitBranch: (cwd: string) => Promise<{ success: boolean; branch: string }>;
+  gitRemotes: (cwd: string) => Promise<{ success: boolean; remotes: string[] }>;
+  gitPush: (cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
+  gitPull: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
   // 系统通知
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
   // 保存文件对话框（导出会话）
