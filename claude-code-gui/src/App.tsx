@@ -87,6 +87,7 @@ function App() {
   const setTheme = useAppStore((s) => s.setTheme);
   const currentModel = useAppStore((s) => s.currentModel);
   const currentAuthMode = useAppStore((s) => s.currentAuthMode);
+  const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const todoItems = useAppStore((s) => s.todoItems);
   const isWindows = navigator.userAgent.includes('Windows');
@@ -603,6 +604,14 @@ function App() {
             <span className="status-sep">|</span>
             <span className="status-item">
               {currentAuthMode === 'api-key' ? 'API Key' : 'Claude 账户'}
+            </span>
+          </>
+        )}
+        {tokenUsage && (
+          <>
+            <span className="status-sep">|</span>
+            <span className="status-item status-tokens" title={`输入 ${tokenUsage.inputTokens.toLocaleString()} tokens，输出 ${tokenUsage.outputTokens.toLocaleString()} tokens`}>
+              ↑{tokenUsage.inputTokens.toLocaleString()} ↓{tokenUsage.outputTokens.toLocaleString()} tokens
             </span>
           </>
         )}

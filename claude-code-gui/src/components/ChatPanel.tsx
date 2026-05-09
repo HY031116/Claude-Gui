@@ -43,7 +43,7 @@ function renderMarkdown(text: string): string {
 type ParsedStreamEvent =
   | { type: 'assistant'; text: string; thinking: string; toolUses: { id: string; name: string; input: Record<string, unknown> }[] }
   | { type: 'tool_result'; results: { tool_use_id: string; content: string }[] }
-  | { type: 'session_end'; sessionId: string; subtype: string };
+  | { type: 'session_end'; sessionId: string; subtype: string; usage?: { input_tokens: number; output_tokens: number } };
 
 /** 解析 claude --output-format stream-json 输出的单行 */
 function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
@@ -82,7 +82,8 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
     }
 
     if (obj.type === 'result' && obj.session_id) {
-      return { type: 'session_end', sessionId: obj.session_id as string, subtype: (obj.subtype as string) || 'success' };
+      const usage = obj.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+      return { type: 'session_end', sessionId: obj.session_id as string, subtype: (obj.subtype as string) || 'success', usage: usage ? { input_tokens: usage.input_tokens ?? 0, output_tokens: usage.output_tokens ?? 0 } : undefined };
     }
   } catch {
     // 非 JSON 行忽略
@@ -130,6 +131,7 @@ export function ChatPanel() {
   const addOrUpdateConversation = useAppStore((s) => s.addOrUpdateConversation);
   const setTodoItems = useAppStore((s) => s.setTodoItems);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
+  const setTokenUsage = useAppStore((s) => s.setTokenUsage);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
@@ -313,6 +315,10 @@ export function ChatPanel() {
           // 解析最终 result 行，获取 session_id 用于多轮对话
           if (parsed.type === 'session_end' && parsed.sessionId) {
             setSession({ conversationSessionId: parsed.sessionId });
+            // 更新 Token 用量
+            if (parsed.usage) {
+              setTokenUsage({ inputTokens: parsed.usage.input_tokens, outputTokens: parsed.usage.output_tokens });
+            }
             // 将此次会话保存到历史记录
             addOrUpdateConversation({
               sessionId: parsed.sessionId,
@@ -951,6 +957,24 @@ export function ChatPanel() {
               <button className="btn-approve" onClick={() => handleApprovalAction(true)}>✓ 允许</button>
               <button className="btn-deny" onClick={() => handleApprovalAction(false)}>✗ 拒绝</button>
             </div>
+          </div>
+        )}
+        {/* @ 文件提及下拉菜单 */}
+        {atMenuOpen && atSuggestions.length > 0 && (
+          <div className="at-menu">
+            <div className="at-menu-header">📂 {session.workingDirectory?.split(/[\\/]/).pop() ?? '工作目录'}</div>
+            {atSuggestions.map((entry, i) => (
+              <button
+                key={entry.name}
+                className={`at-menu-item ${i === atMenuIndex ? 'active' : ''}`}
+                onClick={() => handleAtSelect(entry)}
+                onMouseEnter={() => setAtMenuIndex(i)}
+              >
+                <span className="at-menu-icon">{entry.type === 'directory' ? '📁' : '📄'}</span>
+                <span className="at-menu-name">{entry.name}</span>
+                {entry.type === 'directory' && <span className="at-menu-badge">目录</span>}
+              </button>
+            ))}
           </div>
         )}
         {/* Slash 命令补全菜单 */}
