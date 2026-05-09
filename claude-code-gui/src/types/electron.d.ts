@@ -29,6 +29,7 @@ export interface ElectronAPI {
   selectFile: (options?: { defaultPath?: string }) => Promise<{ success: boolean; path: string | null }>;
   loadSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>;
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+  setNativeTheme: (theme: 'dark' | 'light') => Promise<{ success: boolean }>;
   getAuthStatus: () => Promise<{ success: boolean; status?: any; error?: string }>;
   launchOfficialLogin: () => Promise<{ success: boolean; error?: string }>;
   // Claude CLI native config (shared with VSCode)

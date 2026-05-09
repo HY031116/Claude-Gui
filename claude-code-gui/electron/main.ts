@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { CliService, type CliStartOptions } from './cli-service';
@@ -22,6 +22,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
+    backgroundColor: '#09090b', // 暗色主题默认背景，防止加载时白色闪烁
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -43,6 +44,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // 初始化为暗色主题，让 Windows 原生菜单栏/标题栏随应用主题显示
+  nativeTheme.themeSource = 'dark';
+
   createWindow();
 
   app.on('activate', () => {
@@ -170,6 +174,12 @@ ipcMain.handle('settings:load', async () => {
 ipcMain.handle('settings:save', async (_, settings: any) => {
   cliService.setConfig(settings);
   return settingsService.save(settings);
+});
+
+// 主题同步：渲染进程切换主题时更新 nativeTheme，让 Windows 原生菜单栏跟随
+ipcMain.handle('theme:set', (_event, theme: 'dark' | 'light') => {
+  nativeTheme.themeSource = theme;
+  return { success: true };
 });
 
 // IPC handlers for auth

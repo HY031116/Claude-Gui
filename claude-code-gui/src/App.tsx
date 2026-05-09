@@ -411,7 +411,12 @@ function App() {
         <div style={{ flex: 1 }} />
         {/* 主题切换 */}
         <button
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          onClick={() => {
+            const next = theme === 'dark' ? 'light' : 'dark';
+            setTheme(next);
+            // 同步 Windows 原生菜单栏/标题栏跟随应用主题
+            window.electronAPI?.setNativeTheme?.(next);
+          }}
           title={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
           className="nav-button"
         >
