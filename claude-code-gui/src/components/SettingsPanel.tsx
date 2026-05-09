@@ -137,6 +137,7 @@ export function SettingsPanel() {
           useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
           disallowedTools: guiResult.settings.disallowedTools ?? prev.disallowedTools,
+          addDirs: guiResult.settings.addDirs ?? prev.addDirs,
           systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
           systemPromptMode: guiResult.settings.systemPromptMode ?? prev.systemPromptMode,
           agent: guiResult.settings.agent ?? prev.agent,
@@ -389,6 +390,51 @@ export function SettingsPanel() {
             placeholder="留空则不禁止，或填写 Bash(git:*) WebFetch"
             style={{ fontSize: 11, fontFamily: 'monospace' }}
           />
+        </div>
+      </div>
+
+      {/* 额外目录访问权限 */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          额外目录访问 (--add-dir)
+        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {(settings.addDirs ?? []).map((dir, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="text"
+                className="input"
+                value={dir}
+                onChange={(e) => {
+                  const next = [...(settings.addDirs ?? [])];
+                  next[i] = e.target.value;
+                  setSettings({ ...settings, addDirs: next });
+                }}
+                placeholder="D:\project\my-lib"
+                style={{ fontSize: 11, fontFamily: 'monospace', flex: 1 }}
+              />
+              <button
+                onClick={() => {
+                  const next = (settings.addDirs ?? []).filter((_, j) => j !== i);
+                  setSettings({ ...settings, addDirs: next });
+                }}
+                style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: 4, color: '#ef4444', cursor: 'pointer', padding: '3px 7px', fontSize: 13, flexShrink: 0 }}
+                title="移除"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => setSettings({ ...settings, addDirs: [...(settings.addDirs ?? []), ''] })}
+            style={{
+              background: 'none', border: '1px dashed var(--border-color)',
+              borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer',
+              padding: '4px 10px', fontSize: 12, textAlign: 'left',
+            }}
+          >
+            + 添加目录
+          </button>
         </div>
       </div>
 

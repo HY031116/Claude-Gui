@@ -79,6 +79,7 @@ export interface AppSettings {
   allowedTools: string;
   disallowedTools?: string;
   extraArgs: string;
+  addDirs?: string[];
   useBareMode: boolean;
   httpProxy: string;
   apiBaseUrl: string;
