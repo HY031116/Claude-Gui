@@ -245,3 +245,13 @@ ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
   }
   return { success: false, error: '系统不支持通知' };
 });
+
+// ── Claude-Mem 插件集成 ────────────────────────────────────────────────────────
+
+ipcMain.handle('mem:check', async () => {
+  return fileService.checkClaudeMemStatus();
+});
+
+ipcMain.handle('mem:search', async (_e, query: string, options: { limit?: number; project?: string; type?: string }) => {
+  return fileService.searchClaudeMem(query, options);
+});

@@ -61,8 +61,8 @@ interface AppState {
   clearConversationHistory: () => void;
 
   // UI
-  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes';
-  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes') => void;
+  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem';
+  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem') => void;
   sidebarVisible: boolean;
   setSidebarVisible: (visible: boolean) => void;
   // 主题

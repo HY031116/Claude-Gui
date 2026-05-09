@@ -1,4 +1,7 @@
 import fs from 'fs/promises';
+import * as fsSync from 'fs';
+import { spawn } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import path from 'path';
 import os from 'os';
 
@@ -361,5 +364,134 @@ export class FileService {
     } catch (error) {
       return { success: false, error: String(error) };
     }
+  }
+
+  /** 查找 Claude-Mem 插件安装目录（返回最新版本路径，未安装则 null） */
+  private findClaudeMemPluginDir(): string | null {
+    const pluginBase = path.join(os.homedir(), '.claude', 'plugins', 'cache', 'thedotmack', 'claude-mem');
+    if (!fsSync.existsSync(pluginBase)) return null;
+    let versions: string[];
+    try {
+      versions = fsSync.readdirSync(pluginBase).filter(v => /^\d/.test(v)).sort((a, b) => {
+        const pa = a.split('.').map(Number);
+        const pb = b.split('.').map(Number);
+        for (let i = 0; i < 3; i++) {
+          const diff = (pb[i] ?? 0) - (pa[i] ?? 0);
+          if (diff !== 0) return diff;
+        }
+        return 0;
+      });
+    } catch { return null; }
+    if (!versions.length) return null;
+    return path.join(pluginBase, versions[0]);
+  }
+
+  /** 查找 bun 可执行文件（优先 ~/.bun/bin/bun，回退到 PATH） */
+  private findBunPath(): string {
+    const homeDir = os.homedir();
+    const isWin = process.platform === 'win32';
+    const candidate = path.join(homeDir, '.bun', 'bin', isWin ? 'bun.exe' : 'bun');
+    return fsSync.existsSync(candidate) ? candidate : 'bun';
+  }
+
+  /** 检查 Claude-Mem 插件是否已安装和启用 */
+  async checkClaudeMemStatus(): Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }> {
+    const pluginDir = this.findClaudeMemPluginDir();
+    if (!pluginDir) return { installed: false, enabled: false };
+    const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
+    let enabled = false;
+    try {
+      const content = await fs.readFile(settingsPath, 'utf-8');
+      const settings = JSON.parse(content);
+      enabled = settings?.enabledPlugins?.['claude-mem@thedotmack'] === true;
+    } catch { enabled = true; }
+    return { installed: true, enabled, pluginDir };
+  }
+
+  /**
+   * 通过 Claude-Mem MCP server 执行内存搜索
+   * 使用 stdio JSON-RPC 与 `bun scripts/mcp-server.cjs` 通信
+   */
+  async searchClaudeMem(
+    query: string,
+    options: { limit?: number; project?: string; type?: string } = {},
+  ): Promise<{ success: boolean; content?: string; error?: string }> {
+    return new Promise((resolve) => {
+      const pluginDir = this.findClaudeMemPluginDir();
+      if (!pluginDir) {
+        return resolve({ success: false, error: 'Claude-Mem 插件未安装，请先运行: claude plugin install thedotmack/claude-mem' });
+      }
+      const mcpScript = path.join(pluginDir, 'scripts', 'mcp-server.cjs');
+      if (!fsSync.existsSync(mcpScript)) {
+        return resolve({ success: false, error: `MCP server 脚本不存在: ${mcpScript}` });
+      }
+      const bunPath = this.findBunPath();
+      let proc: ChildProcess;
+      try {
+        proc = spawn(bunPath, [mcpScript], {
+          env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginDir },
+          cwd: pluginDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        return resolve({ success: false, error: `启动 MCP server 失败: ${String(err)}` });
+      }
+
+      let stdout = '';
+      let resolved = false;
+
+      const done = (result: { success: boolean; content?: string; error?: string }) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          try { proc.kill(); } catch { /* 忽略 */ }
+          resolve(result);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        done({ success: false, error: '搜索超时（20 秒），请确认 Claude-Mem worker 可正常启动' });
+      }, 20000);
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+        // 逐行解析 JSON-RPC 响应
+        for (const line of stdout.split('\n')) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.id === 2) {
+              if (msg.error) {
+                done({ success: false, error: msg.error.message || String(msg.error) });
+              } else {
+                const content = (msg.result?.content || [])
+                  .filter((c: { type: string }) => c.type === 'text')
+                  .map((c: { text: string }) => c.text)
+                  .join('\n');
+                done({ success: true, content });
+              }
+            }
+          } catch { /* 跳过非 JSON 行 */ }
+        }
+      });
+
+      proc.on('error', (err) => done({ success: false, error: `进程错误: ${err.message}` }));
+      proc.on('close', () => {
+        if (!resolved) done({ success: false, error: '进程意外退出，请检查 bun 是否正确安装' });
+      });
+
+      // 发送 MCP 协议握手 + 搜索请求（换行分隔 JSON-RPC）
+      const searchArgs: Record<string, unknown> = { query, limit: options.limit ?? 20 };
+      if (options.project) searchArgs.project = options.project;
+      if (options.type) searchArgs.type = options.type;
+
+      const msgs = [
+        JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'claude-code-gui', version: '1.0.0' } } }),
+        JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
+        JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'search', arguments: searchArgs } }),
+      ].join('\n') + '\n';
+
+      proc.stdin?.write(msgs);
+    });
   }
 }

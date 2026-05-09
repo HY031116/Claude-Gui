@@ -8,10 +8,11 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain } from 'lucide-react';
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import { SessionList } from './components/SessionList';
+import { MemSearchPanel } from './components/MemSearchPanel';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -360,6 +361,7 @@ function App() {
     { id: 'changes' as const, label: '变更', icon: FileDiff },
     { id: 'skills' as const, label: 'Skills', icon: BookOpen },
     { id: 'history' as const, label: '历史', icon: History },
+    { id: 'mem' as const, label: '记忆', icon: Brain },
   ];
 
   return (
@@ -584,6 +586,8 @@ function App() {
           <GitPanel />
         ) : activePanel === 'changes' ? (
           <ChangeSummaryPanel />
+        ) : activePanel === 'mem' ? (
+          <MemSearchPanel />
         ) : (
           <>
             <ChatPanel />

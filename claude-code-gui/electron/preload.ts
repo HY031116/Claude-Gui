@@ -90,6 +90,9 @@ const api: ElectronAPI = {
   gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
   // 系统通知
   notifySend: (title, body) => ipcRenderer.invoke('notify:send', title, body),
+  // Claude-Mem 插件集成
+  checkClaudeMem: () => ipcRenderer.invoke('mem:check'),
+  searchMemory: (query, options) => ipcRenderer.invoke('mem:search', query, options),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
