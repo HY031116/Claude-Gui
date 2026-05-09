@@ -147,6 +147,13 @@ export function SettingsPanel() {
           systemPrompt: guiResult.settings.systemPrompt ?? prev.systemPrompt,
           systemPromptMode: guiResult.settings.systemPromptMode ?? prev.systemPromptMode,
           agent: guiResult.settings.agent ?? prev.agent,
+          provider: guiResult.settings.provider ?? prev.provider,
+          awsRegion: guiResult.settings.awsRegion ?? prev.awsRegion,
+          awsAccessKeyId: guiResult.settings.awsAccessKeyId ?? prev.awsAccessKeyId,
+          awsSecretAccessKey: guiResult.settings.awsSecretAccessKey ?? prev.awsSecretAccessKey,
+          awsSessionToken: guiResult.settings.awsSessionToken ?? prev.awsSessionToken,
+          vertexProjectId: guiResult.settings.vertexProjectId ?? prev.vertexProjectId,
+          vertexRegion: guiResult.settings.vertexRegion ?? prev.vertexRegion,
         }));
       }
 
@@ -685,6 +692,117 @@ export function SettingsPanel() {
               style={{ fontSize: 11, fontFamily: 'monospace' }}
             />
           </div>
+
+          {/* Cloud Provider 选择 */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block', fontWeight: 500 }}>
+              云服务商 (Provider)
+            </label>
+            <select
+              className="input"
+              value={settings.provider || 'anthropic'}
+              onChange={(e) => setSettings({ ...settings, provider: e.target.value })}
+              style={{ fontSize: 11 }}
+            >
+              <option value="anthropic">Anthropic（默认）</option>
+              <option value="bedrock">AWS Bedrock</option>
+              <option value="vertex">Google Vertex AI</option>
+            </select>
+          </div>
+
+          {/* AWS Bedrock 凭证 */}
+          {settings.provider === 'bedrock' && (
+            <div style={{ marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, background: 'var(--bg-secondary)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>
+                AWS Bedrock 凭证
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>AWS Region</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={settings.awsRegion || ''}
+                    onChange={(e) => setSettings({ ...settings, awsRegion: e.target.value })}
+                    placeholder="us-east-1"
+                    style={{ fontSize: 11, fontFamily: 'monospace' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Session Token（可选）</label>
+                  <input
+                    type="password"
+                    className="input"
+                    value={settings.awsSessionToken || ''}
+                    onChange={(e) => setSettings({ ...settings, awsSessionToken: e.target.value })}
+                    placeholder="临时会话 Token"
+                    style={{ fontSize: 11, fontFamily: 'monospace' }}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Access Key ID</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={settings.awsAccessKeyId || ''}
+                  onChange={(e) => setSettings({ ...settings, awsAccessKeyId: e.target.value })}
+                  placeholder="AKIAIOSFODNN7EXAMPLE"
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Secret Access Key</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={settings.awsSecretAccessKey || ''}
+                  onChange={(e) => setSettings({ ...settings, awsSecretAccessKey: e.target.value })}
+                  placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                留空则使用 AWS 默认凭证链（~/.aws/credentials / IAM Role / 环境变量）
+              </div>
+            </div>
+          )}
+
+          {/* Google Vertex AI 配置 */}
+          {settings.provider === 'vertex' && (
+            <div style={{ marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, background: 'var(--bg-secondary)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>
+                Google Vertex AI 配置
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>GCP Project ID</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={settings.vertexProjectId || ''}
+                    onChange={(e) => setSettings({ ...settings, vertexProjectId: e.target.value })}
+                    placeholder="my-gcp-project"
+                    style={{ fontSize: 11, fontFamily: 'monospace' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Region</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={settings.vertexRegion || ''}
+                    onChange={(e) => setSettings({ ...settings, vertexRegion: e.target.value })}
+                    placeholder="us-east5"
+                    style={{ fontSize: 11, fontFamily: 'monospace' }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                认证通过 Application Default Credentials（gcloud auth application-default login）
+              </div>
+            </div>
+          )}
 
           {/* Extra CLI Args */}
           <div style={{ marginBottom: 12 }}>

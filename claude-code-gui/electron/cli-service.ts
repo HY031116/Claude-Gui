@@ -45,6 +45,14 @@ export interface CliConfig {
   systemPromptMode?: 'append' | 'replace';
   /** 指定 agent 名称（--agent <name>）*/
   agent?: string;
+  // AWS Bedrock 配置
+  awsRegion?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  // Google Vertex AI 配置
+  vertexProjectId?: string;
+  vertexRegion?: string;
 }
 
 export interface CliStartOptions {
@@ -132,6 +140,13 @@ export class CliService {
         args.push('--agent', this.config.agent);
       }
 
+      // Provider: Bedrock / Vertex AI 标志
+      if (this.config.provider === 'bedrock') {
+        args.push('--bedrock');
+      } else if (this.config.provider === 'vertex') {
+        args.push('--vertex');
+      }
+
       // Add any additional args passed in
       if (options.args) {
         args.push(...options.args);
@@ -172,6 +187,17 @@ export class CliService {
       if (this.config.apiBaseUrl) {
         env.ANTHROPIC_BASE_URL = this.config.apiBaseUrl;
         console.log('[CLI] Using custom API base URL:', this.config.apiBaseUrl);
+      }
+
+      // Provider-specific credentials
+      if (this.config.provider === 'bedrock') {
+        if (this.config.awsRegion) env.AWS_REGION = this.config.awsRegion;
+        if (this.config.awsAccessKeyId) env.AWS_ACCESS_KEY_ID = this.config.awsAccessKeyId;
+        if (this.config.awsSecretAccessKey) env.AWS_SECRET_ACCESS_KEY = this.config.awsSecretAccessKey;
+        if (this.config.awsSessionToken) env.AWS_SESSION_TOKEN = this.config.awsSessionToken;
+      } else if (this.config.provider === 'vertex') {
+        if (this.config.vertexProjectId) env.ANTHROPIC_VERTEX_PROJECT_ID = this.config.vertexProjectId;
+        if (this.config.vertexRegion) env.CLOUD_ML_REGION = this.config.vertexRegion;
       }
 
       console.log('[CLI] Spawning claude:', claudePath, 'args:', args, 'cwd:', options.cwd);
@@ -350,6 +376,13 @@ export class CliService {
       args.push('--agent', agentName);
     }
 
+    // Provider: Bedrock / Vertex AI 标志
+    if (this.config.provider === 'bedrock') {
+      args.push('--bedrock');
+    } else if (this.config.provider === 'vertex') {
+      args.push('--vertex');
+    }
+
     // 图片附件（--image /path/to/img.png）
     if (imagePaths?.length) {
       for (const imgPath of imagePaths) {
@@ -374,6 +407,17 @@ export class CliService {
 
     if (this.config.apiBaseUrl) {
       env.ANTHROPIC_BASE_URL = this.config.apiBaseUrl;
+    }
+
+    // Provider-specific credentials
+    if (this.config.provider === 'bedrock') {
+      if (this.config.awsRegion) env.AWS_REGION = this.config.awsRegion;
+      if (this.config.awsAccessKeyId) env.AWS_ACCESS_KEY_ID = this.config.awsAccessKeyId;
+      if (this.config.awsSecretAccessKey) env.AWS_SECRET_ACCESS_KEY = this.config.awsSecretAccessKey;
+      if (this.config.awsSessionToken) env.AWS_SESSION_TOKEN = this.config.awsSessionToken;
+    } else if (this.config.provider === 'vertex') {
+      if (this.config.vertexProjectId) env.ANTHROPIC_VERTEX_PROJECT_ID = this.config.vertexProjectId;
+      if (this.config.vertexRegion) env.CLOUD_ML_REGION = this.config.vertexRegion;
     }
 
     const workdir = cwd || os.homedir();

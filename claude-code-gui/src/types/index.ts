@@ -95,6 +95,14 @@ export interface AppSettings {
   systemPromptMode?: 'append' | 'replace';
   /** 指定 agent 名称（--agent <name>），默认 'default' 表示不传参 */
   agent?: string;
+  // AWS Bedrock 配置
+  awsRegion?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  // Google Vertex AI 配置
+  vertexProjectId?: string;
+  vertexRegion?: string;
 }
 
 export interface AuthStatus {

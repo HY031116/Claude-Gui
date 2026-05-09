@@ -22,8 +22,14 @@ export interface AppSettings {
   systemPrompt?: string;
   /** 'append'（默认）= --append-system-prompt；'replace' = --system-prompt */
   systemPromptMode?: 'append' | 'replace';
-  agent?: string;
-}
+  agent?: string;  // AWS Bedrock 配置
+  awsRegion?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  // Google Vertex AI 配置
+  vertexProjectId?: string;
+  vertexRegion?: string;}
 
 const DEFAULT_SETTINGS: AppSettings = {
   apiKey: '',
