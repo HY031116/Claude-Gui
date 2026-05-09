@@ -325,8 +325,9 @@ export function ChatPanel() {
               const { label, description } = formatPlanStep(toolUse.name, toolUse.input);
               addPlanStep({ id: toolUse.id, toolName: toolUse.name, label, description, status: 'running' });
 
-              // Write 工具：异步读取执行前文件内容作为快照
-              if (toolUse.name === 'Write' || toolUse.name === 'write_file') {
+              // 文件写入/编辑工具：异步读取执行前文件内容作为快照（用于 Checkpointing 回滚）
+              const FILE_MODIFY_TOOLS = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
+              if (FILE_MODIFY_TOOLS.includes(toolUse.name)) {
                 const filePath = (toolUse.input?.file_path || toolUse.input?.path) as string | undefined;
                 if (filePath) {
                   window.electronAPI.readFile(filePath.replace(/\\/g, '/')).then((res) => {
