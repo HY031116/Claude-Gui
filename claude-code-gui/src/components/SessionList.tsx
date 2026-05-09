@@ -1,9 +1,9 @@
 /**
  * 轻量会话列表 — 嵌入 chat 侧边栏
- * 扁平展示所有历史会话（按时间倒序），支持搜索和一键切换
+ * 按项目（workingDirectory）分组展示历史会话，当前项目置顶
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { MessageSquare, Search, Plus, X, Clock } from 'lucide-react';
+import { MessageSquare, Search, Plus, X, Clock, FolderOpen, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { ConversationRecord, CliSessionRecord } from '../types';
 
@@ -33,6 +33,28 @@ function encodePathLikeCli(workingDir: string): string {
   return normalized.replace(/^\//, '').replace(/\//g, '-');
 }
 
+/** 从 workingDirectory 或 projectDirName 提取可读项目名 */
+function getProjectLabel(workingDir?: string, projectDirName?: string): string {
+  if (workingDir) {
+    const parts = workingDir.replace(/\\/g, '/').replace(/\/$/, '').split('/');
+    const last = parts[parts.length - 1];
+    return last || workingDir;
+  }
+  if (projectDirName) {
+    // "d--My-Project-claude" → 取最后一个 "--" 后的部分，再去掉最后一段拼接的内容
+    const afterDrive = projectDirName.includes('--') ? projectDirName.split('--').slice(1).join('--') : projectDirName;
+    const parts = afterDrive.split('-').filter(Boolean);
+    return parts[parts.length - 1] || projectDirName;
+  }
+  return '其他';
+}
+
+/** 分组 key：标准化 workingDirectory（小写 + 正斜杠），无则用 projectDirName */
+function getGroupKey(workingDir?: string, projectDirName?: string): string {
+  if (workingDir) return workingDir.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+  return projectDirName ?? '__unknown__';
+}
+
 export function SessionList() {
   const {
     conversationHistory,
@@ -46,6 +68,8 @@ export function SessionList() {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(false);
+  // 折叠状态：key 为 groupKey，值为是否折叠
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   // 加载 CLI 原生会话
   const loadSessions = useCallback(async () => {
@@ -62,14 +86,13 @@ export function SessionList() {
     if (!session.conversationSessionId) loadSessions();
   }, [session.conversationSessionId, loadSessions]);
 
-  /** 合并 localStorage + CLI 会话，扁平列表按时间排序 */
-  const sessions = useMemo(() => {
+  /** 合并 localStorage + CLI 会话，并按项目分组 */
+  const grouped = useMemo(() => {
     const localIds = new Set(conversationHistory.map((r) => r.sessionId));
-    const all: ConversationRecord[] = [...conversationHistory];
+    const all: (ConversationRecord & { _projectDirName?: string })[] = [...conversationHistory];
 
     for (const cli of cliSessions) {
       if (localIds.has(cli.sessionId)) continue;
-      // 尝试匹配 workingDirectory
       let matchedDir = '';
       for (const rec of conversationHistory) {
         if (rec.workingDirectory && encodePathLikeCli(rec.workingDirectory).toLowerCase() === cli.projectDirName.toLowerCase()) {
@@ -83,21 +106,46 @@ export function SessionList() {
         preview: cli.preview,
         startedAt: cli.startedAt,
         lastMessageAt: cli.lastMessageAt,
+        _projectDirName: cli.projectDirName,
       });
     }
 
-    // 按最后消息时间倒序
-    all.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-
     // 搜索过滤
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      return all.filter(
-        (s) => s.preview?.toLowerCase().includes(q) || s.workingDirectory?.toLowerCase().includes(q),
-      );
+    const filtered = search.trim()
+      ? all.filter((s) => {
+          const q = search.trim().toLowerCase();
+          return s.preview?.toLowerCase().includes(q) || s.workingDirectory?.toLowerCase().includes(q);
+        })
+      : all;
+
+    // 分组
+    const map = new Map<string, { label: string; latestAt: number; sessions: ConversationRecord[] }>();
+    for (const rec of filtered) {
+      const key = getGroupKey(rec.workingDirectory, (rec as typeof rec & { _projectDirName?: string })._projectDirName);
+      const label = getProjectLabel(rec.workingDirectory, (rec as typeof rec & { _projectDirName?: string })._projectDirName);
+      if (!map.has(key)) map.set(key, { label, latestAt: 0, sessions: [] });
+      const group = map.get(key)!;
+      group.sessions.push(rec);
+      if (rec.lastMessageAt > group.latestAt) group.latestAt = rec.lastMessageAt;
     }
-    return all;
-  }, [conversationHistory, cliSessions, search]);
+
+    // 各组内按时间倒序
+    for (const group of map.values()) {
+      group.sessions.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    }
+
+    // 当前项目 key
+    const currentKey = getGroupKey(session.workingDirectory);
+
+    // 转为数组：当前项目组置顶，其余按 latestAt 倒序
+    return Array.from(map.entries())
+      .sort(([ka, ga], [kb, gb]) => {
+        if (ka === currentKey) return -1;
+        if (kb === currentKey) return 1;
+        return gb.latestAt - ga.latestAt;
+      })
+      .map(([key, group]) => ({ key, ...group, isCurrent: key === currentKey }));
+  }, [conversationHistory, cliSessions, search, session.workingDirectory]);
 
   const handleSelect = useCallback(
     async (record: ConversationRecord) => {
@@ -186,64 +234,110 @@ export function SessionList() {
         </div>
       )}
 
-      {/* 会话列表 */}
+      {/* 会话列表（分组） */}
       <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         {loading && (
           <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
             加载历史消息…
           </div>
         )}
-        {sessions.length === 0 ? (
+        {grouped.length === 0 ? (
           <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
             <MessageSquare size={20} style={{ display: 'block', margin: '0 auto 6px', opacity: 0.3 }} />
             暂无历史对话
           </div>
         ) : (
-          sessions.map((rec) => {
-            const isActive = rec.sessionId === session.conversationSessionId;
+          grouped.map(({ key, label, isCurrent, sessions: groupSessions }) => {
+            const isCollapsed = collapsed[key] ?? false;
             return (
-              <div
-                key={rec.sessionId}
-                onClick={() => handleSelect(rec)}
-                title={rec.preview || rec.sessionId}
-                style={{
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                  borderLeft: isActive ? '2px solid var(--accent-primary, #7c3aed)' : '2px solid transparent',
-                  background: isActive ? 'var(--bg-active, rgba(124,58,237,0.08))' : 'transparent',
-                  borderBottom: '1px solid var(--border-color)',
-                }}
-              >
-                <div style={{
-                  fontSize: 12,
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  fontWeight: isActive ? 500 : 400,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  lineHeight: 1.4,
-                }}>
-                  {rec.preview || '（无预览）'}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Clock size={9} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    {formatRelTime(rec.lastMessageAt)}
+              <div key={key}>
+                {/* 分组标题 */}
+                <div
+                  onClick={() => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 8px 4px',
+                    cursor: 'pointer',
+                    background: isCurrent ? 'rgba(124,58,237,0.06)' : 'var(--bg-secondary, rgba(255,255,255,0.03))',
+                    borderBottom: '1px solid var(--border-color)',
+                    borderTop: '1px solid var(--border-color)',
+                    position: 'sticky', top: 0, zIndex: 1,
+                  }}
+                >
+                  {isCollapsed
+                    ? <ChevronRight size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    : <ChevronDown size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  }
+                  <FolderOpen size={10} style={{ color: isCurrent ? 'var(--accent-primary, #7c3aed)' : 'var(--text-muted)', flexShrink: 0 }} />
+                  <span style={{
+                    fontSize: 11, fontWeight: 600,
+                    color: isCurrent ? 'var(--accent-primary, #7c3aed)' : 'var(--text-secondary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                  }}>
+                    {label}
                   </span>
-                  {isActive && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
+                    {groupSessions.length}
+                  </span>
+                  {isCurrent && (
                     <span style={{
                       fontSize: 9, fontWeight: 700,
                       color: 'var(--accent-primary, #7c3aed)',
                       background: 'rgba(124,58,237,0.12)',
-                      borderRadius: 3, padding: '0 4px', marginLeft: 2,
-                    }}>
-                      当前
-                    </span>
+                      borderRadius: 3, padding: '0 4px', marginLeft: 2, flexShrink: 0,
+                    }}>当前</span>
                   )}
                 </div>
+
+                {/* 组内会话 */}
+                {!isCollapsed && groupSessions.map((rec) => {
+                  const isActive = rec.sessionId === session.conversationSessionId;
+                  return (
+                    <div
+                      key={rec.sessionId}
+                      onClick={() => handleSelect(rec)}
+                      title={rec.preview || rec.sessionId}
+                      style={{
+                        padding: '5px 12px 5px 20px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        borderLeft: isActive ? '2px solid var(--accent-primary, #7c3aed)' : '2px solid transparent',
+                        background: isActive ? 'var(--bg-active, rgba(124,58,237,0.08))' : 'transparent',
+                        borderBottom: '1px solid var(--border-color)',
+                      }}
+                    >
+                      <div style={{
+                        fontSize: 12,
+                        color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontWeight: isActive ? 500 : 400,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        lineHeight: 1.4,
+                      }}>
+                        {rec.preview || '（无预览）'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={9} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                          {formatRelTime(rec.lastMessageAt)}
+                        </span>
+                        {isActive && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700,
+                            color: 'var(--accent-primary, #7c3aed)',
+                            background: 'rgba(124,58,237,0.12)',
+                            borderRadius: 3, padding: '0 4px', marginLeft: 2,
+                          }}>
+                            当前
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })
