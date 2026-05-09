@@ -637,7 +637,7 @@ export function ChatPanel() {
         {messages.length === 0 && (
           <div className="empty-state">
             <div className="empty-state-icon">
-              <Bot size={48} strokeWidth={1} />
+              <Bot size={44} strokeWidth={1} />
             </div>
             {session.conversationSessionId ? (
               <>
@@ -652,11 +652,30 @@ export function ChatPanel() {
             ) : (
               <>
                 <p className="empty-state-title">Claude Code GUI</p>
-                <p className="empty-state-desc">
-                  {session.isConnected
-                    ? '在下方输入消息与 Claude Code 交互'
-                    : '请先在左侧侧边栏启动 Claude Code 会话'}
-                </p>
+                {session.isConnected ? (
+                  <>
+                    <p className="empty-state-desc">有什么可以帮你的？</p>
+                    <div className="empty-state-suggestions">
+                      {[
+                        { emoji: '📋', text: '审查当前项目代码' },
+                        { emoji: '🔧', text: '帮我修复 Bug' },
+                        { emoji: '📝', text: '创建一个新文件' },
+                        { emoji: '🔍', text: '解释这段代码' },
+                      ].map((s) => (
+                        <button
+                          key={s.text}
+                          className="suggestion-chip"
+                          onClick={() => setInput(s.text)}
+                        >
+                          <span>{s.emoji}</span>
+                          {s.text}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="empty-state-desc">请先在左侧侧边栏启动 Claude Code 会话</p>
+                )}
               </>
             )}
           </div>
@@ -673,8 +692,10 @@ export function ChatPanel() {
 
         {isProcessing && (
           <div className="typing-indicator">
-            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-            <span>Claude 正在思考...</span>
+            <div className="typing-dots">
+              <span /><span /><span />
+            </div>
+            <span>Claude 正在生成</span>
             <button className="typing-stop-btn" onClick={handleStop} title="停止生成">
               <Square size={11} />
               停止
@@ -784,6 +805,17 @@ export function ChatPanel() {
           >
             {isProcessing ? <Square size={16} /> : <Send size={16} />}
           </button>
+        </div>
+        {/* 输入框快捷键提示 */}
+        <div className="input-shortcuts-hint">
+          <kbd>Enter</kbd>
+          <span>发送</span>
+          <span className="hint-sep">·</span>
+          <kbd>Shift+Enter</kbd>
+          <span>换行</span>
+          <span className="hint-sep">·</span>
+          <kbd>Ctrl+F</kbd>
+          <span>搜索</span>
         </div>
         {/* 新对话按钮：清除 session ID，下次发送开启全新对话 */}
         {session.conversationSessionId && (
