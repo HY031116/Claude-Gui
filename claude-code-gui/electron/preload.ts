@@ -36,6 +36,17 @@ export interface ElectronAPI {
   loadCliConfig: () => Promise<{ success: boolean; settings?: any; error?: string }>;
   saveCliConfig: (settings: any) => Promise<{ success: boolean; error?: string }>;
   getCliConfigPath: () => Promise<{ success: boolean; path?: string }>;
+  // Git
+  gitStatus: (cwd: string) => Promise<{ success: boolean; status?: any; error?: string }>;
+  gitDiff: (cwd: string, filePath: string, staged: boolean) => Promise<{ success: boolean; diff?: string; error?: string }>;
+  gitAdd: (cwd: string, files: string[]) => Promise<{ success: boolean; error?: string }>;
+  gitUnstage: (cwd: string, files: string[]) => Promise<{ success: boolean; error?: string }>;
+  gitCommit: (cwd: string, message: string) => Promise<{ success: boolean; hash?: string; error?: string }>;
+  gitLog: (cwd: string, limit?: number) => Promise<{ success: boolean; log?: any[]; error?: string }>;
+  gitIsRepo: (cwd: string) => Promise<{ success: boolean; isRepo: boolean }>;
+  gitBranch: (cwd: string) => Promise<{ success: boolean; branch: string }>;
+  // 系统通知
+  notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const api: ElectronAPI = {
@@ -65,6 +76,17 @@ const api: ElectronAPI = {
   loadCliConfig: () => ipcRenderer.invoke('cli-config:load'),
   saveCliConfig: (settings) => ipcRenderer.invoke('cli-config:save', settings),
   getCliConfigPath: () => ipcRenderer.invoke('cli-config:path'),
+  // Git
+  gitStatus: (cwd) => ipcRenderer.invoke('git:status', cwd),
+  gitDiff: (cwd, filePath, staged) => ipcRenderer.invoke('git:diff', cwd, filePath, staged),
+  gitAdd: (cwd, files) => ipcRenderer.invoke('git:add', cwd, files),
+  gitUnstage: (cwd, files) => ipcRenderer.invoke('git:unstage', cwd, files),
+  gitCommit: (cwd, message) => ipcRenderer.invoke('git:commit', cwd, message),
+  gitLog: (cwd, limit = 20) => ipcRenderer.invoke('git:log', cwd, limit),
+  gitIsRepo: (cwd) => ipcRenderer.invoke('git:isRepo', cwd),
+  gitBranch: (cwd) => ipcRenderer.invoke('git:branch', cwd),
+  // 系统通知
+  notifySend: (title, body) => ipcRenderer.invoke('notify:send', title, body),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

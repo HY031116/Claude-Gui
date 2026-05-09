@@ -249,6 +249,9 @@ export function ChatPanel() {
               startedAt: conversationStartedAtRef.current,
               lastMessageAt: Date.now(),
             });
+            // 任务完成系统通知
+            const preview = firstUserMessageRef.current ?? '任务已完成';
+            window.electronAPI.notifySend?.('Claude Code GUI', preview.slice(0, 80)).catch(() => {});
           }
         }
 

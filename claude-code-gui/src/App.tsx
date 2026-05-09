@@ -8,7 +8,9 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff } from 'lucide-react';
+import { GitPanel } from './components/GitPanel';
+import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -353,6 +355,8 @@ function App() {
     { id: 'files' as const, label: '文件', icon: FolderOpen },
     { id: 'tools' as const, label: '工具', icon: Wrench },
     { id: 'tasks' as const, label: '任务', icon: ClipboardList, badge: todoItems.filter((t) => t.status !== 'completed').length },
+    { id: 'git' as const, label: 'Git', icon: GitBranch },
+    { id: 'changes' as const, label: '变更', icon: FileDiff },
     { id: 'skills' as const, label: 'Skills', icon: BookOpen },
     { id: 'history' as const, label: '历史', icon: History },
   ];
@@ -568,6 +572,10 @@ function App() {
           <SkillsPanel />
         ) : activePanel === 'tasks' ? (
           <TaskPanel />
+        ) : activePanel === 'git' ? (
+          <GitPanel />
+        ) : activePanel === 'changes' ? (
+          <ChangeSummaryPanel />
         ) : (
           <>
             <ChatPanel />

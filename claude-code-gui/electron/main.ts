@@ -1,9 +1,13 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron';
 import path from 'path';
 import { CliService, type CliStartOptions } from './cli-service';
 import { FileService } from './file-service';
 import { SettingsService } from './settings-service';
 import { CliConfigService } from './cli-config-service';
+import {
+  getGitStatus, getGitDiff, gitAdd, gitUnstage, gitCommit,
+  getGitLog, isGitRepo, getGitBranch,
+} from './git-service';
 
 const cliService = new CliService();
 const fileService = new FileService();
@@ -177,4 +181,63 @@ ipcMain.handle('cli-config:save', async (_, settings: any) => {
 
 ipcMain.handle('cli-config:path', async () => {
   return { success: true, path: cliConfigService.getConfigPath() };
+});
+
+// ── Git IPC handlers ──────────────────────────────────────────────────────────
+
+ipcMain.handle('git:status', async (_e, cwd: string) => {
+  try {
+    const status = getGitStatus(cwd);
+    return { success: true, status };
+  } catch (e: unknown) {
+    return { success: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('git:diff', async (_e, cwd: string, filePath: string, staged: boolean) => {
+  try {
+    const diff = getGitDiff(cwd, filePath, staged);
+    return { success: true, diff };
+  } catch (e: unknown) {
+    return { success: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('git:add', async (_e, cwd: string, files: string[]) => {
+  return gitAdd(cwd, files);
+});
+
+ipcMain.handle('git:unstage', async (_e, cwd: string, files: string[]) => {
+  return gitUnstage(cwd, files);
+});
+
+ipcMain.handle('git:commit', async (_e, cwd: string, message: string) => {
+  return gitCommit(cwd, message);
+});
+
+ipcMain.handle('git:log', async (_e, cwd: string, limit: number) => {
+  try {
+    const log = getGitLog(cwd, limit);
+    return { success: true, log };
+  } catch (e: unknown) {
+    return { success: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('git:isRepo', async (_e, cwd: string) => {
+  return { success: true, isRepo: isGitRepo(cwd) };
+});
+
+ipcMain.handle('git:branch', async (_e, cwd: string) => {
+  return { success: true, branch: getGitBranch(cwd) };
+});
+
+// ── 系统通知 ──────────────────────────────────────────────────────────────────
+
+ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
+  if (Notification.isSupported()) {
+    new Notification({ title, body }).show();
+    return { success: true };
+  }
+  return { success: false, error: '系统不支持通知' };
 });
