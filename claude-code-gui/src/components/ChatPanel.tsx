@@ -104,6 +104,21 @@ function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
+/** Slash 命令列表 */
+const SLASH_COMMANDS: { cmd: string; desc: string }[] = [
+  { cmd: '/clear',       desc: '清空当前对话' },
+  { cmd: '/compact',     desc: '压缩上下文，保留摘要' },
+  { cmd: '/help',        desc: '显示帮助信息' },
+  { cmd: '/status',      desc: '显示会话状态和 token 用量' },
+  { cmd: '/cost',        desc: '显示本次会话费用' },
+  { cmd: '/model',       desc: '切换模型（后接模型名）' },
+  { cmd: '/memory',      desc: '查看 / 编辑 CLAUDE.md 记忆' },
+  { cmd: '/permissions', desc: '显示当前权限设置' },
+  { cmd: '/init',        desc: '初始化项目 CLAUDE.md' },
+  { cmd: '/review',      desc: '代码审查' },
+  { cmd: '/exit',        desc: '退出 Claude Code' },
+];
+
 export function ChatPanel() {
   // 精确订阅各自所需字段，避免无关 store 更新触发 ChatPanel 整体重渲
   const messages = useAppStore((s) => s.messages);
@@ -122,6 +137,8 @@ export function ChatPanel() {
   const [wdDraft, setWdDraft] = useState('');
   // 上下文文件附件（每次对话完成后清空，或手动移除）
   const [contextFiles, setContextFiles] = useState<{ path: string; name: string; content: string }[]>([]);
+  // 粘贴图片附件（Ctrl+V 截图直发）
+  const [pastedImages, setPastedImages] = useState<{ preview: string; path: string; name: string }[]>([]);
   // 消息搜索
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +149,9 @@ export function ChatPanel() {
   const [localModel, setLocalModel] = useState('');
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
+  // Slash 命令补全
+  const [slashMenuIndex, setSlashMenuIndex] = useState(-1);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const assistantIdRef = useRef<string | null>(null);
@@ -389,6 +409,7 @@ export function ChatPanel() {
     addMessage({ id: `msg-${Date.now()}`, role: 'user', content: userMsg, timestamp: Date.now() });
     setInput('');
     setContextFiles([]); // 发送后清空附件
+    setPastedImages([]); // 发送后清空图片
     setIsProcessing(true);
     assistantIdRef.current = null;
     targetContentRef.current = '';
@@ -405,6 +426,7 @@ export function ChatPanel() {
         finalMsg,
         session.workingDirectory || undefined,
         currentSessionId,
+        pastedImages.length > 0 ? pastedImages.map((img) => img.path) : undefined,
       );
       if (!result.success) {
         addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: result.error || '消息发送失败。', timestamp: Date.now() });
@@ -414,9 +436,61 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, contextFiles, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage]);
+  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, addMessage]);
+
+  /** 拦截 textarea 粘贴事件，若剪贴板有图片则保存到临时目录并添加为附件 */
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find((item) => item.type.startsWith('image/'));
+    if (!imageItem) return;
+
+    e.preventDefault();
+    const blob = imageItem.getAsFile();
+    if (!blob) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      const ext = imageItem.type.split('/')[1] || 'png';
+      try {
+        const result = await window.electronAPI.saveTempImage(base64, ext);
+        if (result.success && result.path) {
+          const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '-');
+          const name = `粘贴图片_${timeStr}.${ext}`;
+          setPastedImages((prev) => [...prev, { preview: dataUrl, path: result.path!, name }]);
+        }
+      } catch {
+        // 保存失败时忽略
+      }
+    };
+    reader.readAsDataURL(blob);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Slash 菜单键盘导航
+    if (slashSuggestions.length > 0) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashMenuIndex((i) => (i <= 0 ? slashSuggestions.length - 1 : i - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashMenuIndex((i) => (i >= slashSuggestions.length - 1 ? 0 : i + 1));
+        return;
+      }
+      if (e.key === 'Enter' && slashMenuIndex >= 0) {
+        e.preventDefault();
+        setInput(slashSuggestions[slashMenuIndex].cmd + ' ');
+        setSlashMenuIndex(-1);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSlashMenuIndex(-1);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -498,7 +572,14 @@ export function ChatPanel() {
     if (!searchQuery.trim()) return new Set<string>();
     const q = searchQuery.toLowerCase();
     return new Set(messages.filter((m) => m.content.toLowerCase().includes(q)).map((m) => m.id));
-  }, [messages, searchQuery]);
+  }, [searchQuery, messages]);
+
+  // Slash 命令匹配列表
+  const slashSuggestions = useMemo(() => {
+    if (!input.startsWith('/') || input.includes(' ')) return [];
+    const q = input.toLowerCase();
+    return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
+  }, [input]);
 
   // 检测最新的待审批 Bash 工具调用（supervised 模式）
   const pendingApproval = useMemo(() => {
@@ -769,14 +850,23 @@ export function ChatPanel() {
             </button>
           )}
         </div>
-        {/* 附件文件 chips */}
-        {contextFiles.length > 0 && (
+        {/* 附件文件 chips + 粘贴图片 chips */}
+        {(contextFiles.length > 0 || pastedImages.length > 0) && (
           <div className="context-files-bar">
             {contextFiles.map((f) => (
               <div key={f.path} className="context-file-chip" title={f.path}>
                 <FileCode size={11} />
                 <span>{f.name}</span>
                 <button onClick={() => setContextFiles((prev) => prev.filter((x) => x.path !== f.path))}>
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+            {pastedImages.map((img) => (
+              <div key={img.path} className="context-file-chip image-chip" title={img.name}>
+                <img src={img.preview} alt={img.name} className="paste-img-thumb" />
+                <span>{img.name}</span>
+                <button onClick={() => setPastedImages((prev) => prev.filter((x) => x.path !== img.path))}>
                   <X size={10} />
                 </button>
               </div>
@@ -799,6 +889,22 @@ export function ChatPanel() {
             </div>
           </div>
         )}
+        {/* Slash 命令补全菜单 */}
+        {slashSuggestions.length > 0 && (
+          <div className="slash-menu">
+            {slashSuggestions.map((c, i) => (
+              <button
+                key={c.cmd}
+                className={`slash-menu-item ${i === slashMenuIndex ? 'active' : ''}`}
+                onClick={() => { setInput(c.cmd + ' '); setSlashMenuIndex(-1); textareaRef.current?.focus(); }}
+                onMouseEnter={() => setSlashMenuIndex(i)}
+              >
+                <code className="slash-menu-cmd">{c.cmd}</code>
+                <span className="slash-menu-desc">{c.desc}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="chat-input-wrapper">
           {/* 附件按钮 */}
           <button
@@ -810,10 +916,12 @@ export function ChatPanel() {
             <Paperclip size={16} />
           </button>
           <textarea
+            ref={textareaRef}
             className="chat-input"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); setSlashMenuIndex(-1); }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={session.isConnected ? '输入消息... (Enter 发送，Shift+Enter 换行)' : '请先启动会话'}
             disabled={!session.isConnected}
             rows={1}
