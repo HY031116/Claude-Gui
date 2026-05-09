@@ -739,6 +739,16 @@ export function SettingsPanel() {
           保存后设置将与 VSCode Claude Code 插件自动同步
         </p>
       </div>
+
+      {/* 版本信息 */}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+          Claude Code GUI &nbsp;
+          <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+            v{typeof window !== 'undefined' ? (window as { __APP_VERSION__?: string }).__APP_VERSION__ ?? '1.0.0' : '1.0.0'}
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
