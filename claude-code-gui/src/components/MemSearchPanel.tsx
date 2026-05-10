@@ -178,6 +178,148 @@ export function MemSearchPanel() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  // 渲染时间线专用视图：支持 ## 日期标题 + 表格行 + 普通文本
+  const renderTimeline = (text: string) => {
+    const kw = tlQuery.trim();
+    const lines = text.split('\n');
+    const result: React.ReactNode[] = [];
+    let headerParsed = false;
+
+    lines.forEach((line, i) => {
+      const trimmed = line.trim();
+
+      // 日期分组标题 ## / # / ### 开头
+      if (/^#{1,3}\s/.test(trimmed)) {
+        const title = trimmed.replace(/^#+\s*/, '');
+        headerParsed = false; // 每个分组重置表头状态
+        result.push(
+          <div
+            key={i}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 4px' }}
+          >
+            <span
+              style={{
+                padding: '2px 8px',
+                background: 'var(--accent-color)',
+                color: '#fff',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              {title}
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
+          </div>,
+        );
+        return;
+      }
+
+      // 水平分割线
+      if (/^---+$/.test(trimmed)) {
+        result.push(<div key={i} style={{ height: 1, background: 'var(--border-color)', margin: '4px 0' }} />);
+        return;
+      }
+
+      // 表头分隔行（|-----|）跳过
+      if (/^\|[-| :]+\|$/.test(trimmed)) return;
+
+      // 表格数据行
+      if (trimmed.startsWith('|')) {
+        const cells = trimmed.slice(1, -1).split('|').map((c) => c.trim());
+        const isHeader = !headerParsed;
+        if (!headerParsed) headerParsed = true;
+
+        if (isHeader) {
+          result.push(
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                gap: 6,
+                padding: '3px 0',
+                borderBottom: '1px solid var(--border-color)',
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {cells.map((c, j) => (
+                <span
+                  key={j}
+                  style={{
+                    flex: j === 0 ? '0 0 44px' : j === 1 ? '0 0 66px' : j === cells.length - 1 ? '0 0 58px' : 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {c}
+                </span>
+              ))}
+            </div>,
+          );
+        } else {
+          // 数据行：最后一列（内容/摘要）允许换行显示
+          result.push(
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                gap: 6,
+                padding: '5px 0 5px 8px',
+                borderBottom: '1px solid rgba(128,128,128,0.12)',
+                borderLeft: '2px solid var(--accent-color)',
+                marginLeft: 2,
+                marginBottom: 1,
+                fontSize: 12,
+                alignItems: 'flex-start',
+              }}
+            >
+              {cells.map((c, j) => {
+                const isLast = j === cells.length - 1;
+                return (
+                  <span
+                    key={j}
+                    style={{
+                      flex: j === 0 ? '0 0 44px' : j === 1 ? '0 0 66px' : isLast ? 1 : '0 0 58px',
+                      overflow: 'hidden',
+                      textOverflow: isLast ? 'clip' : 'ellipsis',
+                      whiteSpace: isLast ? 'normal' : 'nowrap',
+                      wordBreak: isLast ? 'break-word' : undefined,
+                      color: j === 0 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      fontSize: j === 0 ? 11 : 12,
+                    }}
+                    title={isLast ? undefined : c}
+                  >
+                    {kw ? highlight(c, kw) : c}
+                  </span>
+                );
+              })}
+            </div>,
+          );
+        }
+        return;
+      }
+
+      // 空行
+      if (!trimmed) {
+        result.push(<div key={i} style={{ height: 4 }} />);
+        return;
+      }
+
+      // 普通文本行
+      result.push(
+        <div key={i} style={{ fontSize: 12, padding: '2px 0', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+          {kw ? highlight(line, kw) : line}
+        </div>,
+      );
+    });
+
+    return result;
+  };
+
   // 渲染 markdown 表格行，支持关键词高亮
   const renderContent = (text: string) => {
     const kw = mode === 'search' ? submittedQuery : '';
@@ -614,59 +756,92 @@ export function MemSearchPanel() {
         {/* 结果 */}
         {content && !loading && (
           <div>
-            {/* 分页工具栏 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 10,
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Clock size={11} />
-                第 {page + 1} 页 · 每页 {options.limit} 条
-                {submittedQuery && mode === 'search' && (
-                  <span style={{ marginLeft: 6 }}>
-                    关键词{' '}
-                    <mark
-                      style={{
-                        background: 'rgba(251,191,36,0.35)',
-                        color: 'inherit',
-                        borderRadius: 2,
-                        padding: '0 3px',
-                      }}
-                    >
-                      {submittedQuery}
-                    </mark>
-                  </span>
-                )}
+            {/* 分页工具栏（时间线模式不显示） */}
+            {mode !== 'timeline' && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={11} />
+                  第 {page + 1} 页 · 每页 {options.limit} 条
+                  {submittedQuery && mode === 'search' && (
+                    <span style={{ marginLeft: 6 }}>
+                      关键词{' '}
+                      <mark
+                        style={{
+                          background: 'rgba(251,191,36,0.35)',
+                          color: 'inherit',
+                          borderRadius: 2,
+                          padding: '0 3px',
+                        }}
+                      >
+                        {submittedQuery}
+                      </mark>
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={handlePrev}
+                    disabled={page === 0 || loading}
+                    className="btn"
+                    style={{ padding: '2px 6px' }}
+                    title="上一页"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    disabled={!hasMore || loading}
+                    className="btn"
+                    style={{ padding: '2px 6px' }}
+                    title="下一页"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  onClick={handlePrev}
-                  disabled={page === 0 || loading}
-                  className="btn"
-                  style={{ padding: '2px 6px' }}
-                  title="上一页"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <button
-                  onClick={handleNext}
-                  disabled={!hasMore || loading}
-                  className="btn"
-                  style={{ padding: '2px 6px' }}
-                  title="下一页"
-                >
-                  <ChevronRight size={14} />
-                </button>
+            )}
+
+            {/* 时间线摘要栏 */}
+            {mode === 'timeline' && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 10,
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <GitBranch size={11} />
+                <span>
+                  时间线上下文 · 前 {tlDepthBefore} 后 {tlDepthAfter} 条
+                  {tlAnchor && <span style={{ marginLeft: 6 }}>锚点：<code style={{ fontSize: 11 }}>{tlAnchor}</code></span>}
+                  {tlQuery && (
+                    <span style={{ marginLeft: 6 }}>
+                      过滤：
+                      <mark style={{ background: 'rgba(251,191,36,0.35)', color: 'inherit', borderRadius: 2, padding: '0 3px' }}>
+                        {tlQuery}
+                      </mark>
+                    </span>
+                  )}
+                </span>
               </div>
+            )}
+
+            {/* 内容区：时间线用专用渲染器 */}
+            <div style={{ fontSize: 13 }}>
+              {mode === 'timeline' ? renderTimeline(content) : renderContent(content)}
             </div>
-            {/* 表格 */}
-            <div style={{ fontSize: 13 }}>{renderContent(content)}</div>
           </div>
         )}
       </div>
