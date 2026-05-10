@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, Check, X, Loader2, Cpu, Shield, Zap, ChevronDown, ChevronUp, Database, Server, Plus, Trash2, Power } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
+import { TabBar } from './TabBar';
 import type { AppSettings, AuthStatus } from '../types';
 
 const MODEL_OPTIONS = [
@@ -284,40 +285,17 @@ export function SettingsPanel() {
       </div>
 
       {/* Tab 导航栏 */}
-      {(() => {
-        const tabs: Array<{ key: typeof activeTab; label: string }> = [
+      <TabBar
+        tabs={[
           { key: 'model', label: '模型' },
           { key: 'permissions', label: '权限' },
           { key: 'session', label: '会话' },
           { key: 'connection', label: '连接' },
           { key: 'integrations', label: '集成' },
-        ];
-        return (
-          <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--border-color)' }}>
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                style={{
-                  flex: 1,
-                  padding: '6px 4px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: activeTab === t.key ? '2px solid var(--accent-color)' : '2px solid transparent',
-                  marginBottom: -2,
-                  color: activeTab === t.key ? 'var(--accent-color)' : 'var(--text-secondary)',
-                  fontSize: 11,
-                  fontWeight: activeTab === t.key ? 600 : 400,
-                  cursor: 'pointer',
-                  transition: 'color 0.15s',
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        );
-      })()}
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      />
 
       {/* ===== Tab: 模型 ===== */}
       {activeTab === 'model' && <>
