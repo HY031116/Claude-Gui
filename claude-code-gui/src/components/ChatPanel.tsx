@@ -535,7 +535,7 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, addMessage, setTokenUsage, clearPlanSteps]);
+  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, continueMode, addMessage, setTokenUsage, clearPlanSteps]);
 
   /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
   const loadAtDir = useCallback(async (query: string) => {
@@ -1052,6 +1052,27 @@ export function ChatPanel() {
               <FolderOpen size={13} className="chat-wd-icon" />
               <span className="chat-wd-path">{wdDisplayPath}</span>
               <Pencil size={11} className="chat-wd-edit-icon" />
+            </button>
+          )}
+          {/* 继续上次会话按钮（只在无当前会话时显示） */}
+          {!session.conversationSessionId && (
+            <button
+              onClick={() => setContinueMode((v) => !v)}
+              title="继续上次 CLI 会话（--continue）"
+              style={{
+                marginLeft: 6,
+                padding: '2px 8px',
+                fontSize: 11,
+                borderRadius: 4,
+                border: `1px solid ${continueMode ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                background: continueMode ? 'var(--accent-color)' : 'transparent',
+                color: continueMode ? '#fff' : 'var(--text-muted)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              {continueMode ? '✓ --continue 已启用' : '继续上次会话'}
             </button>
           )}
         </div>

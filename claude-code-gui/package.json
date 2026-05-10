@@ -11,7 +11,7 @@
     "build": "tsc -b && vite build && npm run build:electron",
     "build:electron": "tsc -p electron/tsconfig.json && node -e \"require('fs').copyFileSync('electron/assets/package.json', 'dist-electron/package.json')\"",
     "electron": "npm run build:electron && node scripts/start-electron.cjs",
-    "electron:dev": "concurrently \"vite --port 5185 --strictPort\" \"npm run build:electron && wait-on http://localhost:5185 && node scripts/start-electron.cjs\"",
+    "electron:dev": "concurrently --kill-others \"vite --port 5185 --strictPort\" \"npm run build:electron && npx tsc -p electron/tsconfig.json --watch --preserveWatchOutput\" \"wait-on tcp:5185 && node scripts/dev-with-reload.cjs\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "dist": "npm run build && electron-builder"
