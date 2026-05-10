@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Server, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, X, ChevronDown, ChevronRight } from 'lucide-react';
+﻿import { useState, useEffect, useCallback } from 'react';
+import { Server, Plus, Pencil, Trash2, CheckCircle, AlertTriangle, X, ChevronDown, ChevronRight, ShoppingBag, Download, Upload } from 'lucide-react';
 
 /** 键值对编辑行 */
 interface KvPair { key: string; value: string }
@@ -41,6 +41,89 @@ interface FormState {
 function defaultForm(): FormState {
   return { name: '', type: 'stdio', command: '', args: '', env: [], url: '', headers: [] };
 }
+
+// ── 预设 MCP 服务器市场 ────────────────────────────────────────────────────────
+interface PresetServer {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  config: McpServerConfig;
+}
+
+const PRESET_MCP_SERVERS: PresetServer[] = [
+  {
+    id: 'filesystem',
+    name: 'Filesystem',
+    description: '读写本地文件系统',
+    category: '文件',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '/'] },
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    description: 'GitHub Issues、PR、代码搜索',
+    category: '开发',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: '' } },
+  },
+  {
+    id: 'postgres',
+    name: 'PostgreSQL',
+    description: 'PostgreSQL 数据库查询',
+    category: '数据库',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://localhost/mydb'] },
+  },
+  {
+    id: 'sqlite',
+    name: 'SQLite',
+    description: 'SQLite 数据库操作',
+    category: '数据库',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sqlite', '/path/to/db.sqlite'] },
+  },
+  {
+    id: 'brave-search',
+    name: 'Brave Search',
+    description: 'Brave 搜索引擎网络搜索',
+    category: '搜索',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-brave-search'], env: { BRAVE_API_KEY: '' } },
+  },
+  {
+    id: 'puppeteer',
+    name: 'Puppeteer',
+    description: '无头浏览器自动化',
+    category: '浏览器',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-puppeteer'] },
+  },
+  {
+    id: 'memory',
+    name: 'Memory',
+    description: '键值对持久化记忆存储',
+    category: '记忆',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] },
+  },
+  {
+    id: 'sequential-thinking',
+    name: 'Sequential Thinking',
+    description: '结构化多步推理工具',
+    category: '推理',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'] },
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    description: 'Slack 频道消息读写',
+    category: '通讯',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-slack'], env: { SLACK_BOT_TOKEN: '', SLACK_TEAM_ID: '' } },
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    description: 'Google Drive 文件访问',
+    category: '云存储',
+    config: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-gdrive'] },
+  },
+];
+
 
 function serverToForm(name: string, cfg: McpServerConfig): FormState {
   return {
@@ -134,6 +217,13 @@ export function McpPanel() {
   const [formError, setFormError] = useState('');
   const [expandedServer, setExpandedServer] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  // 市场弹窗
+  const [showMarket, setShowMarket] = useState(false);
+  const [marketCategory, setMarketCategory] = useState<string>('全部');
+  // JSON 导入/导出
+  const [showJsonModal, setShowJsonModal] = useState<'import' | 'export' | null>(null);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState('');
 
   const loadServers = useCallback(async () => {
     setIsLoading(true);
@@ -173,6 +263,44 @@ export function McpPanel() {
     setFormError('');
     setEditModal({ open: true, isNew: true, originalName: '' });
   };
+
+  /** 从预设市场快速填充表单 */
+  const applyPreset = (preset: PresetServer) => {
+    const form = serverToForm(preset.id, preset.config);
+    form.name = preset.id;
+    setForm(form);
+    setFormError('');
+    setShowMarket(false);
+    setEditModal({ open: true, isNew: true, originalName: '' });
+  };
+
+  /** 打开 JSON 导出（当前 servers 序列化为格式化 JSON） */
+  const openExport = () => {
+    setJsonText(JSON.stringify(servers, null, 2));
+    setJsonError('');
+    setShowJsonModal('export');
+  };
+
+  /** 打开 JSON 导入 */
+  const openImport = () => {
+    setJsonText('');
+    setJsonError('');
+    setShowJsonModal('import');
+  };
+
+  /** 执行 JSON 导入（merge 模式：合并到现有 servers） */
+  const handleJsonImport = async () => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('顶层必须是 JSON 对象');
+      const merged = { ...servers, ...parsed };
+      setShowJsonModal(null);
+      await saveServers(merged);
+    } catch (e) {
+      setJsonError(`JSON 解析失败：${String(e)}`);
+    }
+  };
+
 
   const openEdit = (name: string, cfg: McpServerConfig) => {
     setForm(serverToForm(name, cfg));
@@ -240,6 +368,31 @@ export function McpPanel() {
           style={{ fontSize: 12, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
         >
           <Plus size={13} /> 添加服务器
+        </button>
+        <button
+          className="btn"
+          onClick={() => setShowMarket(true)}
+          style={{ fontSize: 12, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+          title="浏览预设服务器市场"
+        >
+          <ShoppingBag size={13} /> 市场
+        </button>
+        <button
+          className="btn"
+          onClick={openImport}
+          style={{ fontSize: 12, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+          title="从 JSON 批量导入"
+        >
+          <Upload size={13} />
+        </button>
+        <button
+          className="btn"
+          onClick={openExport}
+          style={{ fontSize: 12, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+          title="导出为 JSON"
+          disabled={Object.keys(servers).length === 0}
+        >
+          <Download size={13} />
         </button>
       </div>
 
@@ -534,6 +687,7 @@ export function McpPanel() {
         </div>
       )}
 
+
       {/* 删除确认弹窗 */}
       {deleteConfirm && (
         <div
@@ -572,6 +726,139 @@ export function McpPanel() {
               <button className="btn btn-danger" onClick={() => handleDelete(deleteConfirm)} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Trash2 size={12} /> 删除
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 市场弹窗 */}
+      {showMarket && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+          onClick={() => setShowMarket(false)}
+        >
+          <div
+            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '20px 24px', maxWidth: 640, width: '94%', maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <ShoppingBag size={15} color="var(--accent-color)" />
+              <span style={{ fontWeight: 600, fontSize: 14 }}>MCP 服务器市场</span>
+              <div style={{ flex: 1 }} />
+              <button onClick={() => setShowMarket(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={16} /></button>
+            </div>
+
+            {/* 分类筛选 */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {['全部', ...Array.from(new Set(PRESET_MCP_SERVERS.map((p) => p.category)))].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setMarketCategory(cat)}
+                  style={{
+                    padding: '3px 10px', fontSize: 11, borderRadius: 12,
+                    border: '1px solid var(--border-color)',
+                    background: marketCategory === cat ? 'var(--accent-color)' : 'var(--bg-secondary)',
+                    color: marketCategory === cat ? '#fff' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* 预设列表 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {PRESET_MCP_SERVERS
+                .filter((p) => marketCategory === '全部' || p.category === marketCategory)
+                .map((preset) => {
+                  const alreadyAdded = Object.prototype.hasOwnProperty.call(servers, preset.id);
+                  return (
+                    <div
+                      key={preset.id}
+                      style={{
+                        padding: '10px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 8,
+                        background: 'var(--bg-secondary)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 600, fontSize: 12, flex: 1 }}>{preset.name}</span>
+                        <span style={{ fontSize: 10, background: 'var(--bg-hover)', borderRadius: 4, padding: '1px 5px', color: 'var(--text-muted)' }}>
+                          {preset.category}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{preset.description}</div>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => applyPreset(preset)}
+                        disabled={alreadyAdded}
+                        style={{ fontSize: 11, padding: '3px 10px', marginTop: 4, alignSelf: 'flex-start' }}
+                      >
+                        {alreadyAdded ? '已添加' : '配置并添加'}
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JSON 导入/导出弹窗 */}
+      {showJsonModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+          onClick={() => setShowJsonModal(null)}
+        >
+          <div
+            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '20px 24px', maxWidth: 560, width: '92%', maxHeight: '80vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+              {showJsonModal === 'import' ? 'JSON 批量导入' : '导出为 JSON'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              {showJsonModal === 'import'
+                ? '粘贴 mcpServers 格式的 JSON（将与现有配置合并）：'
+                : '复制以下 JSON 以备份或分享 MCP 配置：'}
+            </div>
+            <textarea
+              style={{
+                width: '100%', height: 240, fontFamily: 'var(--font-mono, monospace)', fontSize: 11,
+                background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                borderRadius: 6, padding: 10, color: 'var(--text-primary)', resize: 'vertical', boxSizing: 'border-box',
+              }}
+              value={jsonText}
+              onChange={(e) => { if (showJsonModal === 'import') { setJsonText(e.target.value); setJsonError(''); } }}
+              readOnly={showJsonModal === 'export'}
+              spellCheck={false}
+            />
+            {jsonError && (
+              <div style={{ fontSize: 11, color: 'var(--error-color, #f44336)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <AlertTriangle size={11} /> {jsonError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+              <button className="btn" onClick={() => setShowJsonModal(null)} style={{ fontSize: 12 }}>关闭</button>
+              {showJsonModal === 'import' && (
+                <button className="btn btn-primary" onClick={handleJsonImport} style={{ fontSize: 12 }}>
+                  导入（合并）
+                </button>
+              )}
+              {showJsonModal === 'export' && (
+                <button
+                  className="btn"
+                  onClick={() => navigator.clipboard.writeText(jsonText)}
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Download size={12} /> 复制
+                </button>
+              )}
             </div>
           </div>
         </div>
