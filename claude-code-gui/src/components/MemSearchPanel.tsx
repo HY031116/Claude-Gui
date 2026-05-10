@@ -178,7 +178,7 @@ export function MemSearchPanel() {
     else doFetch(submittedQuery, newPage);
   };
 
-  const toggleCardDetail = async (id: string) => {
+  const toggleCardDetail = useCallback(async (id: string) => {
     if (expandedIds.has(id)) {
       setExpandedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
       return;
@@ -191,16 +191,16 @@ export function MemSearchPanel() {
     setExpandedIds((prev) => new Set(prev).add(id));
     const numId = parseInt(id, 10);
     if (isNaN(numId)) {
-      setCardDetails((prev) => new Map(prev).set(id, 'error:ID not valid'));
+      setCardDetails((prev) => new Map(prev).set(id, 'error:ID 无效'));
       return;
     }
     try {
       const res = await window.electronAPI.getObservations([numId]);
-      setCardDetails((prev) => new Map(prev).set(id, res.success ? (res.content ?? '') : ('error:' + (res.error ?? 'fail'))));
+      setCardDetails((prev) => new Map(prev).set(id, res.success ? (res.content ?? '') : ('error:' + (res.error ?? '请求失败'))));
     } catch (e) {
       setCardDetails((prev) => new Map(prev).set(id, 'error:' + String(e)));
     }
-  };
+  }, [expandedIds, cardDetails]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();
