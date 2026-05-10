@@ -21,6 +21,61 @@ export interface McpServerConfig {
 }
 
 /**
+ * Hook handler 定义
+ */
+export interface HookHandler {
+  /** handler 类型 */
+  type: 'command' | 'http' | 'mcp_tool' | 'prompt' | 'agent';
+  /** command 类型：Shell 命令 */
+  command?: string;
+  /** command 类型：是否异步执行 */
+  async?: boolean;
+  /** command 类型：Shell 类型（Windows 下可用 powershell） */
+  shell?: 'bash' | 'powershell';
+  /** http 类型：请求 URL */
+  url?: string;
+  /** http 类型：额外请求头 */
+  headers?: Record<string, string>;
+  /** http 类型：允许插值的环境变量名 */
+  allowedEnvVars?: string[];
+  /** mcp_tool 类型：MCP 服务器名 */
+  server?: string;
+  /** mcp_tool 类型：工具名 */
+  tool?: string;
+  /** mcp_tool 类型：工具参数 */
+  input?: Record<string, unknown>;
+  /** prompt/agent 类型：提示词（$ARGUMENTS 占位符） */
+  prompt?: string;
+  /** prompt/agent 类型：使用的模型 */
+  model?: string;
+  /** 通用：按权限规则语法过滤触发条件 */
+  if?: string;
+  /** 通用：超时秒数 */
+  timeout?: number;
+  /** 通用：运行时状态栏提示 */
+  statusMessage?: string;
+  /** 通用：仅运行一次（仅 skill frontmatter 中有效） */
+  once?: boolean;
+}
+
+/**
+ * Hook matcher group（一个事件下的一个 matcher 分组）
+ */
+export interface HookMatcherGroup {
+  /** 匹配规则（工具名、事件来源等；省略则匹配全部） */
+  matcher?: string;
+  /** 该分组下的 handler 列表 */
+  hooks: HookHandler[];
+}
+
+/**
+ * 所有 Hooks 配置（按事件名分组）
+ */
+export type HooksConfig = {
+  [event: string]: HookMatcherGroup[];
+};
+
+/**
  * Claude CLI 原生配置文件服务
  * 与 VSCode Claude Code 插件共享配置
  * 配置文件位置: ~/.claude/settings.json
@@ -48,6 +103,12 @@ export interface ClaudeCliSettings {
 
   // MCP 服务器（Model Context Protocol）
   mcpServers?: Record<string, McpServerConfig>;
+
+  // Hooks 配置
+  hooks?: HooksConfig;
+
+  // 是否禁用所有 Hooks
+  disableAllHooks?: boolean;
 
   // 扩展市场
   extraKnownMarketplaces?: Record<string, any>;

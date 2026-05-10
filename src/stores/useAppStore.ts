@@ -98,8 +98,8 @@ interface AppState {
   clearConversationHistory: () => void;
 
   // UI
-  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees';
-  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees') => void;
+  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks';
+  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks') => void;
   sidebarVisible: boolean;
   setSidebarVisible: (visible: boolean) => void;
   // 主题

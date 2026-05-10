@@ -340,8 +340,16 @@ ipcMain.handle('mem:check', async () => {
   return fileService.checkClaudeMemStatus();
 });
 
-ipcMain.handle('mem:search', async (_e, query: string, options: { limit?: number; project?: string; type?: string }) => {
+ipcMain.handle('mem:search', async (_e, query: string | undefined, options: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string }) => {
   return fileService.searchClaudeMem(query, options);
+});
+
+ipcMain.handle('mem:timeline', async (_e, options: { anchor?: string; query?: string; depthBefore?: number; depthAfter?: number; project?: string }) => {
+  return fileService.timelineClaudeMem(options);
+});
+
+ipcMain.handle('mem:get_observations', async (_e, ids: number[], options?: { orderBy?: string; project?: string }) => {
+  return fileService.getObservationsClaudeMem(ids, options ?? {});
 });
 
 // 自定义 Agent CRUD
