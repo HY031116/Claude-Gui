@@ -217,6 +217,13 @@ npm install
 npm run electron:dev
 ```
 
+启动后并发运行三个进程：
+- **Vite**（端口 5185）：渲染层，支持 HMR 热更新
+- **tsc --watch**：监听 `electron/*.ts`，自动增量编译到 `dist-electron/`
+- **dev-with-reload**：监听 `dist-electron/*.js`，主进程文件变化时自动重启 Electron
+
+> 主进程热重载有 3 秒冷却期（防止 tsc 初始编译误触发），冷却期后修改 `electron/` 下任意 `.ts` 文件保存即可触发自动重启。
+
 ### 生产打包
 
 ```bash
