@@ -9,7 +9,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle, GitFork, Zap } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle, GitFork, Zap, Shield } from 'lucide-react';
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import { SessionList } from './components/SessionList';
@@ -21,6 +21,7 @@ import { AgentPanel } from './components/AgentPanel';
 import PluginPanel from './components/PluginPanel';
 import { WorktreePanel } from './components/WorktreePanel';
 import { HooksPanel } from './components/HooksPanel';
+import { RulesPanel } from './components/RulesPanel';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -376,6 +377,7 @@ function App() {
     { id: 'plugins' as const, label: 'Plugins', icon: Puzzle },
     { id: 'worktrees' as const, label: 'Worktree', icon: GitFork },
     { id: 'hooks' as const, label: 'Hooks', icon: Zap },
+    { id: 'rules' as const, label: '权限规则', icon: Shield },
   ];
 
   return (
@@ -621,6 +623,8 @@ function App() {
           <WorktreePanel />
         ) : activePanel === 'hooks' ? (
           <HooksPanel />
+        ) : activePanel === 'rules' ? (
+          <RulesPanel />
         ) : (
           <>
             {/* 多会话标签条 */}
