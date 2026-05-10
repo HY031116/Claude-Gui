@@ -1,4 +1,9 @@
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
 const chunks = [];
+const STOP_BLOCK_LIMIT = 5;
 
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => chunks.push(chunk));
@@ -34,6 +39,48 @@ process.stdin.on('end', () => {
 });
 
 process.stdin.resume();
+
+function getStopStatePath(payload) {
+  const sessionKey = payload.sessionId || payload.session_id || payload.transcript_path || 'default';
+  const safeKey = String(sessionKey).replace(/[^a-zA-Z0-9._-]/g, '_');
+
+  return path.join(os.tmpdir(), `continuous-iteration-stop-${safeKey}.json`);
+}
+
+function readStopState(payload) {
+  const statePath = getStopStatePath(payload);
+
+  try {
+    const raw = fs.readFileSync(statePath, 'utf8');
+    const parsed = JSON.parse(raw);
+
+    return {
+      statePath,
+      blockCount: Number.isFinite(parsed.blockCount) ? parsed.blockCount : 0,
+    };
+  } catch {
+    return {
+      statePath,
+      blockCount: 0,
+    };
+  }
+}
+
+function writeStopState(statePath, blockCount) {
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify({ blockCount }),
+    'utf8',
+  );
+}
+
+function clearStopState(statePath) {
+  try {
+    fs.unlinkSync(statePath);
+  } catch {
+    // Ignore missing or locked state files.
+  }
+}
 
 function buildOutput(eventName, toolName, payload) {
   if (eventName === 'SessionStart') {
@@ -84,22 +131,49 @@ function buildOutput(eventName, toolName, payload) {
   }
 
   if (eventName === 'Stop') {
-    if (payload.stop_hook_active) {
+    const { statePath, blockCount } = readStopState(payload);
+
+    if (!payload.stop_hook_active) {
+      writeStopState(statePath, 1);
+
       return {
         continue: true,
-        systemMessage: 'Stop hook 已触发过一次，允许本次结束以避免无限循环。',
+        systemMessage: '检测到会话准备结束，先执行一次闭环自检。',
+        hookSpecificOutput: {
+          hookEventName: 'Stop',
+          decision: 'block',
+          reason: [
+            '先确认当前目标是否真正闭环。',
+            '如果还存在未验证假设、未执行验证、或明确的最小下一步，请继续推进后再结束。',
+            `这是本轮停止检查的第 1/${STOP_BLOCK_LIMIT} 次阻断。`,
+            '完成后再收尾，并明确结果、验证结论、剩余风险和下一步建议。',
+          ].join('\n'),
+        },
       };
     }
 
+    if (blockCount >= STOP_BLOCK_LIMIT) {
+      clearStopState(statePath);
+
+      return {
+        continue: true,
+        systemMessage: `Stop hook 已连续阻断 ${blockCount} 次，本次允许结束以避免无限循环。`,
+      };
+    }
+
+    const nextBlockCount = blockCount + 1;
+    writeStopState(statePath, nextBlockCount);
+
     return {
       continue: true,
-      systemMessage: '检测到会话准备结束，先执行一次闭环自检。',
+      systemMessage: '检测到会话仍准备结束，继续执行闭环自检。',
       hookSpecificOutput: {
         hookEventName: 'Stop',
         decision: 'block',
         reason: [
           '先确认当前目标是否真正闭环。',
           '如果还存在未验证假设、未执行验证、或明确的最小下一步，请继续推进后再结束。',
+          `这是本轮停止检查的第 ${nextBlockCount}/${STOP_BLOCK_LIMIT} 次阻断。`,
           '完成后再收尾，并明确结果、验证结论、剩余风险和下一步建议。',
         ].join('\n'),
       },
