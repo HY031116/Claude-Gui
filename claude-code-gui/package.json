@@ -1,8 +1,8 @@
 {
   "name": "claude-code-gui",
   "private": true,
-  "version": "1.3.0",
-  "description": "Claude Code GUI — 为 Claude Code CLI 提供图形界面的 Electron 桌面应用",
+  "version": "1.3.1",
+  "description": "Claude Code GUI �?�?Claude Code CLI 提供图形界面�?Electron 桌面应用",
   "author": "Claude Code GUI Contributors",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -94,3 +94,4 @@
     ]
   }
 }
+
