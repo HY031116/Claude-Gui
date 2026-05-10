@@ -31,7 +31,24 @@ export interface AppSettings {
   awsSessionToken?: string;
   // Google Vertex AI 配置
   vertexProjectId?: string;
-  vertexRegion?: string;}
+  vertexRegion?: string;
+  /** 限制 agentic 最大轮次（--max-turns，print 模式有效） */
+  maxTurns?: number;
+  /** 是否展示扩展思维摘要 */
+  showThinkingSummaries?: boolean;
+  /** 所有会话默认开启扩展思维 */
+  alwaysThinkingEnabled?: boolean;
+  /** 自动记忆开关 */
+  autoMemoryEnabled?: boolean;
+  /** 会话级环境变量 */
+  envVars?: Record<string, string>;
+  /** 权限精细规则：允许 */
+  permissionAllow?: string[];
+  /** 权限精细规则：拒绝 */
+  permissionDeny?: string[];
+  /** 权限精细规则：询问 */
+  permissionAsk?: string[];
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   apiKey: '',

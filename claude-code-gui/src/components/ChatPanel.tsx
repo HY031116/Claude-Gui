@@ -215,6 +215,9 @@ export function ChatPanel() {
   const [customAgentNames, setCustomAgentNames] = useState<string[]>([]);
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
+
+  /** 是否处于"继续上次会话"模式（下次发消息时用 --continue） */
+  const [continueMode, setContinueMode] = useState(false);
   // Slash 命令补全
   const [slashMenuIndex, setSlashMenuIndex] = useState(-1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -485,6 +488,10 @@ export function ChatPanel() {
     const userMsg = input.trim();
     const currentSessionId = session.conversationSessionId;
 
+    // 决定 sessionId：有进行中会话优先 --resume；continueMode 时用 --continue
+    const effectiveSessionId: string | undefined =
+      currentSessionId ?? (continueMode ? 'CONTINUE_LAST' : undefined);
+
     // 构造最终消息：若有上下文文件，在消息前注入文件内容
     let finalMsg = userMsg;
     if (contextFiles.length > 0) {
@@ -498,6 +505,7 @@ export function ChatPanel() {
     setPastedImages([]); // 发送后清空图片
     setAtMenuOpen(false); // 发送后关闭 @ 菜单
     setAtQuery('');
+    if (continueMode) setContinueMode(false); // 发送后清除 continue 模式
     setTokenUsage(null); // 新对话开始时重置 token 用量
     clearPlanSteps();    // 新消息时清空上一轮步骤
     setIsProcessing(true);
@@ -515,7 +523,7 @@ export function ChatPanel() {
       const result = await window.electronAPI.cliSendMessage(
         finalMsg,
         session.workingDirectory || undefined,
-        currentSessionId,
+        effectiveSessionId,
         pastedImages.length > 0 ? pastedImages.map((img) => img.path) : undefined,
         localAgent && localAgent !== 'default' ? localAgent : undefined,
       );

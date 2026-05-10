@@ -33,6 +33,7 @@ export interface ClaudeCliSettings {
   permissions?: {
     allow?: string[];
     deny?: string[];
+    ask?: string[];
     mode?: string;
   };
 
@@ -53,6 +54,18 @@ export interface ClaudeCliSettings {
 
   // 更新通道
   autoUpdatesChannel?: 'stable' | 'latest';
+
+  /** 是否在界面展示扩展思维摘要 */
+  showThinkingSummaries?: boolean;
+
+  /** 所有会话默认开启扩展思维 */
+  alwaysThinkingEnabled?: boolean;
+
+  /** 自动记忆开关（false = 不读写记忆目录） */
+  autoMemoryEnabled?: boolean;
+
+  /** 会话级环境变量，写入 env 字段 */
+  env?: Record<string, string>;
 
   // 其他可能的配置项
   [key: string]: any;

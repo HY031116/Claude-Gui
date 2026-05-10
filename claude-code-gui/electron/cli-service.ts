@@ -50,6 +50,8 @@ export interface CliConfig {
   awsAccessKeyId?: string;
   awsSecretAccessKey?: string;
   awsSessionToken?: string;
+  /** 限制 agentic 最大轮次（--max-turns，print 模式有效） */
+  maxTurns?: number;
   // Google Vertex AI 配置
   vertexProjectId?: string;
   vertexRegion?: string;
@@ -303,8 +305,16 @@ export class CliService {
     const args: string[] = ['--print', message, '--output-format', 'stream-json', '--verbose'];
 
     // 继续上一次会话（多轮对话）
-    if (sessionId) {
+    if (sessionId === 'CONTINUE_LAST') {
+      // 用户点击“继续上次会话”按钒，相当于 claude --continue
+      args.push('--continue');
+    } else if (sessionId) {
       args.push('--resume', sessionId);
+    }
+
+    // 限制最大 agentic 轮次（--max-turns）
+    if (this.config.maxTurns && this.config.maxTurns > 0) {
+      args.push('--max-turns', String(this.config.maxTurns));
     }
 
     // 传递模型设置

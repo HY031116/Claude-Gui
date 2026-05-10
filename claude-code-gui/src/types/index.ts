@@ -105,6 +105,22 @@ export interface AppSettings {
   // Google Vertex AI 配置
   vertexProjectId?: string;
   vertexRegion?: string;
+  /** 限制 agentic 最大轮次（--max-turns，print 模式有效） */
+  maxTurns?: number;
+  /** 是否在界面展示扩展思维摘要（showThinkingSummaries） */
+  showThinkingSummaries?: boolean;
+  /** 所有会话默认开启扩展思维（alwaysThinkingEnabled） */
+  alwaysThinkingEnabled?: boolean;
+  /** 自动记忆开关（autoMemoryEnabled），false 时 Claude 不读写记忆目录 */
+  autoMemoryEnabled?: boolean;
+  /** 会话级环境变量（env），写入 ~/.claude/settings.json 的 env 字段 */
+  envVars?: Record<string, string>;
+  /** 权限精细规则：允许列表（permissions.allow），如 Bash(git *) */
+  permissionAllow?: string[];
+  /** 权限精细规则：拒绝列表（permissions.deny），如 Read(.env) */
+  permissionDeny?: string[];
+  /** 权限精细规则：询问列表（permissions.ask） */
+  permissionAsk?: string[];
 }
 
 export interface AuthStatus {
