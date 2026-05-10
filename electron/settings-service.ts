@@ -32,6 +32,10 @@ export interface AppSettings {
   // Google Vertex AI 配置
   vertexProjectId?: string;
   vertexRegion?: string;
+  // Microsoft Foundry 配置
+  foundryResource?: string;
+  foundryBaseUrl?: string;
+  foundryApiKey?: string;
   /** 限制 agentic 最大轮次（--max-turns，print 模式有效） */
   maxTurns?: number;
   /** 是否展示扩展思维摘要 */

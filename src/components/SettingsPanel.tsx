@@ -163,6 +163,9 @@ export function SettingsPanel() {
           awsSessionToken: guiResult.settings.awsSessionToken ?? prev.awsSessionToken,
           vertexProjectId: guiResult.settings.vertexProjectId ?? prev.vertexProjectId,
           vertexRegion: guiResult.settings.vertexRegion ?? prev.vertexRegion,
+          foundryResource: guiResult.settings.foundryResource ?? prev.foundryResource,
+          foundryBaseUrl: guiResult.settings.foundryBaseUrl ?? prev.foundryBaseUrl,
+          foundryApiKey: guiResult.settings.foundryApiKey ?? prev.foundryApiKey,
           maxTurns: guiResult.settings.maxTurns ?? prev.maxTurns,
         }));
       }
@@ -934,6 +937,7 @@ export function SettingsPanel() {
               <option value="anthropic">Anthropic（默认）</option>
               <option value="bedrock">AWS Bedrock</option>
               <option value="vertex">Google Vertex AI</option>
+              <option value="foundry">Microsoft Azure Foundry</option>
             </select>
           </div>
 
@@ -1027,6 +1031,51 @@ export function SettingsPanel() {
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 认证通过 Application Default Credentials（gcloud auth application-default login）
+              </div>
+            </div>
+          )}
+
+          {/* Microsoft Azure Foundry 配置 */}
+          {settings.provider === 'foundry' && (
+            <div style={{ marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, background: 'var(--bg-secondary)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>
+                Microsoft Azure Foundry 配置
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Foundry API Key（可选，留空则使用 Entra ID 凭证链）</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={settings.foundryApiKey || ''}
+                  onChange={(e) => setSettings({ ...settings, foundryApiKey: e.target.value })}
+                  placeholder="Azure API Key"
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>资源名称（Resource Name）</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={settings.foundryResource || ''}
+                  onChange={(e) => setSettings({ ...settings, foundryResource: e.target.value })}
+                  placeholder="my-azure-resource"
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ marginBottom: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>Base URL（可选，替代资源名称）</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={settings.foundryBaseUrl || ''}
+                  onChange={(e) => setSettings({ ...settings, foundryBaseUrl: e.target.value })}
+                  placeholder="https://{resource}.services.ai.azure.com/anthropic"
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                未设置 API Key 时自动使用 Azure SDK 默认凭证链（az login / Managed Identity）
               </div>
             </div>
           )}

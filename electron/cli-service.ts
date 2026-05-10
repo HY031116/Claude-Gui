@@ -62,6 +62,10 @@ export interface CliConfig {
   // Google Vertex AI 配置
   vertexProjectId?: string;
   vertexRegion?: string;
+  // Microsoft Foundry 配置
+  foundryResource?: string;
+  foundryBaseUrl?: string;
+  foundryApiKey?: string;
 }
 
 export interface CliStartOptions {
@@ -209,6 +213,14 @@ export class CliService {
       } else if (this.config.provider === 'vertex') {
         if (this.config.vertexProjectId) env.ANTHROPIC_VERTEX_PROJECT_ID = this.config.vertexProjectId;
         if (this.config.vertexRegion) env.CLOUD_ML_REGION = this.config.vertexRegion;
+      }
+
+      // Microsoft Foundry 配置
+      if (this.config.provider === 'foundry') {
+        env.CLAUDE_CODE_USE_FOUNDRY = '1';
+        if (this.config.foundryResource) env.ANTHROPIC_FOUNDRY_RESOURCE = this.config.foundryResource;
+        if (this.config.foundryBaseUrl) env.ANTHROPIC_FOUNDRY_BASE_URL = this.config.foundryBaseUrl;
+        if (this.config.foundryApiKey) env.ANTHROPIC_FOUNDRY_API_KEY = this.config.foundryApiKey;
       }
 
       console.log('[CLI] Spawning claude:', claudePath, 'args:', args, 'cwd:', resolvedCwd);
