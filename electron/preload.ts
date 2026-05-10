@@ -54,6 +54,11 @@ export interface ElectronAPI {
   gitRemotes: (cwd: string) => Promise<{ success: boolean; remotes: string[] }>;
   gitPush: (cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
   gitPull: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  // Git Worktree
+  gitWorktreeList: (cwd: string) => Promise<{ success: boolean; worktrees?: Array<{ path: string; head: string; branch: string; isMain: boolean; isDetached: boolean; isLocked: boolean }>; error?: string }>;
+  gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
+  gitWorktreeRemove: (cwd: string, worktreePath: string, force: boolean) => Promise<{ success: boolean; error?: string }>;
+  gitWorktreePrune: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>;
   // 系统通知
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
   // 保存文件对话框（导出会话）
@@ -116,6 +121,11 @@ const api: ElectronAPI = {
   gitRemotes: (cwd) => ipcRenderer.invoke('git:remotes', cwd),
   gitPush: (cwd, remote, branch, setUpstream) => ipcRenderer.invoke('git:push', cwd, remote, branch, setUpstream),
   gitPull: (cwd, remote, branch) => ipcRenderer.invoke('git:pull', cwd, remote, branch),
+  // Git Worktree
+  gitWorktreeList: (cwd) => ipcRenderer.invoke('git:worktree:list', cwd),
+  gitWorktreeAdd: (cwd, worktreePath, branch, createBranch, commitIsh) => ipcRenderer.invoke('git:worktree:add', cwd, worktreePath, branch, createBranch, commitIsh),
+  gitWorktreeRemove: (cwd, worktreePath, force) => ipcRenderer.invoke('git:worktree:remove', cwd, worktreePath, force),
+  gitWorktreePrune: (cwd) => ipcRenderer.invoke('git:worktree:prune', cwd),
   // 系统通知
   notifySend: (title, body) => ipcRenderer.invoke('notify:send', title, body),
   // 保存文件对话框（导出会话）

@@ -9,7 +9,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle, GitFork } from 'lucide-react';
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import { SessionList } from './components/SessionList';
@@ -19,6 +19,7 @@ import { CheckpointPanel } from './components/CheckpointPanel';
 import { McpPanel } from './components/McpPanel';
 import { AgentPanel } from './components/AgentPanel';
 import PluginPanel from './components/PluginPanel';
+import { WorktreePanel } from './components/WorktreePanel';
 import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
@@ -372,6 +373,7 @@ function App() {
     { id: 'mcp' as const, label: 'MCP', icon: Server },
     { id: 'agents' as const, label: 'Agents', icon: Bot },
     { id: 'plugins' as const, label: 'Plugins', icon: Puzzle },
+    { id: 'worktrees' as const, label: 'Worktree', icon: GitFork },
   ];
 
   return (
@@ -613,6 +615,8 @@ function App() {
           <AgentPanel />
         ) : activePanel === 'plugins' ? (
           <PluginPanel />
+        ) : activePanel === 'worktrees' ? (
+          <WorktreePanel />
         ) : (
           <>
             {/* 多会话标签条 */}

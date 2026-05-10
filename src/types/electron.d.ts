@@ -3,6 +3,15 @@ export interface CliOutputEvent {
   data: string;
 }
 
+export interface WorktreeInfo {
+  path: string;
+  head: string;
+  branch: string;
+  isMain: boolean;
+  isDetached: boolean;
+  isLocked: boolean;
+}
+
 export interface ElectronAPI {
   cliStart: (options: { cwd: string; args?: string[]; forceBareMode?: boolean }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
@@ -49,6 +58,11 @@ export interface ElectronAPI {
   gitRemotes: (cwd: string) => Promise<{ success: boolean; remotes: string[] }>;
   gitPush: (cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
   gitPull: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  // Git Worktree
+  gitWorktreeList: (cwd: string) => Promise<{ success: boolean; worktrees?: WorktreeInfo[]; error?: string }>;
+  gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
+  gitWorktreeRemove: (cwd: string, worktreePath: string, force: boolean) => Promise<{ success: boolean; error?: string }>;
+  gitWorktreePrune: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>;
   // 系统通知
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
   // 保存文件对话框（导出会话）

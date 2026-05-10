@@ -203,3 +203,110 @@ export async function gitPull(
   if (r.code === 0) return { success: true, output };
   return { success: false, error: output || '拉取失败' };
 }
+
+// ===================== Worktree 管理 =====================
+
+export interface WorktreeInfo {
+  path: string;         // worktree 绝对路径
+  head: string;         // HEAD commit hash
+  branch: string;       // 分支名（空字符串代表 detached）
+  isMain: boolean;      // 是否为主 worktree（第一个）
+  isDetached: boolean;  // 是否处于分离 HEAD 状态
+  isLocked: boolean;    // 是否被锁定
+}
+
+/** 列出所有 worktree，解析 --porcelain 输出 */
+export function listWorktrees(cwd: string): WorktreeInfo[] {
+  const r = run(['worktree', 'list', '--porcelain'], cwd);
+  if (r.code !== 0 || !r.stdout) return [];
+
+  const results: WorktreeInfo[] = [];
+  // 每个 worktree block 以空行分隔
+  const blocks = r.stdout.split(/\n\n+/);
+  let isFirst = true;
+
+  for (const block of blocks) {
+    if (!block.trim()) continue;
+    const lines = block.split('\n');
+    const info: WorktreeInfo = {
+      path: '',
+      head: '',
+      branch: '',
+      isMain: isFirst,
+      isDetached: false,
+      isLocked: false,
+    };
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        info.path = line.slice('worktree '.length);
+      } else if (line.startsWith('HEAD ')) {
+        info.head = line.slice('HEAD '.length, line.indexOf(' HEAD ') >= 0 ? undefined : undefined).trim();
+        // 实际格式：HEAD <hash> （7位或完整hash）
+        info.head = line.slice(5).trim();
+      } else if (line.startsWith('branch refs/heads/')) {
+        info.branch = line.slice('branch refs/heads/'.length).trim();
+      } else if (line === 'detached') {
+        info.isDetached = true;
+      } else if (line.startsWith('locked')) {
+        info.isLocked = true;
+      }
+    }
+    if (info.path) {
+      results.push(info);
+      isFirst = false;
+    }
+  }
+  return results;
+}
+
+/**
+ * 新建 worktree
+ * @param worktreePath  新 worktree 的目录路径（绝对或相对 cwd）
+ * @param branch        目标分支名
+ * @param createBranch  为 true 时用 -b 创建新分支
+ * @param commitIsh     起点（仅 createBranch=true 时有意义），默认 HEAD
+ */
+export function addWorktree(
+  cwd: string,
+  worktreePath: string,
+  branch: string,
+  createBranch: boolean,
+  commitIsh = 'HEAD',
+): { success: boolean; error?: string } {
+  const args: string[] = ['worktree', 'add'];
+  if (createBranch) {
+    args.push('-b', branch, worktreePath, commitIsh);
+  } else {
+    args.push(worktreePath, branch);
+  }
+  const r = run(args, cwd);
+  return r.code === 0
+    ? { success: true }
+    : { success: false, error: r.stderr || r.stdout };
+}
+
+/**
+ * 删除 worktree
+ * @param force  强制删除（即使有未提交变更）
+ */
+export function removeWorktree(
+  cwd: string,
+  worktreePath: string,
+  force = false,
+): { success: boolean; error?: string } {
+  const args: string[] = ['worktree', 'remove'];
+  if (force) args.push('--force');
+  args.push(worktreePath);
+  const r = run(args, cwd);
+  return r.code === 0
+    ? { success: true }
+    : { success: false, error: r.stderr || r.stdout };
+}
+
+/** 修剪已不存在路径的 worktree 记录 */
+export function pruneWorktrees(cwd: string): { success: boolean; output?: string; error?: string } {
+  const r = run(['worktree', 'prune', '-v'], cwd);
+  return r.code === 0
+    ? { success: true, output: r.stdout }
+    : { success: false, error: r.stderr };
+}

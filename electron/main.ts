@@ -8,6 +8,7 @@ import { CliConfigService } from './cli-config-service';
 import {
   getGitStatus, getGitDiff, gitAdd, gitUnstage, gitCommit,
   getGitLog, isGitRepo, getGitBranch, gitPush, gitPull, getGitRemotes,
+  listWorktrees, addWorktree, removeWorktree, pruneWorktrees,
 } from './git-service';
 
 const cliService = new CliService();
@@ -298,6 +299,29 @@ ipcMain.handle('git:push', async (_e, cwd: string, remote?: string, branch?: str
 
 ipcMain.handle('git:pull', async (_e, cwd: string, remote?: string, branch?: string) => {
   return gitPull(cwd, remote, branch);
+});
+
+// ── Git Worktree ──────────────────────────────────────────────────────────────
+
+ipcMain.handle('git:worktree:list', async (_e, cwd: string) => {
+  try {
+    const worktrees = listWorktrees(cwd);
+    return { success: true, worktrees };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message ?? e) };
+  }
+});
+
+ipcMain.handle('git:worktree:add', async (_e, cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => {
+  return addWorktree(cwd, worktreePath, branch, createBranch, commitIsh);
+});
+
+ipcMain.handle('git:worktree:remove', async (_e, cwd: string, worktreePath: string, force: boolean) => {
+  return removeWorktree(cwd, worktreePath, force);
+});
+
+ipcMain.handle('git:worktree:prune', async (_e, cwd: string) => {
+  return pruneWorktrees(cwd);
 });
 
 // ── 系统通知 ──────────────────────────────────────────────────────────────────
