@@ -354,6 +354,8 @@ export function MemSearchPanel() {
                 borderRadius: 4,
                 border: '1px solid var(--border-color)',
                 fontSize: 12,
+                maxHeight: 320,
+                overflowY: 'auto',
               }}
             >
               {detail === 'loading' ? (
