@@ -65,6 +65,11 @@ export interface ElectronAPI {
   agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
   agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
   agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
+  // Plugin 管理
+  pluginList: () => Promise<{ success: boolean; plugins?: InstalledPlugin[]; error?: string }>;
+  pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+  pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
+  pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
 }
 
 export interface GitFile {
@@ -86,6 +91,17 @@ export interface GitLogEntry {
   message: string;
   date: string;
   author: string;
+}
+
+export interface InstalledPlugin {
+  key: string;         // "name@marketplace"
+  name: string;
+  marketplace: string;
+  version: string;
+  description: string;
+  author: string;
+  enabled: boolean;
+  pluginDir: string;
 }
 
 declare global {

@@ -326,3 +326,20 @@ ipcMain.handle('agent:write', async (_e, filename: string, data: { name: string;
   fileService.writeCustomAgent(filename, data)
 );
 ipcMain.handle('agent:delete', async (_e, filename: string) => fileService.deleteCustomAgent(filename));
+
+// ── Plugin 管理 ───────────────────────────────────────────────────────────────
+
+ipcMain.handle('plugin:list', async () => fileService.listInstalledPlugins());
+
+ipcMain.handle('plugin:toggle', async (_e, key: string, enabled: boolean) =>
+  fileService.togglePlugin(key, enabled)
+);
+
+ipcMain.handle('plugin:install', async (_e, pluginSpec: string) =>
+  cliService.installPlugin(pluginSpec)
+);
+
+ipcMain.handle('plugin:uninstall', async (_e, pluginSpec: string) =>
+  cliService.uninstallPlugin(pluginSpec)
+);
+

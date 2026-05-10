@@ -638,5 +638,70 @@ export class CliService {
       });
     });
   }
+
+  /** 安装插件：运行 claude plugin install <pluginSpec>，流式收集输出 */
+  installPlugin(pluginSpec: string): Promise<{ success: boolean; output: string }> {
+    return new Promise((resolve) => {
+      const claudePath = CLAUDE_PATH;
+      const chunks: string[] = [];
+      let timedOut = false;
+
+      const child = spawn(claudePath, ['plugin', 'install', pluginSpec], {
+        env: process.env,
+        windowsHide: true,
+        shell: false,
+      });
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, 120000); // 安装可能较慢，给 2 分钟
+
+      child.stdout.on('data', (d: Buffer) => chunks.push(d.toString()));
+      child.stderr.on('data', (d: Buffer) => chunks.push(d.toString()));
+
+      child.on('close', (code: number | null) => {
+        clearTimeout(timer);
+        const output = chunks.join('').trim() || '（无输出）';
+        if (timedOut) resolve({ success: false, output: output + '\n[超时，已终止]' });
+        else resolve({ success: code === 0, output });
+      });
+
+      child.on('error', (err: Error) => {
+        clearTimeout(timer);
+        resolve({ success: false, output: String(err) });
+      });
+    });
+  }
+
+  /** 卸载插件：运行 claude plugin uninstall <pluginSpec> */
+  uninstallPlugin(pluginSpec: string): Promise<{ success: boolean; output: string }> {
+    return new Promise((resolve) => {
+      const claudePath = CLAUDE_PATH;
+      const chunks: string[] = [];
+
+      const child = spawn(claudePath, ['plugin', 'uninstall', pluginSpec, '--yes'], {
+        env: process.env,
+        windowsHide: true,
+        shell: false,
+      });
+
+      const timer = setTimeout(() => { child.kill(); }, 30000);
+
+      child.stdout.on('data', (d: Buffer) => chunks.push(d.toString()));
+      child.stderr.on('data', (d: Buffer) => chunks.push(d.toString()));
+
+      child.on('close', (code: number | null) => {
+        clearTimeout(timer);
+        const output = chunks.join('').trim() || '（无输出）';
+        resolve({ success: code === 0, output });
+      });
+
+      child.on('error', (err: Error) => {
+        clearTimeout(timer);
+        resolve({ success: false, output: String(err) });
+      });
+    });
+  }
 }
 

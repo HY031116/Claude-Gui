@@ -67,6 +67,11 @@ export interface ElectronAPI {
   agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
   agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
   agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
+  // Plugin 管理
+  pluginList: () => Promise<{ success: boolean; plugins?: Array<{ key: string; name: string; marketplace: string; version: string; description: string; author: string; enabled: boolean; pluginDir: string }>; error?: string }>;
+  pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+  pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
+  pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
 }
 
 const api: ElectronAPI = {
@@ -124,6 +129,11 @@ const api: ElectronAPI = {
   agentList: () => ipcRenderer.invoke('agent:list'),
   agentWrite: (filename, data) => ipcRenderer.invoke('agent:write', filename, data),
   agentDelete: (filename) => ipcRenderer.invoke('agent:delete', filename),
+  // Plugin 管理
+  pluginList: () => ipcRenderer.invoke('plugin:list'),
+  pluginToggle: (key, enabled) => ipcRenderer.invoke('plugin:toggle', key, enabled),
+  pluginInstall: (pluginSpec) => ipcRenderer.invoke('plugin:install', pluginSpec),
+  pluginUninstall: (pluginSpec) => ipcRenderer.invoke('plugin:uninstall', pluginSpec),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
