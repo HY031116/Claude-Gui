@@ -99,6 +99,7 @@ function App() {
   const addTab = useAppStore((s) => s.addTab);
   const closeTab = useAppStore((s) => s.closeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const renameTab = useAppStore((s) => s.renameTab);
   const isWindows = navigator.userAgent.includes('Windows');
 
   // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
@@ -351,6 +352,9 @@ function App() {
   }, [setPendingPrompt, setSession]);
 
   const [showSettings, setShowSettings] = useState(false);
+  // Tab 内联重命名状态
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const navItems = [
     { id: 'chat' as const, label: '对话', icon: MessageSquare },
@@ -622,6 +626,11 @@ function App() {
                 <div
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setRenamingTabId(tab.id);
+                    setRenameValue(tab.label);
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -638,7 +647,41 @@ function App() {
                     userSelect: 'none',
                   }}
                 >
-                  <span>{tab.label}</span>
+                  {renamingTabId === tab.id ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = renameValue.trim();
+                        if (trimmed) renameTab(tab.id, trimmed);
+                        setRenamingTabId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const trimmed = renameValue.trim();
+                          if (trimmed) renameTab(tab.id, trimmed);
+                          setRenamingTabId(null);
+                        } else if (e.key === 'Escape') {
+                          setRenamingTabId(null);
+                        }
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        fontSize: 12,
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--accent-color)',
+                        borderRadius: 3,
+                        color: 'var(--text-primary)',
+                        padding: '0 4px',
+                        width: Math.max(60, renameValue.length * 8),
+                        outline: 'none',
+                      }}
+                    />
+                  ) : (
+                    <span title="双击重命名">{tab.label}</span>
+                  )}
                   {tabs.length > 1 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
