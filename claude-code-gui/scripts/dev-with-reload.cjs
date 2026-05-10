@@ -18,7 +18,7 @@ let debounceTimer = null;
 let wasKilledByUs = false;
 // 启动冷却期：进程启动后的前 N 毫秒内忽略 fs.watch 触发，
 // 防止 tsc --watch 初始编译重写 dist-electron/ 时触发多余重启
-const BOOT_GRACE_MS = 5000;
+const BOOT_GRACE_MS = 3000;
 const bootTime = Date.now();
 
 function startElectron() {
