@@ -31,9 +31,12 @@ export function SettingsPanel() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState<'model' | 'permissions' | 'session' | 'connection' | 'integrations'>('model');
 
-  // MCP 服务器状�?  const [mcpServers, setMcpServers] = useState<Record<string, any>>({});
-  // Plugins 状�?  const [enabledPlugins, setEnabledPlugins] = useState<Record<string, boolean>>({});
-  // 可用 agents 列表（从 CLI 加载�?  const [availableAgents, setAvailableAgents] = useState<Array<{ name: string; model: string; type: 'builtin' | 'custom' }>>([]);
+  // MCP 服务器状态
+  const [mcpServers, setMcpServers] = useState<Record<string, any>>({});
+  // Plugins 状态
+  const [enabledPlugins, setEnabledPlugins] = useState<Record<string, boolean>>({});
+  // 可用 agents 列表（从 CLI 加载）
+  const [availableAgents, setAvailableAgents] = useState<Array<{ name: string; model: string; type: 'builtin' | 'custom' }>>([]);
 
   // Load settings on mount
   useEffect(() => {
