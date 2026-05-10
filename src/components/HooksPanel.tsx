@@ -133,7 +133,45 @@ function HandlerEditor({
 }) {
   const [expanded, setExpanded] = useState(false);
 
+  // HTTP headers 本地状态（key-value 对数组）
+  const [headerPairs, setHeaderPairs] = useState<[string, string][]>(
+    () => Object.entries(handler.headers ?? {})
+  );
+  // mcp_tool input JSON 本地状态
+  const [inputJson, setInputJson] = useState<string>(
+    () => handler.input ? JSON.stringify(handler.input, null, 2) : ''
+  );
+  const [inputJsonError, setInputJsonError] = useState<string | null>(null);
+
   const set = <K extends keyof HookHandler>(k: K, v: HookHandler[K]) => onChange({ ...handler, [k]: v });
+
+  // 更新 headers 到父组件
+  const updateHeaderPair = (i: number, k: string, v: string) => {
+    const next = [...headerPairs];
+    next[i] = [k, v];
+    setHeaderPairs(next);
+    const record = Object.fromEntries(next.filter(([key]) => key.trim()));
+    onChange({ ...handler, headers: Object.keys(record).length ? record : undefined });
+  };
+  const addHeaderPair = () => setHeaderPairs([...headerPairs, ['', '']]);
+  const removeHeaderPair = (i: number) => {
+    const next = headerPairs.filter((_, idx) => idx !== i);
+    setHeaderPairs(next);
+    const record = Object.fromEntries(next.filter(([key]) => key.trim()));
+    onChange({ ...handler, headers: Object.keys(record).length ? record : undefined });
+  };
+
+  // 解析 mcp_tool input JSON
+  const handleInputJsonChange = (text: string) => {
+    setInputJson(text);
+    try {
+      const parsed = text.trim() ? JSON.parse(text) : undefined;
+      onChange({ ...handler, input: parsed });
+      setInputJsonError(null);
+    } catch {
+      setInputJsonError('JSON 格式错误，修改尚未应用');
+    }
+  };
 
   return (
     <div style={{ border: '1px solid var(--border-color)', borderRadius: 6, marginTop: 6 }}>
@@ -194,24 +232,68 @@ function HandlerEditor({
 
           {/* http */}
           {handler.type === 'http' && (
-            <label style={{ fontSize: 12 }}>
-              <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>URL</span>
-              <input className="input" style={{ width: '100%' }} value={handler.url ?? ''} onChange={(e) => set('url', e.target.value)} placeholder="http://localhost:8080/hooks/pre-tool-use" />
-            </label>
+            <>
+              <label style={{ fontSize: 12 }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>URL</span>
+                <input className="input" style={{ width: '100%' }} value={handler.url ?? ''} onChange={(e) => set('url', e.target.value)} placeholder="http://localhost:8080/hooks/pre-tool-use" />
+              </label>
+              {/* Headers 编辑 */}
+              <div style={{ fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4, gap: 8 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>请求头 Headers</span>
+                  <button className="btn" onClick={addHeaderPair} style={{ fontSize: 11, padding: '0 6px' }}>
+                    <Plus size={10} /> 添加
+                  </button>
+                </div>
+                {headerPairs.map(([k, v], i) => (
+                  <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                    <input className="input" placeholder="Header 名（如 Authorization）" value={k} onChange={(e) => updateHeaderPair(i, e.target.value, v)} style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }} />
+                    <input className="input" placeholder="值（支持 $VAR_NAME 插值）" value={v} onChange={(e) => updateHeaderPair(i, k, e.target.value)} style={{ flex: 2, fontFamily: 'monospace', fontSize: 11 }} />
+                    <button onClick={() => removeHeaderPair(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '0 4px' }}>
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+                {headerPairs.length === 0 && (
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>暂无自定义 Header（Content-Type: application/json 会自动添加）</span>
+                )}
+              </div>
+              {/* allowedEnvVars */}
+              <label style={{ fontSize: 12 }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>允许插值的环境变量（逗号分隔，如 MY_TOKEN,API_KEY）</span>
+                <input className="input" style={{ width: '100%', fontFamily: 'monospace', fontSize: 11 }}
+                  value={(handler.allowedEnvVars ?? []).join(', ')}
+                  onChange={(e) => set('allowedEnvVars', e.target.value.split(',').map((s) => s.trim()).filter(Boolean) as HookHandler['allowedEnvVars'])}
+                  placeholder="MY_TOKEN" />
+              </label>
+            </>
           )}
 
           {/* mcp_tool */}
           {handler.type === 'mcp_tool' && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <label style={{ fontSize: 12, flex: 1 }}>
-                <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>MCP 服务器名</span>
-                <input className="input" style={{ width: '100%' }} value={handler.server ?? ''} onChange={(e) => set('server', e.target.value)} placeholder="my_server" />
+            <>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <label style={{ fontSize: 12, flex: 1 }}>
+                  <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>MCP 服务器名</span>
+                  <input className="input" style={{ width: '100%' }} value={handler.server ?? ''} onChange={(e) => set('server', e.target.value)} placeholder="my_server" />
+                </label>
+                <label style={{ fontSize: 12, flex: 1 }}>
+                  <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>工具名</span>
+                  <input className="input" style={{ width: '100%' }} value={handler.tool ?? ''} onChange={(e) => set('tool', e.target.value)} placeholder="security_scan" />
+                </label>
+              </div>
+              {/* input JSON 编辑 */}
+              <label style={{ fontSize: 12 }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>
+                  工具参数 input（JSON，支持 {'${tool_input.file_path}'} 占位符）
+                </span>
+                <textarea className="input" style={{ width: '100%', minHeight: 60, fontFamily: 'monospace', fontSize: 11, resize: 'vertical', color: inputJsonError ? '#ef4444' : undefined }}
+                  value={inputJson}
+                  onChange={(e) => handleInputJsonChange(e.target.value)}
+                  placeholder={'{\n  "file_path": "${tool_input.file_path}"\n}'} />
+                {inputJsonError && <span style={{ color: '#ef4444', fontSize: 11 }}>{inputJsonError}</span>}
               </label>
-              <label style={{ fontSize: 12, flex: 1 }}>
-                <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: 2 }}>工具名</span>
-                <input className="input" style={{ width: '100%' }} value={handler.tool ?? ''} onChange={(e) => set('tool', e.target.value)} placeholder="security_scan" />
-              </label>
-            </div>
+            </>
           )}
 
           {/* prompt / agent */}
@@ -259,6 +341,29 @@ function MatcherGroupEditor({
   onDelete: () => void;
 }) {
   const suggestions = MATCHER_SUGGESTIONS[event] ?? [];
+  const [isJsonMode, setIsJsonMode] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  // 切换到 JSON 模式时，同步当前 group 到 jsonText
+  const toggleJsonMode = () => {
+    if (!isJsonMode) {
+      setJsonText(JSON.stringify(group, null, 2));
+      setJsonError(null);
+    }
+    setIsJsonMode((v) => !v);
+  };
+
+  const handleJsonChange = (text: string) => {
+    setJsonText(text);
+    try {
+      const parsed = JSON.parse(text) as HookMatcherGroup;
+      onChange(parsed);
+      setJsonError(null);
+    } catch {
+      setJsonError('JSON 格式错误，修改尚未应用');
+    }
+  };
 
   const addHandler = () => {
     onChange({ ...group, hooks: [...group.hooks, { type: 'command', command: '' }] });
@@ -277,7 +382,7 @@ function MatcherGroupEditor({
 
   return (
     <div style={{ border: '1px solid var(--border-color)', borderRadius: 8, padding: 12, marginTop: 10, background: 'var(--bg-primary)' }}>
-      {/* matcher */}
+      {/* matcher + 工具栏 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>Matcher</span>
         <input
@@ -286,12 +391,21 @@ function MatcherGroupEditor({
           value={group.matcher ?? ''}
           onChange={(e) => onChange({ ...group, matcher: e.target.value || undefined })}
           placeholder="* (匹配全部，或填工具名如 Bash、Write|Edit)"
+          disabled={isJsonMode}
         />
-        <button onClick={onDelete} title="删除此 matcher group" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px 4px' }}>
+        <button
+          className="btn"
+          onClick={toggleJsonMode}
+          title={isJsonMode ? '切回表单模式' : '切换到 JSON 编辑模式'}
+          style={{ fontSize: 11, padding: '2px 8px', opacity: isJsonMode ? 1 : 0.7, flexShrink: 0 }}
+        >
+          {isJsonMode ? '← 表单' : '{ } JSON'}
+        </button>
+        <button onClick={onDelete} title="删除此 matcher group" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px 4px', flexShrink: 0 }}>
           <Trash2 size={13} />
         </button>
       </div>
-      {suggestions.length > 0 && !group.matcher && (
+      {suggestions.length > 0 && !group.matcher && !isJsonMode && (
         <div style={{ marginBottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {suggestions.map((s) => (
             <button key={s} className="btn" onClick={() => onChange({ ...group, matcher: s })}
@@ -302,14 +416,33 @@ function MatcherGroupEditor({
         </div>
       )}
 
-      {/* handlers */}
-      {group.hooks.map((h, i) => (
-        <HandlerEditor key={i} handler={h} onChange={(v) => updateHandler(i, v)} onDelete={() => deleteHandler(i)} />
-      ))}
+      {/* JSON 模式 */}
+      {isJsonMode ? (
+        <div>
+          <textarea
+            className="input"
+            style={{ width: '100%', minHeight: 140, fontFamily: 'monospace', fontSize: 11, resize: 'vertical', color: jsonError ? '#ef4444' : undefined }}
+            value={jsonText}
+            onChange={(e) => handleJsonChange(e.target.value)}
+            spellCheck={false}
+          />
+          {jsonError && <div style={{ color: '#ef4444', fontSize: 11, marginTop: 2 }}>{jsonError}</div>}
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+            直接编辑 JSON；格式正确时会实时应用到配置。
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* handlers */}
+          {group.hooks.map((h, i) => (
+            <HandlerEditor key={i} handler={h} onChange={(v) => updateHandler(i, v)} onDelete={() => deleteHandler(i)} />
+          ))}
 
-      <button className="btn" onClick={addHandler} style={{ marginTop: 8, fontSize: 12 }}>
-        <Plus size={12} /> 添加 Handler
-      </button>
+          <button className="btn" onClick={addHandler} style={{ marginTop: 8, fontSize: 12 }}>
+            <Plus size={12} /> 添加 Handler
+          </button>
+        </>
+      )}
     </div>
   );
 }
