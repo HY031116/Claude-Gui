@@ -344,6 +344,10 @@ ipcMain.handle('mem:search', async (_e, query: string | undefined, options: { li
   return fileService.searchClaudeMem(query, options);
 });
 
+ipcMain.handle('mem:timeline', async (_e, options: { anchor?: string; query?: string; depthBefore?: number; depthAfter?: number; project?: string }) => {
+  return fileService.timelineClaudeMem(options);
+});
+
 // 自定义 Agent CRUD
 ipcMain.handle('agent:list', async () => fileService.listCustomAgents());
 ipcMain.handle('agent:write', async (_e, filename: string, data: { name: string; model: string; description: string; prompt: string }) =>

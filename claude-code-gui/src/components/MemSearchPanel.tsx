@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Brain, Search, Loader2, AlertCircle, Clock, Filter, ChevronLeft, ChevronRight, List } from 'lucide-react';
+import { Brain, Search, Loader2, AlertCircle, Clock, Filter, ChevronLeft, ChevronRight, List, GitBranch } from 'lucide-react';
 
 interface SearchOptions {
   limit: number;
@@ -40,7 +40,7 @@ function highlight(text: string, kw: string): React.ReactNode {
 }
 
 export function MemSearchPanel() {
-  const [mode, setMode] = useState<'search' | 'all'>('search');
+  const [mode, setMode] = useState<'search' | 'all' | 'timeline'>('search');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState(''); // 已提交的查询词（用于高亮）
   const [loading, setLoading] = useState(false);
@@ -50,9 +50,14 @@ export function MemSearchPanel() {
   const [enabled, setEnabled] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [options, setOptions] = useState<SearchOptions>({ limit: 20, type: 'all', project: '' });
-  // 分页
+  // 分页（仅 search/all 模式）
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  // 时间线专属状态
+  const [tlAnchor, setTlAnchor] = useState('');
+  const [tlQuery, setTlQuery] = useState('');
+  const [tlDepthBefore, setTlDepthBefore] = useState(5);
+  const [tlDepthAfter, setTlDepthAfter] = useState(5);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 检查插件状态
@@ -110,8 +115,35 @@ export function MemSearchPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  // 时间线查询
+  const fetchTimeline = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    setContent(null);
+    try {
+      const opts: { anchor?: string; query?: string; depthBefore?: number; depthAfter?: number } = {
+        depthBefore: tlDepthBefore,
+        depthAfter: tlDepthAfter,
+      };
+      if (tlAnchor.trim()) opts.anchor = tlAnchor.trim();
+      if (tlQuery.trim()) opts.query = tlQuery.trim();
+      const res = await window.electronAPI.timelineMemory(opts);
+      if (res.success) {
+        setContent(res.content ?? '（无结果）');
+      } else {
+        setError(res.error ?? '时间线查询失败');
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, tlAnchor, tlQuery, tlDepthBefore, tlDepthAfter]);
+
   // 切换模式时清空结果
-  const switchMode = (m: 'search' | 'all') => {
+  const switchMode = (m: 'search' | 'all' | 'timeline') => {
     if (m === mode) return;
     setMode(m);
     setContent(null);
@@ -257,13 +289,35 @@ export function MemSearchPanel() {
               gap: 4,
               background: mode === 'all' ? 'var(--accent-color)' : 'var(--bg-secondary)',
               color: mode === 'all' ? '#fff' : 'var(--text-secondary)',
-              borderRadius: '0 6px 6px 0',
+              borderRadius: 0,
               border: '1px solid var(--border-color)',
               borderLeft: 'none',
             }}
           >
             <List size={12} />
             全部记忆
+          </button>
+          <button
+            onClick={() => switchMode('timeline')}
+            disabled={installed === false}
+            className="btn"
+            style={{
+              flex: 1,
+              padding: '5px 0',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              background: mode === 'timeline' ? 'var(--accent-color)' : 'var(--bg-secondary)',
+              color: mode === 'timeline' ? '#fff' : 'var(--text-secondary)',
+              borderRadius: '0 6px 6px 0',
+              border: '1px solid var(--border-color)',
+              borderLeft: 'none',
+            }}
+          >
+            <GitBranch size={12} />
+            时间线
           </button>
         </div>
 
@@ -411,6 +465,93 @@ export function MemSearchPanel() {
         )}
       </div>
 
+      {/* 时间线控制面板 */}
+      {mode === 'timeline' && (
+        <div style={{ padding: '0 16px 12px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input
+              value={tlAnchor}
+              onChange={(e) => setTlAnchor(e.target.value)}
+              placeholder="锚点（可选）：记忆 ID / 日期，如 2024-01-15"
+              disabled={loading || installed === false}
+              style={{
+                padding: '7px 10px',
+                border: '1px solid var(--border-color)',
+                borderRadius: 6,
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+            <input
+              value={tlQuery}
+              onChange={(e) => setTlQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !loading && fetchTimeline()}
+              placeholder="过滤关键词（可选，按 Enter 查询）"
+              disabled={loading || installed === false}
+              style={{
+                padding: '7px 10px',
+                border: '1px solid var(--border-color)',
+                borderRadius: 6,
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>前</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={tlDepthBefore}
+                onChange={(e) => setTlDepthBefore(Math.max(1, Math.min(20, +e.target.value)))}
+                style={{
+                  width: 48,
+                  padding: '2px 6px',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 4,
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
+                  textAlign: 'center',
+                }}
+              />
+              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>条 · 后</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={tlDepthAfter}
+                onChange={(e) => setTlDepthAfter(Math.max(1, Math.min(20, +e.target.value)))}
+                style={{
+                  width: 48,
+                  padding: '2px 6px',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 4,
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
+                  textAlign: 'center',
+                }}
+              />
+              <span style={{ color: 'var(--text-secondary)', flex: 1 }}>条</span>
+              <button
+                onClick={fetchTimeline}
+                disabled={loading || installed === false}
+                className="btn btn-primary"
+                style={{ padding: '4px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                {loading ? <Loader2 size={12} className="spin" /> : <GitBranch size={12} />}
+                查询时间线
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 结果区 */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
         {/* 未安装 */}
@@ -437,7 +578,7 @@ export function MemSearchPanel() {
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
             <Brain size={40} style={{ opacity: 0.2, marginBottom: 12 }} />
             <div style={{ fontSize: 13 }}>
-              {mode === 'search' ? '输入关键词，搜索跨会话记忆' : '点击"刷新"按钮加载全部记忆'}
+              {mode === 'search' ? '输入关键词，搜索跨会话记忆' : mode === 'all' ? '点击"刷新"按钮加载全部记忆' : '设置参数后点击"查询时间线"'}
             </div>
             <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>支持分页浏览 · 自动高亮命中词</div>
           </div>
