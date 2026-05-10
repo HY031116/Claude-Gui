@@ -16,6 +16,10 @@ let child = null;
 let debounceTimer = null;
 // 标记是否由我们主动 kill（区分"主动重启"与"用户关闭窗口"）
 let wasKilledByUs = false;
+// 启动冷却期：进程启动后的前 N 毫秒内忽略 fs.watch 触发，
+// 防止 tsc --watch 初始编译重写 dist-electron/ 时触发多余重启
+const BOOT_GRACE_MS = 5000;
+const bootTime = Date.now();
 
 function startElectron() {
   // 先 kill 旧进程
@@ -48,6 +52,9 @@ function startElectron() {
 fs.watch(distDir, { recursive: false }, (event, filename) => {
   // 只关注 .js 文件（tsc 输出），排除 package.json
   if (!filename || !filename.endsWith('.js')) return;
+
+  // 冷却期内忽略事件（tsc --watch 初始全量编译导致的噪音）
+  if (Date.now() - bootTime < BOOT_GRACE_MS) return;
 
   clearTimeout(debounceTimer);
   // 防抖 500ms：等 tsc 把所有文件写完再重启，避免中途启动
