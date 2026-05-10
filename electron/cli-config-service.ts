@@ -128,6 +128,9 @@ export interface ClaudeCliSettings {
   /** 会话级环境变量，写入 env 字段 */
   env?: Record<string, string>;
 
+  /** 动态 API Key 脚本路径（LLM Gateway 鉴权辅助） */
+  apiKeyHelper?: string;
+
   // 其他可能的配置项
   [key: string]: any;
 }

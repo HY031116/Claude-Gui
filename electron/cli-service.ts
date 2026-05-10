@@ -223,6 +223,11 @@ export class CliService {
         if (this.config.foundryApiKey) env.ANTHROPIC_FOUNDRY_API_KEY = this.config.foundryApiKey;
       }
 
+      // LLM Gateway 配置
+      if (this.config.gatewayAuthToken) env.ANTHROPIC_AUTH_TOKEN = this.config.gatewayAuthToken;
+      if (this.config.gatewayCustomHeaders) env.ANTHROPIC_CUSTOM_HEADERS = this.config.gatewayCustomHeaders;
+      if (this.config.enableGatewayModelDiscovery) env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = '1';
+
       console.log('[CLI] Spawning claude:', claudePath, 'args:', args, 'cwd:', resolvedCwd);
 
       const ptyProcess = pty.spawn(claudePath, args, {

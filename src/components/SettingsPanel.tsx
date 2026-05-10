@@ -166,6 +166,10 @@ export function SettingsPanel() {
           foundryResource: guiResult.settings.foundryResource ?? prev.foundryResource,
           foundryBaseUrl: guiResult.settings.foundryBaseUrl ?? prev.foundryBaseUrl,
           foundryApiKey: guiResult.settings.foundryApiKey ?? prev.foundryApiKey,
+          gatewayAuthToken: guiResult.settings.gatewayAuthToken ?? prev.gatewayAuthToken,
+          gatewayCustomHeaders: guiResult.settings.gatewayCustomHeaders ?? prev.gatewayCustomHeaders,
+          enableGatewayModelDiscovery: guiResult.settings.enableGatewayModelDiscovery ?? prev.enableGatewayModelDiscovery,
+          apiKeyHelper: guiResult.settings.apiKeyHelper ?? prev.apiKeyHelper,
           maxTurns: guiResult.settings.maxTurns ?? prev.maxTurns,
         }));
       }
@@ -210,6 +214,7 @@ export function SettingsPanel() {
           alwaysThinkingEnabled: settings.alwaysThinkingEnabled,
           autoMemoryEnabled: settings.autoMemoryEnabled,
           env: Object.keys(settings.envVars ?? {}).length > 0 ? settings.envVars : undefined,
+          apiKeyHelper: settings.apiKeyHelper || undefined,
         });
         if (!nativeSave.success) {
           throw new Error(nativeSave.error || 'Failed to save native config');
@@ -922,6 +927,63 @@ export function SettingsPanel() {
               style={{ fontSize: 11, fontFamily: 'monospace' }}
             />
           </div>
+
+          {/* LLM Gateway 高级选项 */}
+          {settings.apiBaseUrl && (
+            <div style={{ marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, background: 'var(--bg-secondary)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>
+                LLM Gateway 高级选项
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
+                  Bearer Auth Token（ANTHROPIC_AUTH_TOKEN，优先于 API Key）
+                </label>
+                <input
+                  type="password"
+                  className="input"
+                  value={settings.gatewayAuthToken || ''}
+                  onChange={(e) => setSettings({ ...settings, gatewayAuthToken: e.target.value })}
+                  placeholder="sk-litellm-..."
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
+                  自定义请求头（ANTHROPIC_CUSTOM_HEADERS，JSON 格式）
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  value={settings.gatewayCustomHeaders || ''}
+                  onChange={(e) => setSettings({ ...settings, gatewayCustomHeaders: e.target.value })}
+                  placeholder='{"X-LiteLLM-Team-Id":"team-123"}'
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
+                  动态 Key 脚本路径（apiKeyHelper，写入 ~/.claude/settings.json）
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  value={settings.apiKeyHelper || ''}
+                  onChange={(e) => setSettings({ ...settings, apiKeyHelper: e.target.value })}
+                  placeholder="~/bin/get-litellm-key.sh"
+                  style={{ fontSize: 11, fontFamily: 'monospace' }}
+                />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={settings.enableGatewayModelDiscovery ?? false}
+                  onChange={(e) => setSettings({ ...settings, enableGatewayModelDiscovery: e.target.checked })}
+                  style={{ cursor: 'pointer' }}
+                />
+                启用网关模型自动发现（CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY）
+              </label>
+            </div>
+          )}
 
           {/* Cloud Provider 选择 */}
           <div style={{ marginBottom: 12 }}>

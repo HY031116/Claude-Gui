@@ -121,6 +121,15 @@ export interface AppSettings {
   foundryResource?: string;
   foundryBaseUrl?: string;
   foundryApiKey?: string;
+  // LLM Gateway 配置
+  /** Bearer 认证 Token（ANTHROPIC_AUTH_TOKEN，优先于 API Key） */
+  gatewayAuthToken?: string;
+  /** 自定义请求头（ANTHROPIC_CUSTOM_HEADERS，JSON 格式） */
+  gatewayCustomHeaders?: string;
+  /** 启用网关模型自动发现（CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY） */
+  enableGatewayModelDiscovery?: boolean;
+  /** 动态 API Key 脚本路径（apiKeyHelper，写入 ~/.claude/settings.json） */
+  apiKeyHelper?: string;
   /** 限制 agentic 最大轮次（--max-turns，print 模式有效） */
   maxTurns?: number;
   /** 是否在界面展示扩展思维摘要（showThinkingSummaries） */
