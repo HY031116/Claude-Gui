@@ -178,6 +178,106 @@ export function MemSearchPanel() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  // 类型 Badge 颜色映射
+  const typeColor = (t: string) => {
+    const lt = t.toLowerCase();
+    if (lt.includes('observation')) return { bg: 'rgba(99,102,241,0.15)', fg: '#818cf8' };
+    if (lt.includes('session')) return { bg: 'rgba(34,197,94,0.15)', fg: '#22c55e' };
+    if (lt.includes('prompt')) return { bg: 'rgba(245,158,11,0.15)', fg: '#f59e0b' };
+    return { bg: 'var(--bg-secondary)', fg: 'var(--text-secondary)' };
+  };
+
+  // 解析 markdown 表格为结构化数据
+  const parseTable = (text: string): { headers: string[]; rows: string[][] } => {
+    const headers: string[] = [];
+    const rows: string[][] = [];
+    let headerDone = false;
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (/^\|[-| :]+\|$/.test(trimmed)) continue;
+      if (!trimmed.startsWith('|')) continue;
+      const cells = trimmed.slice(1, -1).split('|').map((c) => c.trim());
+      if (!headerDone) { headers.push(...cells); headerDone = true; }
+      else rows.push(cells);
+    }
+    return { headers, rows };
+  };
+
+  // 卡片式渲染（搜索/全部模式）
+  const renderCards = (text: string, kw: string) => {
+    const { headers, rows } = parseTable(text);
+    if (!headers.length) {
+      // 无表格，降级为纯文本
+      return text.split('\n').map((line, i) => (
+        <div key={i} style={{ fontSize: 13, padding: '2px 0', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+          {kw ? highlight(line, kw) : line}
+        </div>
+      ));
+    }
+
+    // 识别关键列索引
+    const idxId = headers.findIndex((h) => /^[#id]/i.test(h));
+    const idxType = headers.findIndex((h) => /type/i.test(h));
+    const idxDate = headers.findIndex((h) => /date|created|time/i.test(h));
+    const idxContent = headers.length - 1; // 最后一列通常是内容/摘要
+
+    return rows.map((row, ri) => {
+      const id = idxId >= 0 ? row[idxId] : String(ri + 1);
+      const type = idxType >= 0 ? row[idxType] : '';
+      const date = idxDate >= 0 ? row[idxDate] : '';
+      const { bg, fg } = typeColor(type);
+
+      return (
+        <div
+          key={ri}
+          style={{
+            marginBottom: 8,
+            padding: '8px 10px',
+            background: 'var(--bg-secondary)',
+            borderRadius: 6,
+            border: '1px solid var(--border-color)',
+            borderLeft: `3px solid ${fg}`,
+          }}
+        >
+          {/* 卡片头部 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
+            {type && (
+              <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: bg, color: fg }}>
+                {type}
+              </span>
+            )}
+            {/* 非 id/type/date/content 的额外列（如 project）*/}
+            {row.map((cell, ci) => {
+              if (ci === idxId || ci === idxType || ci === idxDate || ci === idxContent) return null;
+              if (!cell) return null;
+              return (
+                <span key={ci} style={{ padding: '1px 6px', borderRadius: 4, fontSize: 11, background: 'var(--bg-primary)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}>
+                  {headers[ci] ? `${headers[ci]}: ` : ''}{kw ? highlight(cell, kw) : cell}
+                </span>
+              );
+            })}
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              {date && <span style={{ marginRight: 6 }}>{kw ? highlight(date, kw) : date}</span>}
+              {id && <span style={{ opacity: 0.6 }}>#{id}</span>}
+            </span>
+          </div>
+          {/* 卡片内容 */}
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--text-primary)',
+              lineHeight: 1.5,
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {kw ? highlight(row[idxContent] ?? '', kw) : (row[idxContent] ?? '')}
+          </div>
+        </div>
+      );
+    });
+  };
+
   // 渲染时间线专用视图：支持 ## 日期标题 + 表格行 + 普通文本
   const renderTimeline = (text: string) => {
     const kw = tlQuery.trim();
@@ -318,58 +418,6 @@ export function MemSearchPanel() {
     });
 
     return result;
-  };
-
-  // 渲染 markdown 表格行，支持关键词高亮
-  const renderContent = (text: string) => {
-    const kw = mode === 'search' ? submittedQuery : '';
-    const lines = text.split('\n');
-    let headerParsed = false;
-    return lines.map((line, i) => {
-      const trimmed = line.trim();
-      // 分隔行跳过
-      if (/^\|[-| :]+\|$/.test(trimmed)) return null;
-      if (trimmed.startsWith('|')) {
-        const rawCells = trimmed.slice(1, -1).split('|');
-        const isHeader = !headerParsed;
-        if (!headerParsed) headerParsed = true;
-        return (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              gap: 8,
-              padding: '4px 2px',
-              borderBottom: '1px solid var(--border-color)',
-              fontSize: isHeader ? 11 : 13,
-              fontWeight: isHeader ? 700 : 400,
-              color: isHeader ? 'var(--text-secondary)' : 'var(--text-primary)',
-            }}
-          >
-            {rawCells.map((cell, j) => (
-              <span
-                key={j}
-                style={{
-                  flex: j === 0 ? '0 0 55px' : j === rawCells.length - 1 ? '0 0 55px' : 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-                title={cell.trim()}
-              >
-                {isHeader ? cell.trim() : highlight(cell.trim(), kw)}
-              </span>
-            ))}
-          </div>
-        );
-      }
-      if (!trimmed) return <div key={i} style={{ height: 6 }} />;
-      return (
-        <div key={i} style={{ fontSize: 13, padding: '2px 0', color: 'var(--text-secondary)' }}>
-          {highlight(line, kw)}
-        </div>
-      );
-    });
   };
 
   return (
@@ -838,9 +886,11 @@ export function MemSearchPanel() {
               </div>
             )}
 
-            {/* 内容区：时间线用专用渲染器 */}
+            {/* 内容区：时间线用专用渲染器，其余用卡片 */}
             <div style={{ fontSize: 13 }}>
-              {mode === 'timeline' ? renderTimeline(content) : renderContent(content)}
+              {mode === 'timeline'
+                ? renderTimeline(content)
+                : renderCards(content, mode === 'search' ? submittedQuery : '')}
             </div>
           </div>
         )}
