@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Brain, Search, Loader2, AlertCircle, Clock, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Brain, Search, Loader2, AlertCircle, Clock, Filter, ChevronLeft, ChevronRight, List } from 'lucide-react';
 
 interface SearchOptions {
   limit: number;
@@ -40,6 +40,7 @@ function highlight(text: string, kw: string): React.ReactNode {
 }
 
 export function MemSearchPanel() {
+  const [mode, setMode] = useState<'search' | 'all'>('search');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState(''); // 已提交的查询词（用于高亮）
   const [loading, setLoading] = useState(false);
@@ -62,16 +63,17 @@ export function MemSearchPanel() {
     });
   }, []);
 
-  const doSearch = useCallback(
-    async (q: string, pageNum: number) => {
-      if (!q || loading) return;
+  const doFetch = useCallback(
+    async (q: string | undefined, pageNum: number) => {
+      if (loading) return;
       setLoading(true);
       setError(null);
       setContent(null);
       try {
-        const opts: { limit?: number; offset?: number; project?: string; type?: string } = {
+        const opts: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string } = {
           limit: options.limit,
           offset: pageNum * options.limit,
+          orderBy: 'date_desc',
         };
         if (options.project) opts.project = options.project;
         if (options.type !== 'all') opts.type = options.type;
@@ -86,7 +88,7 @@ export function MemSearchPanel() {
             .length;
           setHasMore(dataRows >= options.limit);
         } else {
-          setError(res.error ?? '搜索失败');
+          setError(res.error ?? '查询失败');
         }
       } catch (e) {
         setError(String(e));
@@ -98,24 +100,46 @@ export function MemSearchPanel() {
     [loading, options],
   );
 
+  // 切换到"全部"模式时自动加载
+  useEffect(() => {
+    if (mode === 'all' && installed) {
+      setPage(0);
+      setSubmittedQuery('');
+      doFetch(undefined, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // 切换模式时清空结果
+  const switchMode = (m: 'search' | 'all') => {
+    if (m === mode) return;
+    setMode(m);
+    setContent(null);
+    setError(null);
+    setPage(0);
+    setSubmittedQuery('');
+  };
+
   const handleSearch = () => {
     const q = query.trim();
     if (!q || loading) return;
     setSubmittedQuery(q);
     setPage(0);
-    doSearch(q, 0);
+    doFetch(q, 0);
   };
 
   const handlePrev = () => {
     const newPage = page - 1;
     setPage(newPage);
-    doSearch(submittedQuery, newPage);
+    if (mode === 'all') doFetch(undefined, newPage);
+    else doFetch(submittedQuery, newPage);
   };
 
   const handleNext = () => {
     const newPage = page + 1;
     setPage(newPage);
-    doSearch(submittedQuery, newPage);
+    if (mode === 'all') doFetch(undefined, newPage);
+    else doFetch(submittedQuery, newPage);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -124,6 +148,7 @@ export function MemSearchPanel() {
 
   // 渲染 markdown 表格行，支持关键词高亮
   const renderContent = (text: string) => {
+    const kw = mode === 'search' ? submittedQuery : '';
     const lines = text.split('\n');
     let headerParsed = false;
     return lines.map((line, i) => {
@@ -158,7 +183,7 @@ export function MemSearchPanel() {
                 }}
                 title={cell.trim()}
               >
-                {isHeader ? cell.trim() : highlight(cell.trim(), submittedQuery)}
+                {isHeader ? cell.trim() : highlight(cell.trim(), kw)}
               </span>
             ))}
           </div>
@@ -167,7 +192,7 @@ export function MemSearchPanel() {
       if (!trimmed) return <div key={i} style={{ height: 6 }} />;
       return (
         <div key={i} style={{ fontSize: 13, padding: '2px 0', color: 'var(--text-secondary)' }}>
-          {highlight(line, submittedQuery)}
+          {highlight(line, kw)}
         </div>
       );
     });
@@ -179,7 +204,7 @@ export function MemSearchPanel() {
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <Brain size={16} style={{ color: 'var(--accent-color)' }} />
-          <span style={{ fontWeight: 600, fontSize: 14 }}>Claude-Mem 记忆搜索</span>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Claude-Mem 记忆</span>
           {installed !== null && (
             <span
               style={{
@@ -196,47 +221,119 @@ export function MemSearchPanel() {
           )}
         </div>
 
-        {/* 搜索栏 */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="搜索记忆关键词…（按 Enter 搜索）"
-            disabled={loading || installed === false}
-            style={{
-              flex: 1,
-              padding: '7px 10px',
-              border: '1px solid var(--border-color)',
-              borderRadius: 6,
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              fontSize: 13,
-              outline: 'none',
-            }}
-          />
+        {/* 模式 Tab */}
+        <div style={{ display: 'flex', gap: 2, marginBottom: 10 }}>
           <button
-            onClick={handleSearch}
-            disabled={loading || !query.trim() || installed === false}
-            className="btn btn-primary"
-            style={{ padding: '0 12px', flexShrink: 0 }}
-          >
-            {loading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
-          </button>
-          <button
-            onClick={() => setShowOptions(!showOptions)}
-            title="搜索选项"
+            onClick={() => switchMode('search')}
             className="btn"
             style={{
-              padding: '0 8px',
-              flexShrink: 0,
-              background: showOptions ? 'var(--bg-hover)' : undefined,
+              flex: 1,
+              padding: '5px 0',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              background: mode === 'search' ? 'var(--accent-color)' : 'var(--bg-secondary)',
+              color: mode === 'search' ? '#fff' : 'var(--text-secondary)',
+              borderRadius: '6px 0 0 6px',
+              border: '1px solid var(--border-color)',
             }}
           >
-            <Filter size={14} />
+            <Search size={12} />
+            搜索
+          </button>
+          <button
+            onClick={() => switchMode('all')}
+            disabled={installed === false}
+            className="btn"
+            style={{
+              flex: 1,
+              padding: '5px 0',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              background: mode === 'all' ? 'var(--accent-color)' : 'var(--bg-secondary)',
+              color: mode === 'all' ? '#fff' : 'var(--text-secondary)',
+              borderRadius: '0 6px 6px 0',
+              border: '1px solid var(--border-color)',
+              borderLeft: 'none',
+            }}
+          >
+            <List size={12} />
+            全部记忆
           </button>
         </div>
+
+        {/* 搜索栏（仅搜索模式） */}
+        {mode === 'search' && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="搜索记忆关键词…（按 Enter 搜索）"
+              disabled={loading || installed === false}
+              style={{
+                flex: 1,
+                padding: '7px 10px',
+                border: '1px solid var(--border-color)',
+                borderRadius: 6,
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleSearch}
+              disabled={loading || !query.trim() || installed === false}
+              className="btn btn-primary"
+              style={{ padding: '0 12px', flexShrink: 0 }}
+            >
+              {loading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
+            </button>
+            <button
+              onClick={() => setShowOptions(!showOptions)}
+              title="搜索选项"
+              className="btn"
+              style={{
+                padding: '0 8px',
+                flexShrink: 0,
+                background: showOptions ? 'var(--bg-hover)' : undefined,
+              }}
+            >
+              <Filter size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* 全部模式刷新按钮 */}
+        {mode === 'all' && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)' }}>按时间倒序显示所有记忆</span>
+            <button
+              onClick={() => { setPage(0); doFetch(undefined, 0); }}
+              disabled={loading || installed === false}
+              className="btn btn-primary"
+              style={{ padding: '4px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              {loading ? <Loader2 size={12} className="spin" /> : <List size={12} />}
+              刷新
+            </button>
+            <button
+              onClick={() => setShowOptions(!showOptions)}
+              title="过滤选项"
+              className="btn"
+              style={{ padding: '0 8px', flexShrink: 0, background: showOptions ? 'var(--bg-hover)' : undefined }}
+            >
+              <Filter size={14} />
+            </button>
+          </div>
+        )}
 
         {/* 展开选项 */}
         {showOptions && (
@@ -339,7 +436,9 @@ export function MemSearchPanel() {
         {installed !== false && !content && !error && !loading && (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>
             <Brain size={40} style={{ opacity: 0.2, marginBottom: 12 }} />
-            <div style={{ fontSize: 13 }}>输入关键词，搜索跨会话记忆</div>
+            <div style={{ fontSize: 13 }}>
+              {mode === 'search' ? '输入关键词，搜索跨会话记忆' : '点击"刷新"按钮加载全部记忆'}
+            </div>
             <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>支持分页浏览 · 自动高亮命中词</div>
           </div>
         )}
@@ -388,7 +487,7 @@ export function MemSearchPanel() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Clock size={11} />
                 第 {page + 1} 页 · 每页 {options.limit} 条
-                {submittedQuery && (
+                {submittedQuery && mode === 'search' && (
                   <span style={{ marginLeft: 6 }}>
                     关键词{' '}
                     <mark

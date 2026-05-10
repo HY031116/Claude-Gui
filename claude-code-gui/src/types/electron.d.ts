@@ -3,6 +3,15 @@ export interface CliOutputEvent {
   data: string;
 }
 
+export interface WorktreeInfo {
+  path: string;
+  head: string;
+  branch: string;
+  isMain: boolean;
+  isDetached: boolean;
+  isLocked: boolean;
+}
+
 export interface ElectronAPI {
   cliStart: (options: { cwd: string; args?: string[]; forceBareMode?: boolean }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
@@ -49,6 +58,11 @@ export interface ElectronAPI {
   gitRemotes: (cwd: string) => Promise<{ success: boolean; remotes: string[] }>;
   gitPush: (cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
   gitPull: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  // Git Worktree
+  gitWorktreeList: (cwd: string) => Promise<{ success: boolean; worktrees?: WorktreeInfo[]; error?: string }>;
+  gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
+  gitWorktreeRemove: (cwd: string, worktreePath: string, force: boolean) => Promise<{ success: boolean; error?: string }>;
+  gitWorktreePrune: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>;
   // 系统通知
   notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
   // 保存文件对话框（导出会话）
@@ -57,7 +71,7 @@ export interface ElectronAPI {
   saveTempImage: (base64: string, ext?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
   // Claude-Mem 插件集成
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
-  searchMemory: (query: string, options?: { limit?: number; offset?: number; project?: string; type?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
+  searchMemory: (query: string | undefined, options?: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   // CLI 维护
   cliDoctor: () => Promise<{ success: boolean; output?: string; error?: string }>;
   cliUpdate: (subcmd?: 'update' | 'upgrade') => Promise<{ success: boolean; output: string }>;
@@ -65,6 +79,11 @@ export interface ElectronAPI {
   agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
   agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
   agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
+  // Plugin 管理
+  pluginList: () => Promise<{ success: boolean; plugins?: InstalledPlugin[]; error?: string }>;
+  pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+  pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
+  pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
 }
 
 export interface GitFile {
@@ -86,6 +105,17 @@ export interface GitLogEntry {
   message: string;
   date: string;
   author: string;
+}
+
+export interface InstalledPlugin {
+  key: string;         // "name@marketplace"
+  name: string;
+  marketplace: string;
+  version: string;
+  description: string;
+  author: string;
+  enabled: boolean;
+  pluginDir: string;
 }
 
 declare global {

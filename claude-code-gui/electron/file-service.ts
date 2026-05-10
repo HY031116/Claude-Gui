@@ -424,8 +424,8 @@ export class FileService {
    * 使用 stdio JSON-RPC 与 `bun scripts/mcp-server.cjs` 通信
    */
   async searchClaudeMem(
-    query: string,
-    options: { limit?: number; offset?: number; project?: string; type?: string } = {},
+    query: string | undefined,
+    options: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string } = {},
   ): Promise<{ success: boolean; content?: string; error?: string }> {
     return new Promise((resolve) => {
       const pluginDir = this.findClaudeMemPluginDir();
@@ -492,10 +492,12 @@ export class FileService {
       });
 
       // 发送 MCP 协议握手 + 搜索请求（换行分隔 JSON-RPC）
-      const searchArgs: Record<string, unknown> = { query, limit: options.limit ?? 20 };
+      const searchArgs: Record<string, unknown> = { limit: options.limit ?? 20 };
+      if (query) searchArgs.query = query; // 空 query 时省略，MCP server 返回全部记录
       if (options.offset) searchArgs.offset = options.offset;
       if (options.project) searchArgs.project = options.project;
       if (options.type) searchArgs.type = options.type;
+      if (options.orderBy) searchArgs.orderBy = options.orderBy;
 
       const msgs = [
         JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'claude-code-gui', version: '1.0.0' } } }),
@@ -583,6 +585,138 @@ export class FileService {
       return { success: true };
     } catch (err) {
       return { success: false, error: String(err) };
+    }
+  }
+
+  // ==================== Plugin 管理 ====================
+
+  /**
+   * 列出已安装的 Claude Code 插件
+   * 读取 ~/.claude/plugins/cache/<marketplace>/<name>/ 目录结构
+   * 并对照 ~/.claude/settings.json 中的 enabledPlugins 状态
+   */
+  async listInstalledPlugins(): Promise<{
+    success: boolean;
+    plugins?: Array<{
+      key: string;       // "name@marketplace"
+      name: string;
+      marketplace: string;
+      version: string;
+      description: string;
+      author: string;
+      enabled: boolean;
+      pluginDir: string;
+    }>;
+    error?: string;
+  }> {
+    try {
+      const cacheBase = path.join(os.homedir(), '.claude', 'plugins', 'cache');
+
+      // 读取 enabledPlugins 状态
+      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
+      let enabledPlugins: Record<string, boolean> = {};
+      try {
+        const content = await fs.readFile(settingsPath, 'utf-8');
+        const settings = JSON.parse(content);
+        enabledPlugins = settings?.enabledPlugins ?? {};
+      } catch { /* 文件不存在或解析失败时视所有插件为启用 */ }
+
+      // 检查 cache 目录是否存在
+      if (!fsSync.existsSync(cacheBase)) return { success: true, plugins: [] };
+
+      const plugins: Array<{
+        key: string; name: string; marketplace: string;
+        version: string; description: string; author: string;
+        enabled: boolean; pluginDir: string;
+      }> = [];
+
+      const marketplaceDirs = await fs.readdir(cacheBase);
+      for (const marketplace of marketplaceDirs) {
+        const marketplaceDir = path.join(cacheBase, marketplace);
+        try {
+          const stat = await fs.stat(marketplaceDir);
+          if (!stat.isDirectory()) continue;
+        } catch { continue; }
+
+        const pluginNames = await fs.readdir(marketplaceDir).catch(() => []);
+        for (const pluginName of pluginNames) {
+          const pluginBase = path.join(marketplaceDir, pluginName);
+          try {
+            const stat = await fs.stat(pluginBase);
+            if (!stat.isDirectory()) continue;
+          } catch { continue; }
+
+          // 读取最新版本目录（按版本号倒序取第一个）
+          const versions = (await fs.readdir(pluginBase).catch(() => []))
+            .filter((v) => /^\d/.test(v))
+            .sort((a, b) => {
+              const pa = a.split('.').map(Number);
+              const pb = b.split('.').map(Number);
+              for (let i = 0; i < 3; i++) {
+                const diff = (pb[i] ?? 0) - (pa[i] ?? 0);
+                if (diff !== 0) return diff;
+              }
+              return 0;
+            });
+
+          if (!versions.length) continue;
+          const versionDir = path.join(pluginBase, versions[0]);
+          const manifestPath = path.join(versionDir, '.claude-plugin', 'plugin.json');
+
+          let name = pluginName;
+          let description = '';
+          let author = '';
+          try {
+            const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'));
+            name = manifest.name ?? pluginName;
+            description = manifest.description ?? '';
+            author = typeof manifest.author === 'string'
+              ? manifest.author
+              : manifest.author?.name ?? '';
+          } catch { /* 使用目录名作为插件名 */ }
+
+          const key = `${pluginName}@${marketplace}`;
+          // enabledPlugins 为 false 时禁用，未设置时视为启用
+          const enabled = enabledPlugins[key] !== false;
+
+          plugins.push({
+            key, name, marketplace,
+            version: versions[0],
+            description, author,
+            enabled,
+            pluginDir: versionDir,
+          });
+        }
+      }
+
+      return { success: true, plugins };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /**
+   * 切换插件启用/禁用状态（修改 ~/.claude/settings.json 中的 enabledPlugins）
+   */
+  async togglePlugin(key: string, enabled: boolean): Promise<{ success: boolean; error?: string }> {
+    const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
+    try {
+      let settings: Record<string, unknown> = {};
+      try {
+        const content = await fs.readFile(settingsPath, 'utf-8');
+        settings = JSON.parse(content);
+      } catch { /* 文件不存在时从空对象开始 */ }
+
+      if (!settings.enabledPlugins || typeof settings.enabledPlugins !== 'object') {
+        settings.enabledPlugins = {};
+      }
+      (settings.enabledPlugins as Record<string, boolean>)[key] = enabled;
+
+      await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
     }
   }
 }

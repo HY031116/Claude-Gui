@@ -8,6 +8,7 @@ import { CliConfigService } from './cli-config-service';
 import {
   getGitStatus, getGitDiff, gitAdd, gitUnstage, gitCommit,
   getGitLog, isGitRepo, getGitBranch, gitPush, gitPull, getGitRemotes,
+  listWorktrees, addWorktree, removeWorktree, pruneWorktrees,
 } from './git-service';
 
 const cliService = new CliService();
@@ -300,6 +301,29 @@ ipcMain.handle('git:pull', async (_e, cwd: string, remote?: string, branch?: str
   return gitPull(cwd, remote, branch);
 });
 
+// ── Git Worktree ──────────────────────────────────────────────────────────────
+
+ipcMain.handle('git:worktree:list', async (_e, cwd: string) => {
+  try {
+    const worktrees = listWorktrees(cwd);
+    return { success: true, worktrees };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message ?? e) };
+  }
+});
+
+ipcMain.handle('git:worktree:add', async (_e, cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => {
+  return addWorktree(cwd, worktreePath, branch, createBranch, commitIsh);
+});
+
+ipcMain.handle('git:worktree:remove', async (_e, cwd: string, worktreePath: string, force: boolean) => {
+  return removeWorktree(cwd, worktreePath, force);
+});
+
+ipcMain.handle('git:worktree:prune', async (_e, cwd: string) => {
+  return pruneWorktrees(cwd);
+});
+
 // ── 系统通知 ──────────────────────────────────────────────────────────────────
 
 ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
@@ -316,7 +340,7 @@ ipcMain.handle('mem:check', async () => {
   return fileService.checkClaudeMemStatus();
 });
 
-ipcMain.handle('mem:search', async (_e, query: string, options: { limit?: number; project?: string; type?: string }) => {
+ipcMain.handle('mem:search', async (_e, query: string | undefined, options: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string }) => {
   return fileService.searchClaudeMem(query, options);
 });
 
@@ -326,3 +350,20 @@ ipcMain.handle('agent:write', async (_e, filename: string, data: { name: string;
   fileService.writeCustomAgent(filename, data)
 );
 ipcMain.handle('agent:delete', async (_e, filename: string) => fileService.deleteCustomAgent(filename));
+
+// ── Plugin 管理 ───────────────────────────────────────────────────────────────
+
+ipcMain.handle('plugin:list', async () => fileService.listInstalledPlugins());
+
+ipcMain.handle('plugin:toggle', async (_e, key: string, enabled: boolean) =>
+  fileService.togglePlugin(key, enabled)
+);
+
+ipcMain.handle('plugin:install', async (_e, pluginSpec: string) =>
+  cliService.installPlugin(pluginSpec)
+);
+
+ipcMain.handle('plugin:uninstall', async (_e, pluginSpec: string) =>
+  cliService.uninstallPlugin(pluginSpec)
+);
+
