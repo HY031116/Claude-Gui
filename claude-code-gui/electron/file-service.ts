@@ -593,6 +593,88 @@ export class FileService {
     });
   }
 
+  /** 获取指定 ID 的记忆完整详情（Step 3: get_observations） */
+  async getObservationsClaudeMem(
+    ids: number[],
+    options: { orderBy?: string; project?: string } = {},
+  ): Promise<{ success: boolean; content?: string; error?: string }> {
+    return new Promise((resolve) => {
+      const pluginDir = this.findClaudeMemPluginDir();
+      if (!pluginDir) {
+        return resolve({ success: false, error: 'Claude-Mem 插件未安装' });
+      }
+      const mcpScript = path.join(pluginDir, 'scripts', 'mcp-server.cjs');
+      if (!fsSync.existsSync(mcpScript)) {
+        return resolve({ success: false, error: `MCP server 脚本不存在: ${mcpScript}` });
+      }
+      const bunPath = this.findBunPath();
+      let proc: ChildProcess;
+      try {
+        proc = spawn(bunPath, [mcpScript], {
+          env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginDir },
+          cwd: pluginDir,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        return resolve({ success: false, error: `启动 MCP server 失败: ${String(err)}` });
+      }
+
+      let stdout = '';
+      let resolved = false;
+
+      const done = (result: { success: boolean; content?: string; error?: string }) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          try { proc.kill(); } catch { /* 忽略 */ }
+          resolve(result);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        done({ success: false, error: '查询超时（20 秒）' });
+      }, 20000);
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+        for (const line of stdout.split('\n')) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.id === 2) {
+              if (msg.error) {
+                done({ success: false, error: msg.error.message || String(msg.error) });
+              } else {
+                const content = (msg.result?.content || [])
+                  .filter((c: { type: string }) => c.type === 'text')
+                  .map((c: { text: string }) => c.text)
+                  .join('\n');
+                done({ success: true, content });
+              }
+            }
+          } catch { /* 跳过非 JSON 行 */ }
+        }
+      });
+
+      proc.on('error', (err) => done({ success: false, error: `进程错误: ${err.message}` }));
+      proc.on('close', () => {
+        if (!resolved) done({ success: false, error: '进程意外退出' });
+      });
+
+      const obsArgs: Record<string, unknown> = { ids };
+      if (options.orderBy) obsArgs.orderBy = options.orderBy;
+      if (options.project) obsArgs.project = options.project;
+
+      const msgs = [
+        JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'claude-code-gui', version: '1.0.0' } } }),
+        JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
+        JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'get_observations', arguments: obsArgs } }),
+      ].join('\n') + '\n';
+
+      proc.stdin?.write(msgs);
+    });
+  }
+
   // ==================== 自定义 Agent 管理 ====================
 
   private get agentsDir(): string {

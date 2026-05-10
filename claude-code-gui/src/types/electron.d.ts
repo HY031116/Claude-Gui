@@ -73,6 +73,7 @@ export interface ElectronAPI {
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
   searchMemory: (query: string | undefined, options?: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   timelineMemory: (options?: { anchor?: string; query?: string; depthBefore?: number; depthAfter?: number; project?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
+  getObservations: (ids: number[], options?: { orderBy?: string; project?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   // CLI 维护
   cliDoctor: () => Promise<{ success: boolean; output?: string; error?: string }>;
   cliUpdate: (subcmd?: 'update' | 'upgrade') => Promise<{ success: boolean; output: string }>;

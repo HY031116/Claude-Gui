@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Brain, Search, Loader2, AlertCircle, Clock, Filter, ChevronLeft, ChevronRight, List, GitBranch } from 'lucide-react';
+import { Brain, Search, Loader2, AlertCircle, Clock, Filter, ChevronLeft, ChevronRight, List, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SearchOptions {
   limit: number;
@@ -58,6 +58,8 @@ export function MemSearchPanel() {
   const [tlQuery, setTlQuery] = useState('');
   const [tlDepthBefore, setTlDepthBefore] = useState(5);
   const [tlDepthAfter, setTlDepthAfter] = useState(5);
+  const [cardDetails, setCardDetails] = useState<Map<string, string>>(new Map());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 检查插件状态
@@ -150,6 +152,8 @@ export function MemSearchPanel() {
     setError(null);
     setPage(0);
     setSubmittedQuery('');
+    setExpandedIds(new Set());
+    setCardDetails(new Map());
   };
 
   const handleSearch = () => {
@@ -172,6 +176,30 @@ export function MemSearchPanel() {
     setPage(newPage);
     if (mode === 'all') doFetch(undefined, newPage);
     else doFetch(submittedQuery, newPage);
+  };
+
+  const toggleCardDetail = async (id: string) => {
+    if (expandedIds.has(id)) {
+      setExpandedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      return;
+    }
+    if (cardDetails.has(id)) {
+      setExpandedIds((prev) => new Set(prev).add(id));
+      return;
+    }
+    setCardDetails((prev) => new Map(prev).set(id, 'loading'));
+    setExpandedIds((prev) => new Set(prev).add(id));
+    const numId = parseInt(id, 10);
+    if (isNaN(numId)) {
+      setCardDetails((prev) => new Map(prev).set(id, 'error:ID not valid'));
+      return;
+    }
+    try {
+      const res = await window.electronAPI.getObservations([numId]);
+      setCardDetails((prev) => new Map(prev).set(id, res.success ? (res.content ?? '') : ('error:' + (res.error ?? 'fail'))));
+    } catch (e) {
+      setCardDetails((prev) => new Map(prev).set(id, 'error:' + String(e)));
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -252,6 +280,8 @@ export function MemSearchPanel() {
       const type = idxType >= 0 ? row[idxType] : '';
       const date = idxDate >= 0 ? row[idxDate] : '';
       const { bg, fg } = typeColor(type);
+      const isExpanded = expandedIds.has(id);
+      const detail = cardDetails.get(id);
 
       return (
         <div
@@ -293,9 +323,17 @@ export function MemSearchPanel() {
               >
                 <GitBranch size={10} />
               </button>
+              <button
+                onClick={() => toggleCardDetail(id)}
+                title={isExpanded ? '收起详情' : '展开完整内容'}
+                className="btn"
+                style={{ padding: '1px 4px', opacity: 0.6, lineHeight: 1 }}
+              >
+                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
             </span>
           </div>
-          {/* 卡片内容 */}
+          {/* 卡片摘要 */}
           <div
             style={{
               fontSize: 13,
@@ -307,6 +345,34 @@ export function MemSearchPanel() {
           >
             {kw ? highlight(row[idxContent] ?? '', kw) : (row[idxContent] ?? '')}
           </div>
+          {isExpanded && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: '8px 10px',
+                background: 'var(--bg-primary)',
+                borderRadius: 4,
+                border: '1px solid var(--border-color)',
+                fontSize: 12,
+              }}
+            >
+              {detail === 'loading' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
+                  <Loader2 size={12} className="spin" />
+                  <span>加载完整内容…</span>
+                </div>
+              ) : detail != null && detail.startsWith('error:') ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444' }}>
+                  <AlertCircle size={12} />
+                  <span>{detail.slice(6)}</span>
+                </div>
+              ) : (
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-primary)', fontFamily: 'inherit', lineHeight: 1.5 }}>
+                  {detail}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       );
     });

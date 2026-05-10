@@ -69,6 +69,7 @@ export interface ElectronAPI {
   checkClaudeMem: () => Promise<{ installed: boolean; enabled: boolean; pluginDir?: string }>;
   searchMemory: (query: string | undefined, options?: { limit?: number; offset?: number; project?: string; type?: string; orderBy?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   timelineMemory: (options?: { anchor?: string; query?: string; depthBefore?: number; depthAfter?: number; project?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
+  getObservations: (ids: number[], options?: { orderBy?: string; project?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   // 自定义 Agent 管理
   agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
   agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
@@ -136,6 +137,7 @@ const api: ElectronAPI = {
   checkClaudeMem: () => ipcRenderer.invoke('mem:check'),
   searchMemory: (query, options) => ipcRenderer.invoke('mem:search', query, options),
   timelineMemory: (options) => ipcRenderer.invoke('mem:timeline', options),
+  getObservations: (ids, options) => ipcRenderer.invoke('mem:get_observations', ids, options),
   cliDoctor: () => ipcRenderer.invoke('cli:doctor'),
   cliUpdate: (subcmd = 'update') => ipcRenderer.invoke('cli:update', subcmd),
   agentList: () => ipcRenderer.invoke('agent:list'),
