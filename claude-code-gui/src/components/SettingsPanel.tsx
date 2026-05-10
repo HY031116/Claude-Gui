@@ -76,7 +76,8 @@ export function SettingsPanel() {
           permissionDeny: nativeResult.settings.permissions?.deny ?? prev.permissionDeny,
           permissionAsk: nativeResult.settings.permissions?.ask ?? prev.permissionAsk,
         }));
-        // 初始�?MCP �?Plugins 状�?        setMcpServers(nativeResult.settings.mcpServers ?? {});
+        // 初始化 MCP 和 Plugins 状态
+        setMcpServers(nativeResult.settings.mcpServers ?? {});
         setEnabledPlugins(nativeResult.settings.enabledPlugins ?? {});
       }
 
