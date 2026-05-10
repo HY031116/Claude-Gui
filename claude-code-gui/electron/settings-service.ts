@@ -17,8 +17,10 @@ export interface AppSettings {
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
-  effortLevel?: 'low' | 'medium' | 'high' | 'max';
+  effortLevel?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   enableThinking?: boolean;
+  /** Claude 响应语言（写入 native settings.json） */
+  language?: string;
   systemPrompt?: string;
   /** 'append'（默认）= --append-system-prompt；'replace' = --system-prompt */
   systemPromptMode?: 'append' | 'replace';

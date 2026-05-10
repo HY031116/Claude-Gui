@@ -86,7 +86,9 @@ export interface AppSettings {
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
-  effortLevel?: 'low' | 'medium' | 'high' | 'max';
+  effortLevel?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  /** Claude 响应语言（如 "japanese", "chinese", "spanish"），写入 ~/.claude/settings.json */
+  language?: string;
   /** 是否启用 Claude 扩展思考（extended thinking）功能 */
   enableThinking?: boolean;
   /** 附加系统提示词 (--append-system-prompt) 或替换系统提示词 (--system-prompt) */

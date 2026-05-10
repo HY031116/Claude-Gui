@@ -37,7 +37,10 @@ export interface ClaudeCliSettings {
   };
 
   // 努力程度
-  effortLevel?: 'low' | 'medium' | 'high' | 'max';
+  effortLevel?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+  // 响应语言（如 "japanese", "chinese", "spanish", "french"）
+  language?: string;
 
   // 插件设置
   enabledPlugins?: Record<string, boolean>;

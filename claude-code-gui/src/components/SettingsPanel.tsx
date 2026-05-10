@@ -19,7 +19,8 @@ const EFFORT_LEVELS = [
   { value: 'low', label: '低' },
   { value: 'medium', label: '中 (默认)' },
   { value: 'high', label: '高' },
-  { value: 'max', label: '最高' },
+  { value: 'xhigh', label: '超高 (xhigh)' },
+  { value: 'max', label: '最高 (max)' },
 ];
 
 const CONFIG_PRESETS: Array<{
@@ -123,6 +124,7 @@ export function SettingsPanel() {
           ...prev,
           model: nativeResult.settings.model || prev.model,
           permissionMode: nativeResult.settings.permissions?.mode || prev.permissionMode,
+          language: nativeResult.settings.language || prev.language,
         }));
         // 初始化 MCP 和 Plugins 状态
         setMcpServers(nativeResult.settings.mcpServers ?? {});
@@ -189,6 +191,7 @@ export function SettingsPanel() {
           effortLevel: settings.effortLevel,
           mcpServers,
           enabledPlugins,
+          language: settings.language || undefined,
         });
         if (!nativeSave.success) {
           throw new Error(nativeSave.error || 'Failed to save native config');
@@ -333,6 +336,24 @@ export function SettingsPanel() {
         </select>
       </div>
 
+      {/* 响应语言（language 设置） */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
+          响应语言 (language)
+        </label>
+        <input
+          type="text"
+          className="input"
+          value={settings.language ?? ''}
+          onChange={(e) => setSettings({ ...settings, language: e.target.value || undefined })}
+          placeholder="留空 = 默认，或喆写 japanese / chinese / spanish / french"
+          style={{ fontSize: 12 }}
+        />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          对应 settings.json 中的 language 字段，Claude 将优先以该语言回复
+        </div>
+      </div>
+
       {/* Agent 选择（--agent 参数） */}
       <div style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
@@ -374,6 +395,7 @@ export function SettingsPanel() {
           <option value="acceptEdits">自动接受编辑</option>
           <option value="dontAsk">不询问</option>
           <option value="plan">计划模式</option>
+          <option value="bypassPermissions">⚠ 绕过所有权限 (bypassPermissions)</option>
         </select>
       </div>
 
