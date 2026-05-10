@@ -81,6 +81,7 @@ export function SettingsPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeTab, setActiveTab] = useState<'model' | 'permissions' | 'session' | 'connection' | 'integrations'>('model');
   const [doctorResult, setDoctorResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [doctorRunning, setDoctorRunning] = useState(false);
   const [updateResult, setUpdateResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -282,6 +283,45 @@ export function SettingsPanel() {
         )}
       </div>
 
+      {/* Tab 导航栏 */}
+      {(() => {
+        const tabs: Array<{ key: typeof activeTab; label: string }> = [
+          { key: 'model', label: '模型' },
+          { key: 'permissions', label: '权限' },
+          { key: 'session', label: '会话' },
+          { key: 'connection', label: '连接' },
+          { key: 'integrations', label: '集成' },
+        ];
+        return (
+          <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--border-color)' }}>
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === t.key ? '2px solid var(--accent-color)' : '2px solid transparent',
+                  marginBottom: -2,
+                  color: activeTab === t.key ? 'var(--accent-color)' : 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: activeTab === t.key ? 600 : 400,
+                  cursor: 'pointer',
+                  transition: 'color 0.15s',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ===== Tab: 模型 ===== */}
+      {activeTab === 'model' && <>
+
       {/* Quick Presets */}
       <div style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
@@ -400,6 +440,12 @@ export function SettingsPanel() {
           对应 CLI 参数 --agent，用于指定子代理策略
         </div>
       </div>
+
+      {/* Permission Mode */}
+      </> /* end 模型 Tab */}
+
+      {/* ===== Tab: 权限 ===== */}
+      {activeTab === 'permissions' && <>
 
       {/* Permission Mode */}
       <div style={{ marginBottom: 16 }}>
@@ -556,6 +602,12 @@ export function SettingsPanel() {
       </div>
 
       {/* 思维 (Thinking) 设置 */}
+      </> /* end 权限 Tab */}
+
+      {/* ===== Tab: 会话 ===== */}
+      {activeTab === 'session' && <>
+
+      {/* 思维 (Thinking) 设置 */}
       <div style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>
           思维 (Thinking) 设置
@@ -685,6 +737,12 @@ export function SettingsPanel() {
           写入 settings.json env 字段，在每次 Claude 会话中注入环境变量
         </div>
       </div>
+
+      {/* Auth Status */}
+      </> /* end 会话 Tab */}
+
+      {/* ===== Tab: 连接 ===== */}
+      {activeTab === 'connection' && <>
 
       {/* Auth Status */}
       <div
@@ -1230,6 +1288,12 @@ export function SettingsPanel() {
       )}
 
       {/* MCP 服务器管理 */}
+      </> /* end 连接 Tab */}
+
+      {/* ===== Tab: 集成 ===== */}
+      {activeTab === 'integrations' && <>
+
+      {/* MCP 服务器管理 */}
       <div style={{ marginBottom: 16 }}>
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}
@@ -1410,6 +1474,8 @@ export function SettingsPanel() {
           ))
         )}
       </div>
+
+      </> /* end 集成 Tab */}
 
       {/* Save Button */}
       <button
