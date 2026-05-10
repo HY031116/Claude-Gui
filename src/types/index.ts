@@ -71,6 +71,17 @@ export interface CliSessionRecord {
   projectDirName: string;
 }
 
+/** Token 使用量历史记录（持久化到 localStorage） */
+export interface TokenRecord {
+  id: string;
+  timestamp: number;
+  sessionId?: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd?: number;
+  workingDirectory?: string;
+}
+
 export interface AppSettings {
   apiKey: string;
   authMode: 'api-key' | 'official';

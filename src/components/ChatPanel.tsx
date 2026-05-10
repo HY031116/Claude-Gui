@@ -182,6 +182,7 @@ export function ChatPanel() {
   const setTodoItems = useAppStore((s) => s.setTodoItems);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const setTokenUsage = useAppStore((s) => s.setTokenUsage);
+  const addTokenRecord = useAppStore((s) => s.addTokenRecord);
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
@@ -385,9 +386,18 @@ export function ChatPanel() {
           // 解析最终 result 行，获取 session_id 用于多轮对话
           if (parsed.type === 'session_end' && parsed.sessionId) {
             setSession({ conversationSessionId: parsed.sessionId });
-            // 更新 Token 用量
+            // 更新 Token 用量 + 写入历史
             if (parsed.usage) {
               setTokenUsage({ inputTokens: parsed.usage.input_tokens, outputTokens: parsed.usage.output_tokens, costUsd: parsed.costUsd });
+              addTokenRecord({
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                timestamp: Date.now(),
+                sessionId: parsed.sessionId,
+                inputTokens: parsed.usage.input_tokens,
+                outputTokens: parsed.usage.output_tokens,
+                costUsd: parsed.costUsd,
+                workingDirectory: workingDirectoryRef.current,
+              });
             }
             // 将此次会话保存到历史记录
             addOrUpdateConversation({
@@ -467,7 +477,7 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addPlanStep, updatePlanStep]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, addPlanStep, updatePlanStep]);
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {
