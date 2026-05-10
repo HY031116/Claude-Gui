@@ -178,6 +178,32 @@ export function MemSearchPanel() {
     if (e.key === 'Enter') handleSearch();
   };
 
+  // 从搜索/全部模式跳转到时间线（直接传入 id，不依赖 state 时序）
+  const jumpToTimeline = useCallback(
+    async (id: string) => {
+      setMode('timeline');
+      setContent(null);
+      setError(null);
+      setTlAnchor(id); // 同步更新锚点输入框
+      setLoading(true);
+      try {
+        const res = await window.electronAPI.timelineMemory({
+          anchor: id,
+          query: tlQuery.trim() || undefined,
+          depthBefore: tlDepthBefore,
+          depthAfter: tlDepthAfter,
+        });
+        if (res.success) setContent(res.content ?? '（无结果）');
+        else setError(res.error ?? '时间线查询失败');
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [tlQuery, tlDepthBefore, tlDepthAfter],
+  );
+
   // 类型 Badge 颜色映射
   const typeColor = (t: string) => {
     const lt = t.toLowerCase();
@@ -256,9 +282,17 @@ export function MemSearchPanel() {
                 </span>
               );
             })}
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-              {date && <span style={{ marginRight: 6 }}>{kw ? highlight(date, kw) : date}</span>}
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {date && <span style={{ marginRight: 2 }}>{kw ? highlight(date, kw) : date}</span>}
               {id && <span style={{ opacity: 0.6 }}>#{id}</span>}
+              <button
+                onClick={() => jumpToTimeline(id)}
+                title="在时间线中查看上下文"
+                className="btn"
+                style={{ padding: '1px 4px', marginLeft: 4, opacity: 0.5, lineHeight: 1 }}
+              >
+                <GitBranch size={10} />
+              </button>
             </span>
           </div>
           {/* 卡片内容 */}
