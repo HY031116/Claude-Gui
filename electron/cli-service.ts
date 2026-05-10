@@ -66,6 +66,10 @@ export interface CliConfig {
   foundryResource?: string;
   foundryBaseUrl?: string;
   foundryApiKey?: string;
+  // LLM Gateway 配置
+  gatewayAuthToken?: string;
+  gatewayCustomHeaders?: string;
+  enableGatewayModelDiscovery?: boolean;
 }
 
 export interface CliStartOptions {
