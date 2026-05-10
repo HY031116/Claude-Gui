@@ -360,6 +360,7 @@ export function ChatPanel() {
             for (const res of parsed.results) {
               const idx = pendingToolCallsRef.current.findIndex((tc) => tc.id === res.tool_use_id);
               if (idx >= 0 && assistantIdRef.current) {
+                // 正常路径：ref 有效，直接更新
                 pendingToolCallsRef.current = pendingToolCallsRef.current.map((tc, i) =>
                   i === idx ? { ...tc, result: res.content, status: 'success' as const } : tc,
                 );
@@ -380,6 +381,25 @@ export function ChatPanel() {
                         ? t.status : 'pending') as 'pending' | 'in_progress' | 'completed',
                     })));
                   } catch { /* 解析失败忽略 */ }
+                }
+              } else {
+                // 兜底路径：ref 被清空（HMR 热重载或组件重挂载），从 store 消息中逆向查找
+                const storeMessages = useAppStore.getState().messages;
+                for (let mi = storeMessages.length - 1; mi >= 0; mi--) {
+                  const msg = storeMessages[mi];
+                  if (msg.role !== 'assistant') continue;
+                  const tcIdx = msg.toolCalls?.findIndex((tc) => tc.id === res.tool_use_id) ?? -1;
+                  if (tcIdx >= 0) {
+                    const updatedCalls = msg.toolCalls!.map((tc, i) =>
+                      i === tcIdx ? { ...tc, result: res.content, status: 'success' as const } : tc,
+                    );
+                    updateMessage(msg.id, { toolCalls: updatedCalls });
+                    updatePlanStep(res.tool_use_id, 'done');
+                    // 重建 refs，确保同批次后续工具也能正确更新
+                    assistantIdRef.current = msg.id;
+                    pendingToolCallsRef.current = updatedCalls;
+                    break;
+                  }
                 }
               }
             }
