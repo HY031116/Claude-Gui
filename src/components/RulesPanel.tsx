@@ -366,9 +366,11 @@ export function RulesPanel() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
           <span>模式</span>
           <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className="input" style={{ padding: '2px 6px', fontSize: 12 }}>
-            <option value="auto">auto（默认）</option>
-            <option value="plan">plan（计划模式）</option>
-            <option value="bypassPermissions">bypassPermissions（旁路，危险！）</option>
+            <option value="auto">auto（默认，自动判断）</option>
+            <option value="plan">plan（只读计划，不执行修改）</option>
+            <option value="acceptEdits">acceptEdits（自动接受文件编辑）</option>
+            <option value="dontAsk">dontAsk（不询问，完全自主）</option>
+            <option value="bypassPermissions">bypassPermissions（旁路所有权限，危险！）</option>
           </select>
         </label>
 

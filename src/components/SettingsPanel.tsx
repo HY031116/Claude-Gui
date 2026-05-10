@@ -405,12 +405,11 @@ export function SettingsPanel() {
           onChange={(e) => setSettings({ ...settings, permissionMode: e.target.value })}
           style={{ fontSize: 12, cursor: 'pointer' }}
         >
-          <option value="default">默认</option>
-          <option value="auto">自动 (推荐)</option>
-          <option value="acceptEdits">自动接受编辑</option>
-          <option value="dontAsk">不询问</option>
-          <option value="plan">计划模式</option>
-          <option value="bypassPermissions">⚠ 绕过所有权限 (bypassPermissions)</option>
+          <option value="auto">auto — 自动判断（推荐）</option>
+          <option value="plan">plan — 只读计划，不执行修改</option>
+          <option value="acceptEdits">acceptEdits — 自动接受文件编辑</option>
+          <option value="dontAsk">dontAsk — 不询问，完全自主</option>
+          <option value="bypassPermissions">⚠ bypassPermissions — 绕过所有权限</option>
         </select>
       </div>
 
