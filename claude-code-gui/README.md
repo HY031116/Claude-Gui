@@ -2,7 +2,7 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.3.1**
+**版本：v1.4.0**
 
 ---
 
@@ -23,6 +23,7 @@
 - 文件内联差异视图（InlineDiff / WritePreview / WriteDiff）
 - 消息一键复制、文件附件上传
 - 会话结束后显示 Token 用量与 USD 费用
+- **继续上次会话**：工作目录栏右侧"继续上次会话"按钮，点击后下次发消息追加 `--continue`，自动接续上一次 CLI 会话
 
 #### 终端面板
 - 实时 RAF 批量写入，高频输出不卡顿
@@ -84,8 +85,24 @@
 - **允许的工具**（`--tools`）：留空 = 全部，或填写 `Bash,Edit,Read`
 - **禁止的工具**（`--disallowed-tools`）：例如 `Bash(git:*) WebFetch`
 
+#### 精细权限规则（permissions.allow / deny / ask）
+动态列表编辑器，分别对应 `~/.claude/settings.json` 的 `permissions.allow`、`permissions.deny`、`permissions.ask` 字段，支持 `Tool(pattern)` 格式（如 `Bash(git *)` 或 `Read(.env)`）。
+
 #### 额外目录访问（`--add-dir`）
 动态添加/删除额外可访问目录，对应 `--add-dir` 参数。
+
+#### 思维（Thinking）设置
+- **alwaysThinkingEnabled**：所有会话默认开启扩展思维，写入 `~/.claude/settings.json`
+- **showThinkingSummaries**：在聊天界面展示 `<thinking>` 摘要块，写入 `~/.claude/settings.json`
+
+#### 自动记忆（autoMemoryEnabled）
+控制 Claude 是否读写 `CLAUDE.md` 记忆文件。关闭时跳过记忆目录，适合临时任务或隐私场景，写入 `~/.claude/settings.json`。
+
+#### 最大 Agentic 轮次（`--max-turns`）
+限制每次任务最多执行多少轮工具调用。留空 = 不限制（默认）。对应 CLI `--max-turns N` 参数，存储于 GUI 私有配置。
+
+#### 环境变量（env）
+键值对编辑器，写入 `~/.claude/settings.json` 的 `env` 字段，在每次 Claude 会话中注入环境变量。
 
 #### 认证方式
 | 方式 | 说明 |
@@ -220,6 +237,16 @@ npm run dist
 ---
 
 ## Changelog
+
+### v1.4.0
+- **`--continue`**：聊天面板新增"继续上次会话"按钮，点击后下次发消息追加 `--continue`
+- **`--max-turns`**：设置面板新增最大 Agentic 轮次输入框，对应 CLI `--max-turns N`
+- **`showThinkingSummaries`**：设置面板新增思维摘要显示开关，写入 `~/.claude/settings.json`
+- **`alwaysThinkingEnabled`**：设置面板新增全局扩展思维开关，写入 `~/.claude/settings.json`
+- **`autoMemoryEnabled`**：设置面板新增自动记忆开关，控制 CLAUDE.md 读写
+- **`env`**：设置面板新增环境变量键值对编辑器，写入 `~/.claude/settings.json` `env` 字段
+- **`permissions.allow/deny/ask`**：设置面板新增精细权限规则动态列表，支持 Tool(pattern) 格式
+- 版本升级至 1.4.0
 
 ### v1.3.1
 - 修复设置面板 xhigh effort 级别缺失
