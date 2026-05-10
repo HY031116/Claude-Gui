@@ -43,7 +43,7 @@ function renderMarkdown(text: string): string {
 type ParsedStreamEvent =
   | { type: 'assistant'; text: string; thinking: string; toolUses: { id: string; name: string; input: Record<string, unknown> }[] }
   | { type: 'tool_result'; results: { tool_use_id: string; content: string }[] }
-  | { type: 'session_end'; sessionId: string; subtype: string; usage?: { input_tokens: number; output_tokens: number }; costUsd?: number };
+  | { type: 'session_end'; sessionId: string; subtype: string; usage?: { input_tokens: number; output_tokens: number }; costUsd?: number; model?: string };
 
 /** 解析 claude --output-format stream-json 输出的单行 */
 function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
@@ -84,7 +84,8 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
     if (obj.type === 'result' && obj.session_id) {
       const usage = obj.usage as { input_tokens?: number; output_tokens?: number } | undefined;
       const costUsd = typeof obj.total_cost_usd === 'number' ? obj.total_cost_usd : undefined;
-      return { type: 'session_end', sessionId: obj.session_id as string, subtype: (obj.subtype as string) || 'success', usage: usage ? { input_tokens: usage.input_tokens ?? 0, output_tokens: usage.output_tokens ?? 0 } : undefined, costUsd };
+      const model = typeof obj.model === 'string' ? obj.model : undefined;
+      return { type: 'session_end', sessionId: obj.session_id as string, subtype: (obj.subtype as string) || 'success', usage: usage ? { input_tokens: usage.input_tokens ?? 0, output_tokens: usage.output_tokens ?? 0 } : undefined, costUsd, model };
     }
   } catch {
     // 非 JSON 行忽略
@@ -183,6 +184,7 @@ export function ChatPanel() {
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const setTokenUsage = useAppStore((s) => s.setTokenUsage);
   const addTokenRecord = useAppStore((s) => s.addTokenRecord);
+  const currentModel = useAppStore((s) => s.currentModel);
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
@@ -396,6 +398,7 @@ export function ChatPanel() {
                 inputTokens: parsed.usage.input_tokens,
                 outputTokens: parsed.usage.output_tokens,
                 costUsd: parsed.costUsd,
+                model: parsed.model ?? currentModel ?? undefined,
                 workingDirectory: workingDirectoryRef.current,
               });
             }
@@ -477,7 +480,7 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, addPlanStep, updatePlanStep]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep]);
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {

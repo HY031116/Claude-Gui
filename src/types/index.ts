@@ -79,6 +79,7 @@ export interface TokenRecord {
   inputTokens: number;
   outputTokens: number;
   costUsd?: number;
+  model?: string;
   workingDirectory?: string;
 }
 

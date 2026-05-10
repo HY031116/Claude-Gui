@@ -104,8 +104,9 @@ function RecordRow({ record }: { record: TokenRecord }) {
         <div style={{ padding: '4px 24px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
           <span>输入 tokens：<strong style={{ color: 'var(--text-primary)' }}>{record.inputTokens.toLocaleString()}</strong></span>
           <span>输出 tokens：<strong style={{ color: 'var(--text-primary)' }}>{record.outputTokens.toLocaleString()}</strong></span>
+          <span>模型：<span style={{ fontFamily: 'monospace', fontSize: 10 }}>{record.model ?? '—'}</span></span>
           <span>Session ID：<span style={{ fontFamily: 'monospace', fontSize: 10 }}>{record.sessionId?.slice(0, 12) ?? '—'}</span></span>
-          <span>工作目录：<span style={{ fontFamily: 'monospace', fontSize: 10 }}>{record.workingDirectory ?? '—'}</span></span>
+          <span style={{ gridColumn: '1 / -1' }}>工作目录：<span style={{ fontFamily: 'monospace', fontSize: 10 }}>{record.workingDirectory ?? '—'}</span></span>
         </div>
       )}
     </div>
@@ -113,6 +114,19 @@ function RecordRow({ record }: { record: TokenRecord }) {
 }
 
 // ─── 主组件 ────────────────────────────────────────────────────────────────
+
+/** 按模型聚合 */
+interface ModelStat { model: string; count: number; inputTokens: number; outputTokens: number; costUsd: number; }
+
+function aggregateByModel(records: TokenRecord[]): ModelStat[] {
+  const map = new Map<string, ModelStat>();
+  for (const r of records) {
+    const key = r.model || '未知模型';
+    const prev = map.get(key) ?? { model: key, count: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+    map.set(key, { ...prev, count: prev.count + 1, inputTokens: prev.inputTokens + r.inputTokens, outputTokens: prev.outputTokens + r.outputTokens, costUsd: prev.costUsd + (r.costUsd ?? 0) });
+  }
+  return [...map.values()].sort((a, b) => b.costUsd - a.costUsd);
+}
 
 export function CostPanel() {
   const tokenHistory = useAppStore((s) => s.tokenHistory);
@@ -183,6 +197,29 @@ export function CostPanel() {
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 500 }}>近 7 天成本分布</div>
               <CostChart data={chartData} />
             </div>
+
+            {/* 按模型统计 */}
+            {(() => {
+              const modelStats = aggregateByModel(tokenHistory);
+              if (modelStats.length === 0) return null;
+              const maxModelCost = Math.max(...modelStats.map((m) => m.costUsd), 0.0001);
+              return (
+                <div style={{ margin: '0 16px 16px', padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 500 }}>按模型统计</div>
+                  {modelStats.map((m) => (
+                    <div key={m.model} style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ fontFamily: 'monospace', color: 'var(--text-primary)' }}>{m.model}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{m.count} 次 · {formatTokens(m.inputTokens + m.outputTokens)} tokens · <strong style={{ color: 'var(--accent)' }}>{formatCost(m.costUsd)}</strong></span>
+                      </div>
+                      <div style={{ height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: 'var(--accent)', width: `${(m.costUsd / maxModelCost) * 100}%`, borderRadius: 3, opacity: 0.8 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* 历史记录表头 */}
             <div style={{ padding: '6px 12px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: 10, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
