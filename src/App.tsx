@@ -1,18 +1,14 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAppStore } from './stores/useAppStore';
 import type { TerminalLine } from './types';
-import { ChatPanel } from './components/ChatPanel';
-import { FileExplorer } from './components/FileExplorer';
-import { TerminalPanel } from './components/TerminalPanel';
-import { SettingsPanel } from './components/SettingsPanel';
-import { HistoryPanel } from './components/HistoryPanel';
-import { SkillsPanel } from './components/SkillsPanel';
-import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, Settings, History, Sun, Moon } from 'lucide-react';
+import type { CliPrompt } from './types';
+import { NavRail } from './components/layout/NavRail';
+import { WorkspaceArea } from './components/layout/WorkspaceArea';
+import { AuxPanel } from './components/layout/AuxPanel';
 
 type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
 
-// 每个一级导航 section 的默认子标签
+// handleNavClick 需要的默认子标签（决定首次展开 section 时聚焦哪个 tab）
 const SECTION_DEFAULTS: Record<Exclude<NavSection, 'chat'>, string> = {
   project: 'files',
   tools: 'mcp',
@@ -20,48 +16,13 @@ const SECTION_DEFAULTS: Record<Exclude<NavSection, 'chat'>, string> = {
   history: 'sessions',
 };
 
-// 辅助面板子标签配置
-const AUX_TABS: Record<Exclude<NavSection, 'chat'>, { id: string; label: string }[]> = {
-  project: [
-    { id: 'files', label: '文件' },
-    { id: 'git', label: 'Git' },
-    { id: 'changes', label: '变更' },
-    { id: 'worktrees', label: 'Worktree' },
-    { id: 'checkpoints', label: '快照' },
-  ],
-  tools: [
-    { id: 'mcp', label: 'MCP' },
-    { id: 'agents', label: 'Agents' },
-    { id: 'plugins', label: 'Plugins' },
-    { id: 'hooks', label: 'Hooks' },
-    { id: 'skills', label: 'Skills' },
-    { id: 'tasks', label: '任务' },
-  ],
-  config: [
-    { id: 'settings', label: '设置' },
-    { id: 'rules', label: '权限规则' },
-    { id: 'claude-md', label: 'CLAUDE.md' },
-  ],
-  history: [
-    { id: 'sessions', label: '历史' },
-    { id: 'mem', label: '记忆搜索' },
-    { id: 'cost', label: '成本' },
-  ],
+// handleNavClick 合法子标签验证（避免切换 section 时残留旧 sub 值）
+const SECTION_VALID_SUBS: Record<Exclude<NavSection, 'chat'>, string[]> = {
+  project: ['files', 'git', 'changes', 'worktrees', 'checkpoints'],
+  tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks'],
+  config: ['settings', 'rules', 'claude-md'],
+  history: ['sessions', 'mem', 'cost', 'history-list'],
 };
-import { GitPanel } from './components/GitPanel';
-import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
-import { SessionList } from './components/SessionList';
-import { MemSearchPanel } from './components/MemSearchPanel';
-import { MemoryEditPanel } from './components/MemoryEditPanel';
-import { CheckpointPanel } from './components/CheckpointPanel';
-import { McpPanel } from './components/McpPanel';
-import { AgentPanel } from './components/AgentPanel';
-import PluginPanel from './components/PluginPanel';
-import { WorktreePanel } from './components/WorktreePanel';
-import { HooksPanel } from './components/HooksPanel';
-import { RulesPanel } from './components/RulesPanel';
-import { CostPanel } from './components/CostPanel';
-import type { CliPrompt } from './types';
 
 // Strip ANSI escape codes from terminal output
 function stripAnsi(str: string): string {
@@ -118,7 +79,7 @@ function detectInteractivePrompt(text: string): CliPrompt | null {
 }
 
 function App() {
-  // 精确订阅各自所需字段，避免 messages/terminalLines 等高频更新触发 App 整体重渲
+  // 精确订阅：只订阅 App 层真正需要的字段（其余已移入各 layout 组件）
   const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
   const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
@@ -131,15 +92,8 @@ function App() {
   const pendingPrompt = useAppStore((s) => s.pendingPrompt);
   const setPendingPrompt = useAppStore((s) => s.setPendingPrompt);
   const theme = useAppStore((s) => s.theme);
-  const setTheme = useAppStore((s) => s.setTheme);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
-  const tabs = useAppStore((s) => s.tabs);
-  const activeTabId = useAppStore((s) => s.activeTabId);
-  const addTab = useAppStore((s) => s.addTab);
-  const closeTab = useAppStore((s) => s.closeTab);
-  const setActiveTab = useAppStore((s) => s.setActiveTab);
-  const renameTab = useAppStore((s) => s.renameTab);
   const isWindows = navigator.userAgent.includes('Windows');
 
   // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
@@ -411,18 +365,7 @@ function App() {
     void handleStartSession();
   }, [autoConnectOnLaunch, handleStartSession, session.isConnected, startupSettingsLoaded]);
 
-  // Tab 内联重命名状态
-  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-
-  // Phase 1 新导航：5 个一级入口（精简自原 18 项）
-  const navItems: { id: NavSection; label: string; icon: React.ElementType; badge?: number }[] = [
-    { id: 'chat', label: '对话', icon: MessageSquare },
-    { id: 'project', label: '项目', icon: FolderOpen },
-    { id: 'tools', label: '工具', icon: Wrench },
-    { id: 'config', label: '配置', icon: Settings },
-    { id: 'history', label: '历史', icon: History },
-  ];
+  // Tab 内联重命名状态已移至 WorkspaceArea
 
   // 点击一级导航：同一非 chat 入口再次点击则收起辅助面板
   const handleNavClick = useCallback((section: NavSection) => {
@@ -431,9 +374,8 @@ function App() {
     } else {
       setActiveNavSection(section);
       if (section !== 'chat') {
-        const validSubs = AUX_TABS[section].map((t) => t.id);
-        const currentSub = activeAuxSubPanel;
-        if (!validSubs.includes(currentSub)) {
+        const validSubs = SECTION_VALID_SUBS[section];
+        if (!validSubs.includes(activeAuxSubPanel)) {
           setActiveAuxSubPanel(SECTION_DEFAULTS[section]);
         }
       }
@@ -442,251 +384,24 @@ function App() {
 
   const auxPanelOpen = activeNavSection !== 'chat';
 
-  const workspaceLabel = session.workingDirectory
-    ? session.workingDirectory.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() || session.workingDirectory
-    : '未选择项目';
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-      {/* Left Sidebar Navigation */}
-      <div
-        style={{
-          width: 56,
-          background: 'rgba(7, 7, 20, 0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderRight: '1px solid var(--glass-border)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          paddingTop: 8,
-          paddingBottom: 8,
-          gap: 4,
-          flexShrink: 0,
-        }}
-      >
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          // Phase 1：使用 activeNavSection 判断激活状态
-          const isActive = activeNavSection === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleNavClick(item.id)}
-              title={item.label}
-              className={`nav-button ${isActive ? 'active' : ''}`}
-            >
-              <Icon size={20} />
-            </button>
-          );
-        })}
-        <div style={{ flex: 1 }} />
-        {/* 主题切换 */}
-        <button
-          onClick={() => {
-            const next = theme === 'dark' ? 'light' : 'dark';
-            setTheme(next);
-            // 同步 Windows 原生菜单栏/标题栏跟随应用主题
-            window.electronAPI?.setNativeTheme?.(next);
-          }}
-          title={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
-          className="nav-button"
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-      </div>
+      {/* 左侧导航栏 */}
+      <NavRail onNavClick={handleNavClick} />
 
       {/* 对话主区域（永置，不被辅助面板替换）*/}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div className="workspace-shell">
-          <div className="workspace-main-column">
-            <div className="workspace-topbar">
-              <div>
-                <div className="workspace-topbar-eyebrow">对话工作区</div>
-                <div className="workspace-topbar-title-row">
-                  <strong>{workspaceLabel}</strong>
-                  {session.isConnected && (
-                    <span className="workspace-topbar-pill connected">
-                      Claude 已连接
-                    </span>
-                  )}
-                  {session.conversationSessionId && (
-                    <span className="workspace-topbar-pill">
-                      会话 {session.conversationSessionId.slice(0, 8)}…
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+      <WorkspaceArea />
 
-            {/* 多会话标签条 */}
-            <div className="session-tab-bar">
-              {tabs.map((tab) => (
-                <div
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setRenamingTabId(tab.id);
-                    setRenameValue(tab.label);
-                  }}
-                  className={`session-tab${tab.id === activeTabId ? ' active' : ''}`}
-                >
-                  {renamingTabId === tab.id ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => {
-                        const trimmed = renameValue.trim();
-                        if (trimmed) renameTab(tab.id, trimmed);
-                        setRenamingTabId(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const trimmed = renameValue.trim();
-                          if (trimmed) renameTab(tab.id, trimmed);
-                          setRenamingTabId(null);
-                        } else if (e.key === 'Escape') {
-                          setRenamingTabId(null);
-                        }
-                        e.stopPropagation();
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="session-tab-rename-input"
-                      style={{ width: Math.max(60, renameValue.length * 8) }}
-                    />
-                  ) : (
-                    <span className="session-tab-label" title="双击重命名">{tab.label}</span>
-                  )}
-                  {tabs.length > 1 && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                      className="session-tab-close"
-                      title="关闭标签"
-                    >×</button>
-                  )}
-                </div>
-              ))}
-              <button
-                onClick={() => addTab()}
-                className="session-tab-new"
-                title="新建会话标签 (Ctrl+T)"
-              >+</button>
-            </div>
-            <ChatPanel key={activeTabId} />
-            <TerminalPanel />
-          </div>
-        </div>
-      </div>
 
       {/* 辅助面板（右侧，按需展开） */}
       {auxPanelOpen && (
-        <>
-          <div className="resize-handle" onMouseDown={handleResizeMouseDown} />
-          <div
-            style={{
-              width: sidebarWidth,
-              borderLeft: '1px solid var(--border-color)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              flexShrink: 0,
-              background: 'var(--bg-primary)',
-            }}
-          >
-            {/* 辅助面板子标签栏 */}
-            <div
-              style={{
-                display: 'flex',
-                borderBottom: '1px solid var(--border-color)',
-                flexShrink: 0,
-                overflowX: 'auto',
-              }}
-            >
-              {(AUX_TABS[activeNavSection as Exclude<NavSection, 'chat'>] ?? []).map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveAuxSubPanel(tab.id)}
-                  style={{
-                    padding: '8px 14px',
-                    fontSize: 12,
-                    fontWeight: activeAuxSubPanel === tab.id ? 600 : 400,
-                    color: activeAuxSubPanel === tab.id ? 'var(--accent-color)' : 'var(--text-secondary)',
-                    borderBottom: activeAuxSubPanel === tab.id ? '2px solid var(--accent-color)' : '2px solid transparent',
-                    background: 'transparent',
-                    border: 'none',
-                    borderTopWidth: 0,
-                    borderLeftWidth: 0,
-                    borderRightWidth: 0,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    transition: 'color 0.15s, border-color 0.15s',
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            {/* 辅助面板内容区 */}
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              {/* project section */}
-              {activeNavSection === 'project' && activeAuxSubPanel === 'files' && <FileExplorer />}
-              {activeNavSection === 'project' && activeAuxSubPanel === 'git' && <GitPanel />}
-              {activeNavSection === 'project' && activeAuxSubPanel === 'changes' && <ChangeSummaryPanel />}
-              {activeNavSection === 'project' && activeAuxSubPanel === 'worktrees' && <WorktreePanel />}
-              {activeNavSection === 'project' && activeAuxSubPanel === 'checkpoints' && <CheckpointPanel />}
-              {/* tools section */}
-              {activeNavSection === 'tools' && activeAuxSubPanel === 'mcp' && <McpPanel />}
-              {activeNavSection === 'tools' && activeAuxSubPanel === 'agents' && <AgentPanel />}
-              {activeNavSection === 'tools' && activeAuxSubPanel === 'plugins' && <PluginPanel />}
-              {activeNavSection === 'tools' && activeAuxSubPanel === 'hooks' && <HooksPanel />}
-              {activeNavSection === 'tools' && activeAuxSubPanel === 'skills' && <SkillsPanel />}
-              {activeNavSection === 'tools' && activeAuxSubPanel === 'tasks' && <TaskPanel />}
-              {/* config section */}
-              {activeNavSection === 'config' && activeAuxSubPanel === 'settings' && <SettingsPanel />}
-              {activeNavSection === 'config' && activeAuxSubPanel === 'rules' && <RulesPanel />}
-              {activeNavSection === 'config' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
-              {/* history section */}
-              {activeNavSection === 'history' && activeAuxSubPanel === 'sessions' && (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ padding: 12, flexShrink: 0, borderBottom: '1px solid var(--border-color)' }}>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-                        工作目录
-                      </label>
-                      <input
-                        type="text"
-                        className="input"
-                        value={session.workingDirectory}
-                        onChange={(e) => setSession({ workingDirectory: e.target.value })}
-                        placeholder="选择工作目录..."
-                        style={{ fontSize: 12 }}
-                      />
-                    </div>
-                    {session.isConnected ? (
-                      <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
-                        断开连接
-                      </button>
-                    ) : (
-                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
-                        启动 Claude Code
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ flex: 1, overflow: 'auto' }}>
-                    <SessionList />
-                  </div>
-                </div>
-              )}
-              {activeNavSection === 'history' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
-              {activeNavSection === 'history' && activeAuxSubPanel === 'cost' && <CostPanel />}
-              {activeNavSection === 'history' && activeAuxSubPanel === 'history-list' && <HistoryPanel />}
-            </div>
-          </div>
-        </>
+        <AuxPanel
+          width={sidebarWidth}
+          onResizeMouseDown={handleResizeMouseDown}
+          onStartSession={handleStartSession}
+          onStopSession={handleStopSession}
+        />
       )}
       </div>{/* /inner flex-row */}
 
