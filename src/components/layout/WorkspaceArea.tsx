@@ -1,15 +1,17 @@
 /**
- * WorkspaceArea — 主工作区（topbar + 标签条 + ChatPanel + TerminalPanel）
+ * WorkspaceArea — 主工作区（topbar + 标签条 + ChatPanel + TerminalPanel + 历史侧边栏）
  * 直接从 Zustand store 读取所需字段，减少 props 层数
  */
-import { useState } from 'react';
-import { Cpu } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Cpu, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { ChatPanel } from '../ChatPanel';
 import { TerminalPanel } from '../TerminalPanel';
+import { SessionList } from '../SessionList';
 
 export function WorkspaceArea() {
   const session = useAppStore((s) => s.session);
+  const setSession = useAppStore((s) => s.setSession);
   const tabs = useAppStore((s) => s.tabs);
   const activeTabId = useAppStore((s) => s.activeTabId);
   const addTab = useAppStore((s) => s.addTab);
@@ -21,6 +23,14 @@ export function WorkspaceArea() {
   // 标签内联重命名本地状态（仅 WorkspaceArea 使用）
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // 右侧历史侧边栏折叠状态
+  const [showHistory, setShowHistory] = useState(false);
+
+  // 断开连接（停止 Claude 会话）
+  const handleDisconnect = useCallback(async () => {
+    await window.electronAPI.cliStop();
+    setSession({ isConnected: false, pid: undefined });
+  }, [setSession]);
 
   // 提取目录最后一段作为工作区名称显示
   const workspaceLabel = session.workingDirectory
@@ -40,7 +50,7 @@ export function WorkspaceArea() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="workspace-shell">
         <div className="workspace-main-column">
-          {/* 顶栏：项目名 + 状态标签 */}
+          {/* 顶栏：项目名 + 状态标签 + 历史切换按钮 */}
           <div className="workspace-topbar">
             <div className="workspace-topbar-title-row">
               <strong className="workspace-topbar-project">{workspaceLabel}</strong>
@@ -53,6 +63,27 @@ export function WorkspaceArea() {
                   {modelShort}
                 </span>
               )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {session.isConnected && (
+                <button
+                  className="history-toggle-btn"
+                  onClick={handleDisconnect}
+                  title="断开连接"
+                  aria-label="断开连接"
+                  style={{ fontSize: 11, width: 'auto', padding: '0 8px', color: 'var(--danger)' }}
+                >
+                  断开
+                </button>
+              )}
+              <button
+                className="history-toggle-btn"
+                onClick={() => setShowHistory((v) => !v)}
+                title={showHistory ? '关闭历史面板' : '打开历史面板'}
+                aria-label={showHistory ? '关闭历史面板' : '打开历史面板'}
+              >
+                {showHistory ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              </button>
             </div>
           </div>
 
@@ -120,6 +151,13 @@ export function WorkspaceArea() {
 
           <ChatPanel key={activeTabId} />
           <TerminalPanel />
+        </div>
+
+        {/* 右侧可折叠历史侧边栏 */}
+        <div className={`chat-history-sidebar${showHistory ? ' open' : ''}`}>
+          <div className="chat-history-sidebar-inner">
+            <SessionList />
+          </div>
         </div>
       </div>
     </div>

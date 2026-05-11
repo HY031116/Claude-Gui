@@ -1609,6 +1609,53 @@ pre code {
     var(--bg-base);
 }
 
+/* 右侧可折叠历史侧边栏 */
+.chat-history-sidebar {
+  width: 0;
+  overflow: hidden;
+  transition: width var(--duration-normal) var(--ease-out);
+  border-left: 0px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.chat-history-sidebar.open {
+  width: 260px;
+  border-left-width: 1px;
+}
+
+.chat-history-sidebar-inner {
+  width: 260px;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 历史面板切换按钮 */
+.history-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.history-toggle-btn:hover {
+  background: var(--glass-hover);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
 .workspace-main-column {
   flex: 1;
   min-width: 0;

@@ -10,20 +10,18 @@ import {
   FolderOpen,
   Wrench,
   Settings,
-  History,
   Sun,
   Moon,
   Bot,
 } from 'lucide-react';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
+type NavSection = 'chat' | 'project' | 'tools' | 'config';
 
 const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType }[] = [
   { id: 'chat', label: '对话', icon: MessageSquare },
   { id: 'project', label: '项目', icon: FolderOpen },
   { id: 'tools', label: '工具', icon: Wrench },
   { id: 'config', label: '配置', icon: Settings },
-  { id: 'history', label: '历史', icon: History },
 ];
 
 interface NavRailProps {

@@ -18,7 +18,6 @@ import {
   Settings,
   Shield,
   FileText,
-  Clock,
   Brain,
   DollarSign,
 } from 'lucide-react';
@@ -37,12 +36,10 @@ import { TaskPanel } from '../TaskPanel';
 import { SettingsPanel } from '../SettingsPanel';
 import { RulesPanel } from '../RulesPanel';
 import { MemoryEditPanel } from '../MemoryEditPanel';
-import { SessionList } from '../SessionList';
 import { MemSearchPanel } from '../MemSearchPanel';
 import { CostPanel } from '../CostPanel';
-import { HistoryPanel } from '../HistoryPanel';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
+type NavSection = 'chat' | 'project' | 'tools' | 'config';
 
 const AUX_TABS: Record<
   Exclude<NavSection, 'chat'>,
@@ -67,9 +64,6 @@ const AUX_TABS: Record<
     { id: 'settings', label: '设置', icon: Settings },
     { id: 'rules', label: '权限规则', icon: Shield },
     { id: 'claude-md', label: 'CLAUDE.md', icon: FileText },
-  ],
-  history: [
-    { id: 'sessions', label: '历史', icon: Clock },
     { id: 'mem', label: '记忆', icon: Brain },
     { id: 'cost', label: '成本', icon: DollarSign },
   ],
@@ -78,21 +72,15 @@ const AUX_TABS: Record<
 interface AuxPanelProps {
   width: number;
   onResizeMouseDown: (e: React.MouseEvent) => void;
-  onStartSession: () => void;
-  onStopSession: () => void;
 }
 
 export function AuxPanel({
   width,
   onResizeMouseDown,
-  onStartSession,
-  onStopSession,
 }: AuxPanelProps) {
   const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
   const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
-  const session = useAppStore((s) => s.session);
-  const setSession = useAppStore((s) => s.setSession);
 
   if (activeNavSection === 'chat') return null;
 
@@ -150,62 +138,8 @@ export function AuxPanel({
           {activeNavSection === 'config' && activeAuxSubPanel === 'settings' && <SettingsPanel />}
           {activeNavSection === 'config' && activeAuxSubPanel === 'rules' && <RulesPanel />}
           {activeNavSection === 'config' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
-          {/* history section */}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'sessions' && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <div
-                style={{
-                  padding: 12,
-                  flexShrink: 0,
-                  borderBottom: '1px solid var(--border-color)',
-                }}
-              >
-                <div style={{ marginBottom: 10 }}>
-                  <label
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--text-secondary)',
-                      marginBottom: 4,
-                      display: 'block',
-                    }}
-                  >
-                    工作目录
-                  </label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={session.workingDirectory}
-                    onChange={(e) => setSession({ workingDirectory: e.target.value })}
-                    placeholder="选择工作目录..."
-                    style={{ fontSize: 12 }}
-                  />
-                </div>
-                {session.isConnected ? (
-                  <button
-                    className="btn btn-danger"
-                    style={{ width: '100%' }}
-                    onClick={onStopSession}
-                  >
-                    断开连接
-                  </button>
-                ) : (
-                  <button
-                    className="btn btn-primary"
-                    style={{ width: '100%' }}
-                    onClick={onStartSession}
-                  >
-                    启动 Claude Code
-                  </button>
-                )}
-              </div>
-              <div style={{ flex: 1, overflow: 'auto' }}>
-                <SessionList />
-              </div>
-            </div>
-          )}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'cost' && <CostPanel />}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'history-list' && <HistoryPanel />}
+          {activeNavSection === 'config' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
+          {activeNavSection === 'config' && activeAuxSubPanel === 'cost' && <CostPanel />}
         </div>
       </div>
     </>

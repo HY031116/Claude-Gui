@@ -6,22 +6,20 @@ import { NavRail } from './components/layout/NavRail';
 import { WorkspaceArea } from './components/layout/WorkspaceArea';
 import { AuxPanel } from './components/layout/AuxPanel';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
+type NavSection = 'chat' | 'project' | 'tools' | 'config';
 
 // handleNavClick 需要的默认子标签（决定首次展开 section 时聚焦哪个 tab）
 const SECTION_DEFAULTS: Record<Exclude<NavSection, 'chat'>, string> = {
   project: 'files',
   tools: 'mcp',
   config: 'settings',
-  history: 'sessions',
 };
 
 // handleNavClick 合法子标签验证（避免切换 section 时残留旧 sub 值）
 const SECTION_VALID_SUBS: Record<Exclude<NavSection, 'chat'>, string[]> = {
   project: ['files', 'git', 'changes', 'worktrees', 'checkpoints'],
   tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks'],
-  config: ['settings', 'rules', 'claude-md'],
-  history: ['sessions', 'mem', 'cost', 'history-list'],
+  config: ['settings', 'rules', 'claude-md', 'mem', 'cost'],
 };
 
 // Strip ANSI escape codes from terminal output
@@ -345,17 +343,6 @@ function App() {
     await startCliSession();
   }, [startCliSession]);
 
-  const handleStopSession = useCallback(async () => {
-    await window.electronAPI.cliStop();
-    setSession({ isConnected: false, pid: undefined });
-    compatibilityRestartPending.current = false;
-    compatibilityFallbackUsed.current = false;
-    skipNextExitCleanup.current = false;
-    outputBuffer.current = '';
-    promptResolved.current.clear();
-    setPendingPrompt(null);
-  }, [setPendingPrompt, setSession]);
-
   useEffect(() => {
     if (!startupSettingsLoaded || !autoConnectOnLaunch || autoConnectAttempted.current || session.isConnected) {
       return;
@@ -399,8 +386,6 @@ function App() {
         <AuxPanel
           width={sidebarWidth}
           onResizeMouseDown={handleResizeMouseDown}
-          onStartSession={handleStartSession}
-          onStopSession={handleStopSession}
         />
       )}
       </div>{/* /inner flex-row */}
