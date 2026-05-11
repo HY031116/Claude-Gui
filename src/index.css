@@ -138,6 +138,8 @@ body {
   --accent-glass-subtle: rgba(139, 92, 246, 0.08);
   --accent-focus-border: rgba(139, 92, 246, 0.5);
   --accent-focus-shadow: rgba(139, 92, 246, 0.12);
+  --info-glass:          rgba(88, 166, 255, 0.07);
+  --info-glass-border:   rgba(88, 166, 255, 0.25);
 }
 
 /* ══ 亮色主题覆盖 ══ */
@@ -167,6 +169,8 @@ body {
   --accent-glass-subtle: rgba(124, 58, 237, 0.06);
   --accent-focus-border: rgba(124, 58, 237, 0.45);
   --accent-focus-shadow: rgba(124, 58, 237, 0.10);
+  --info-glass:          rgba(88, 166, 255, 0.06);
+  --info-glass-border:   rgba(88, 166, 255, 0.22);
 }
 
 .message-list {
@@ -708,8 +712,8 @@ pre code {
   transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
 }
 .suggestion-chip:hover {
-  background: rgba(88, 166, 255, 0.08);
-  border-color: rgba(88, 166, 255, 0.35);
+  background: var(--glass-hover);
+  border-color: var(--accent-glass-border);
   color: var(--text-primary);
   transform: translateY(-1px);
 }
@@ -911,7 +915,7 @@ pre code {
 
 /* Bash 工具调用卡片 */
 .tool-call-bash .tool-call-header {
-  background: rgba(88, 166, 255, 0.05);
+  background: var(--info-glass);
   border-left: 2px solid var(--accent-color);
 }
 
@@ -1057,8 +1061,8 @@ pre code {
   gap: 10px;
   padding: 7px 12px;
   margin-bottom: 6px;
-  background: rgba(88, 166, 255, 0.07);
-  border: 1px solid rgba(88, 166, 255, 0.28);
+  background: var(--info-glass);
+  border: 1px solid var(--info-glass-border);
   border-radius: var(--radius);
   font-size: 12px;
 }
@@ -1193,7 +1197,7 @@ pre code {
   background: rgba(255, 255, 255, 0.025);
 }
 .chat-wd-display:hover {
-  background: rgba(88, 166, 255, 0.06);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 .chat-wd-icon {
@@ -1976,8 +1980,8 @@ pre code {
   gap: 6px;
   padding: 5px 12px;
   margin-bottom: 8px;
-  background: rgba(88, 166, 255, 0.08);
-  border: 1px solid rgba(88, 166, 255, 0.2);
+  background: var(--accent-glass);
+  border: 1px solid var(--accent-glass-border);
   border-radius: var(--radius-lg);
   font-size: 12px;
   color: var(--accent-color);
@@ -2295,9 +2299,9 @@ pre code {
   font-size: 0.85em;
   padding: 0.15em 0.4em;
   border-radius: 4px;
-  background: rgba(88, 166, 255, 0.08);
+  background: var(--info-glass);
   color: #79b8ff;
-  border: 1px solid rgba(88, 166, 255, 0.2);
+  border: 1px solid var(--info-glass-border);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2323,7 +2327,7 @@ pre code {
   margin: 0.5em 0;
   padding: 6px 14px;
   border-left: 3px solid var(--accent-color);
-  background: rgba(88, 166, 255, 0.06);
+  background: var(--info-glass);
   border-radius: 0 var(--radius) var(--radius) 0;
   color: var(--text-secondary);
 }
@@ -2358,7 +2362,7 @@ pre code {
 }
 
 .markdown-body tr:hover {
-  background: rgba(88, 166, 255, 0.04);
+  background: var(--glass);
 }
 
 .markdown-body a {
