@@ -160,14 +160,4 @@ export interface AuthStatus {
   apiProvider?: string;
 }
 
-export interface CliPromptOption {
-  value: string;
-  label: string;
-}
 
-export interface CliPrompt {
-  id: string;
-  title: string;
-  description?: string;
-  options: CliPromptOption[];
-}

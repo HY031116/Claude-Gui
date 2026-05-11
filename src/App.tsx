@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAppStore } from './stores/useAppStore';
 import type { TerminalLine } from './types';
-import type { CliPrompt } from './types';
 import { NavRail } from './components/layout/NavRail';
 import { WorkspaceArea } from './components/layout/WorkspaceArea';
 import { AuxPanel } from './components/layout/AuxPanel';
@@ -22,60 +21,6 @@ const SECTION_VALID_SUBS: Record<Exclude<NavSection, 'chat'>, string[]> = {
   config: ['settings', 'rules', 'claude-md', 'mem', 'cost'],
 };
 
-// Strip ANSI escape codes from terminal output
-function stripAnsi(str: string): string {
-  return str.replace(/\[[0-9;]*[a-zA-Z]/g, '').replace(/\][^]*/g, '');
-}
-
-// Known interactive prompts with their options
-function detectInteractivePrompt(text: string): CliPrompt | null {
-  const clean = stripAnsi(text);
-
-  // Check for key markers
-  const hasChooseText = clean.includes('Choose the text style');
-  const hasTextStyle = clean.includes('text style');
-  const hasWelcome = clean.includes('Welcome to Claude Code');
-  const hasDarkMode = clean.includes('Dark mode');
-  const hasLightMode = clean.includes('Light mode');
-
-  // Theme selection prompt - multiple detection patterns
-  const hasThemePrompt = hasChooseText || hasTextStyle || (hasWelcome && hasDarkMode && hasLightMode);
-
-  if (hasThemePrompt) {
-    return {
-      id: 'theme-selection',
-      title: '选择终端主题',
-      description: '选择最适合你终端的文本样式',
-      options: [
-        { value: '1', label: 'Dark mode' },
-        { value: '2', label: 'Light mode' },
-        { value: '3', label: 'Dark mode (colorblind-friendly)' },
-        { value: '4', label: 'Light mode (colorblind-friendly)' },
-        { value: '5', label: 'Dark mode (ANSI colors only)' },
-        { value: '6', label: 'Light mode (ANSI colors only)' },
-      ],
-    };
-  }
-
-  // Syntax theme selection
-  const hasSyntaxTheme = clean.includes('Syntax theme');
-  const hasMonokai = clean.includes('Monokai');
-
-  if (hasSyntaxTheme || hasMonokai) {
-    return {
-      id: 'syntax-theme',
-      title: '选择语法主题',
-      description: '选择代码高亮主题',
-      options: [
-        { value: '\n', label: '使用默认主题 (按回车跳过)' },
-        { value: '1', label: 'Monokai Extended' },
-      ],
-    };
-  }
-
-  return null;
-}
-
 function App() {
   // 精确订阅：只订阅 App 层真正需要的字段（其余已移入各 layout 组件）
   const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
@@ -87,12 +32,9 @@ function App() {
   const addTerminalLine = useAppStore((s) => s.addTerminalLine);
   const addTerminalLines = useAppStore((s) => s.addTerminalLines);
   const addMessage = useAppStore((s) => s.addMessage);
-  const pendingPrompt = useAppStore((s) => s.pendingPrompt);
-  const setPendingPrompt = useAppStore((s) => s.setPendingPrompt);
   const theme = useAppStore((s) => s.theme);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
-  const isWindows = navigator.userAgent.includes('Windows');
 
   // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
   const [sidebarWidth, setSidebarWidth] = useState(() =>
@@ -153,20 +95,12 @@ function App() {
       });
   }, [setCurrentStatus]);
 
-  // Buffer for accumulating terminal output to detect interactive prompts
-  const outputBuffer = useRef('');
-  const promptCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const promptResolved = useRef<Set<string>>(new Set());
-  const compatibilityRestartPending = useRef(false);
-  const compatibilityFallbackUsed = useRef(false);
-  const skipNextExitCleanup = useRef(false);
   const autoConnectAttempted = useRef(false);
 
   // RAF 批次写入终端行，避免高频输出时每行一次 setState
   const terminalLineBuffer = useRef<TerminalLine[]>([]);
   const terminalRafPending = useRef(false);
 
-  const [autofillStatus, setAutofillStatus] = useState<string | null>(null);
   const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
   const [startupSettingsLoaded, setStartupSettingsLoaded] = useState(false);
 
@@ -185,15 +119,11 @@ function App() {
     });
   }, [addMessage, addTerminalLine]);
 
-  const startCliSession = useCallback(async (overrides?: { forceBareMode?: boolean }) => {
+  const startCliSession = useCallback(async () => {
     const cwd = session.workingDirectory || '~';
-    const result = await window.electronAPI.cliStart({
-      cwd,
-      forceBareMode: overrides?.forceBareMode,
-    });
+    const result = await window.electronAPI.cliStart({ cwd });
 
     if (result.success) {
-      compatibilityFallbackUsed.current = !!overrides?.forceBareMode;
       setSession({ isConnected: true, workingDirectory: cwd, pid: result.pid });
       return result;
     }
@@ -204,33 +134,7 @@ function App() {
     return result;
   }, [appendSystemStatus, session.workingDirectory, setSession]);
 
-  const restartInCompatibilityMode = useCallback(async (prompt: CliPrompt) => {
-    if (compatibilityRestartPending.current || compatibilityFallbackUsed.current) {
-      return;
-    }
 
-    compatibilityRestartPending.current = true;
-    compatibilityFallbackUsed.current = true;
-    skipNextExitCleanup.current = true;
-    promptResolved.current.add(prompt.id);
-    setPendingPrompt(null);
-    outputBuffer.current = '';
-
-    const fallbackMessage = `检测到 Claude CLI 首次交互提示“${prompt.title}”。Windows PTY 无法可靠驱动该交互，正在切换到兼容模式重新启动。`;
-    appendSystemStatus(fallbackMessage);
-    setAutofillStatus('已自动切换到兼容启动模式，正在重新连接 Claude CLI...');
-
-    const result = await startCliSession({ forceBareMode: true });
-    if (!result.success) {
-      compatibilityFallbackUsed.current = false;
-      setAutofillStatus('兼容模式重启失败，请检查 Claude CLI 配置后重试。');
-    } else {
-      setAutofillStatus('已切换到兼容启动模式，后续会话将跳过该首次交互提示。');
-    }
-
-    compatibilityRestartPending.current = false;
-    setTimeout(() => setAutofillStatus(null), 5000);
-  }, [appendSystemStatus, setPendingPrompt, startCliSession]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -257,89 +161,20 @@ function App() {
         }
       }
 
-      // Accumulate output for prompt detection
-      if (event.type === 'stdout') {
-        outputBuffer.current += event.data;
-
-        // Debounce prompt detection
-        if (promptCheckTimer.current) {
-          clearTimeout(promptCheckTimer.current);
-        }
-        promptCheckTimer.current = setTimeout(() => {
-          // Skip if a prompt is already showing
-          if (pendingPrompt) {
-            return;
-          }
-          const prompt = detectInteractivePrompt(outputBuffer.current);
-          if (prompt && !promptResolved.current.has(prompt.id)) {
-            if (isWindows && (prompt.id === 'theme-selection' || prompt.id === 'syntax-theme')) {
-              void restartInCompatibilityMode(prompt);
-            } else {
-              setPendingPrompt(prompt);
-            }
-          }
-        }, 1500);
-      }
-
       // PTY 进程退出事件
       if (event.type === 'exit') {
-        if (skipNextExitCleanup.current) {
-          skipNextExitCleanup.current = false;
-          return;
-        }
-        if (compatibilityRestartPending.current) {
-          return;
-        }
         // 聊天频道走独立子进程，不依赖 PTY 状态
         // 只清除 pid，保持 isConnected 以允许继续发消息
         setSession({ pid: undefined });
-        // 取消 debounce 定时器，避免 PTY 退出后残留数据触发提示检测
-        if (promptCheckTimer.current) {
-          clearTimeout(promptCheckTimer.current);
-          promptCheckTimer.current = null;
-        }
-        outputBuffer.current = '';
-        // 不清除 promptResolved，避免重启后重新触发已处理的提示
-        // 不重置 compatibilityFallbackUsed，避免无限循环
-        setPendingPrompt(null);
       }
     });
 
     return () => {
       unsubscribe();
-      if (promptCheckTimer.current) {
-        clearTimeout(promptCheckTimer.current);
-      }
     };
-  }, [addTerminalLines, isWindows, pendingPrompt, restartInCompatibilityMode, setSession, setPendingPrompt]);
-
-  const handlePromptSelect = useCallback(async (value: string) => {
-    console.log('[App] handlePromptSelect CALLED, value:', JSON.stringify(value));
-
-    const currentPrompt = pendingPrompt;
-    if (currentPrompt) {
-      promptResolved.current.add(currentPrompt.id);
-    }
-
-    setPendingPrompt(null);
-    outputBuffer.current = '';
-
-    try {
-      await window.electronAPI.cliSend(value === '\n' ? '' : value);
-      setAutofillStatus(`已发送选项“${value === '\n' ? '回车' : value}”到 Claude CLI`);
-    } catch (error) {
-      console.error('[App] Failed to send prompt option:', error);
-      setAutofillStatus('发送提示选项失败，请重试。');
-    }
-    setTimeout(() => setAutofillStatus(null), 5000);
-  }, [pendingPrompt, setPendingPrompt]);
+  }, [addTerminalLines, setSession]);
 
   const handleStartSession = useCallback(async () => {
-    compatibilityRestartPending.current = false;
-    compatibilityFallbackUsed.current = false;
-    skipNextExitCleanup.current = false;
-    promptResolved.current.clear();
-    outputBuffer.current = '';
     await startCliSession();
   }, [startCliSession]);
 
@@ -408,95 +243,6 @@ function App() {
           </>
         )}
       </div>
-
-      {/* CLI Interactive Prompt Modal */}
-      {(pendingPrompt || autofillStatus) && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-          }}
-        >
-          <div
-            className="modal-content"
-            style={{
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 8,
-              padding: 24,
-              maxWidth: 480,
-              width: '90%',
-              boxShadow: 'var(--shadow-lg)',
-            }}
-          >
-            {pendingPrompt ? (
-              <>
-                <h3 style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--text-primary)' }}>
-                  {pendingPrompt.title}
-                </h3>
-                {pendingPrompt.description && (
-                  <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary)' }}>
-                    {pendingPrompt.description}
-                  </p>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {pendingPrompt.options.map((option) => (
-                    <button
-                      key={option.value}
-                      className="btn"
-                      style={{
-                        justifyContent: 'flex-start',
-                        textAlign: 'left',
-                        padding: '10px 14px',
-                        fontSize: 13,
-                      }}
-                      onClick={() => handlePromptSelect(option.value)}
-                    >
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 22,
-                          height: 22,
-                          borderRadius: '50%',
-                          background: 'var(--bg-tertiary)',
-                          color: 'var(--accent-color)',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          marginRight: 10,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {option.value === '\n' ? '↵' : option.value}
-                      </span>
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : autofillStatus ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 24, marginBottom: 12 }}>✓</div>
-                <h3 style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--success-text)' }}>
-                  Claude CLI 兼容处理
-                </h3>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-                  {autofillStatus}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

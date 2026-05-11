@@ -77,7 +77,6 @@ export interface CliConfig {
 export interface CliStartOptions {
   cwd: string;
   args?: string[];
-  forceBareMode?: boolean;
 }
 
 interface PermissionHookPayload {

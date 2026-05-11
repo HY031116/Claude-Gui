@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, DirEntry, TerminalLine, SessionState, CliPrompt, ConversationRecord, PlanStep, TokenRecord } from '../types';
+import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord } from '../types';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
@@ -96,10 +96,6 @@ interface AppState {
   /** 批量写入终端行（RAF 缓冲用），减少每行一次 setState */
   addTerminalLines: (lines: TerminalLine[]) => void;
   clearTerminal: () => void;
-
-  // CLI Interactive Prompts
-  pendingPrompt: CliPrompt | null;
-  setPendingPrompt: (prompt: CliPrompt | null) => void;
 
   // 对话历史（持久化到 localStorage）
   conversationHistory: ConversationRecord[];
@@ -267,9 +263,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     terminalLines: [...state.terminalLines, ...lines].slice(-500),
   })),
   clearTerminal: () => set({ terminalLines: [] }),
-
-  pendingPrompt: null,
-  setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
 
   conversationHistory: loadHistory(),
   addOrUpdateConversation: (record) => set((state) => {
