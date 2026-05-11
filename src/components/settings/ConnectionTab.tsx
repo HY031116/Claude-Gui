@@ -144,19 +144,6 @@ export function ConnectionTab({
       {/* Advanced Settings */}
       {showAdvanced && (
         <div style={{ marginBottom: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 6 }}>
-          {/* Bare Mode */}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={settings.useBareMode}
-                onChange={(e) => setSettings({ ...settings, useBareMode: e.target.checked })}
-                style={{ cursor: 'pointer' }}
-              />
-              Bare Mode（跳过钩子、LSP）
-            </label>
-          </div>
-
           {/* 扩展思考 */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>

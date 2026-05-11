@@ -14,7 +14,6 @@ export interface AppSettings {
   addDirs?: string[];
   sessionName?: string;
   maxBudgetUsd?: number;
-  useBareMode: boolean;
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
@@ -68,7 +67,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoConnectOnLaunch: true,
   allowedTools: 'default',
   extraArgs: '',
-  useBareMode: true,
   httpProxy: '',
   apiBaseUrl: '',
   provider: 'anthropic',

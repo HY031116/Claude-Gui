@@ -33,7 +33,6 @@ export interface CliConfig {
   permissionMode?: string;
   allowedTools?: string;
   extraArgs?: string;
-  useBareMode?: boolean;
   httpProxy?: string;
   apiBaseUrl?: string;
   provider?: string;

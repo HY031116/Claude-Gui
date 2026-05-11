@@ -99,7 +99,6 @@ export interface AppSettings {
   addDirs?: string[];
   sessionName?: string;
   maxBudgetUsd?: number;
-  useBareMode: boolean;
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
