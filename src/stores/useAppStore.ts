@@ -107,7 +107,14 @@ interface AppState {
   removeConversation: (sessionId: string) => void;
   clearConversationHistory: () => void;
 
-  // UI
+  // UI — 五级一级导航（Phase 1 重构）
+  /** 一级导航区域，决定辅助面板内容；chat 时辅助面板收起 */
+  activeNavSection: 'chat' | 'project' | 'tools' | 'config' | 'history';
+  setActiveNavSection: (section: 'chat' | 'project' | 'tools' | 'config' | 'history') => void;
+  /** 辅助面板内当前子标签（如 'files'、'git'、'settings'） */
+  activeAuxSubPanel: string;
+  setActiveAuxSubPanel: (sub: string) => void;
+  // 兼容保留（部分组件仍引用 activePanel，逐步迁移）
   activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost';
   setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost') => void;
   sidebarVisible: boolean;
@@ -298,6 +305,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { conversationHistory: newHistory };
   }),
 
+  // Phase 1 新导航状态
+  activeNavSection: 'chat',
+  setActiveNavSection: (section) => set({ activeNavSection: section }),
+  activeAuxSubPanel: '',
+  setActiveAuxSubPanel: (sub) => set({ activeAuxSubPanel: sub }),
+  // 兼容保留
   activePanel: 'chat',
   setActivePanel: (panel) => set({ activePanel: panel }),
   sidebarVisible: true,

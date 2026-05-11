@@ -4,12 +4,50 @@ import type { TerminalLine } from './types';
 import { ChatPanel } from './components/ChatPanel';
 import { FileExplorer } from './components/FileExplorer';
 import { TerminalPanel } from './components/TerminalPanel';
-import { ToolCallView } from './components/ToolCallView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle, GitFork, Zap, Shield, TrendingUp } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, Settings, History, Sun, Moon } from 'lucide-react';
+
+type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
+
+// 每个一级导航 section 的默认子标签
+const SECTION_DEFAULTS: Record<Exclude<NavSection, 'chat'>, string> = {
+  project: 'files',
+  tools: 'mcp',
+  config: 'settings',
+  history: 'sessions',
+};
+
+// 辅助面板子标签配置
+const AUX_TABS: Record<Exclude<NavSection, 'chat'>, { id: string; label: string }[]> = {
+  project: [
+    { id: 'files', label: '文件' },
+    { id: 'git', label: 'Git' },
+    { id: 'changes', label: '变更' },
+    { id: 'worktrees', label: 'Worktree' },
+    { id: 'checkpoints', label: '快照' },
+  ],
+  tools: [
+    { id: 'mcp', label: 'MCP' },
+    { id: 'agents', label: 'Agents' },
+    { id: 'plugins', label: 'Plugins' },
+    { id: 'hooks', label: 'Hooks' },
+    { id: 'skills', label: 'Skills' },
+    { id: 'tasks', label: '任务' },
+  ],
+  config: [
+    { id: 'settings', label: '设置' },
+    { id: 'rules', label: '权限规则' },
+    { id: 'claude-md', label: 'CLAUDE.md' },
+  ],
+  history: [
+    { id: 'sessions', label: '历史' },
+    { id: 'mem', label: '记忆搜索' },
+    { id: 'cost', label: '成本' },
+  ],
+};
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import { SessionList } from './components/SessionList';
@@ -81,9 +119,10 @@ function detectInteractivePrompt(text: string): CliPrompt | null {
 
 function App() {
   // 精确订阅各自所需字段，避免 messages/terminalLines 等高频更新触发 App 整体重渲
-  const activePanel = useAppStore((s) => s.activePanel);
-  const setActivePanel = useAppStore((s) => s.setActivePanel);
-  const sidebarVisible = useAppStore((s) => s.sidebarVisible);
+  const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const session = useAppStore((s) => s.session);
   const setSession = useAppStore((s) => s.setSession);
   const addTerminalLine = useAppStore((s) => s.addTerminalLine);
@@ -95,7 +134,6 @@ function App() {
   const setTheme = useAppStore((s) => s.setTheme);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
-  const todoItems = useAppStore((s) => s.todoItems);
   const tabs = useAppStore((s) => s.tabs);
   const activeTabId = useAppStore((s) => s.activeTabId);
   const addTab = useAppStore((s) => s.addTab);
@@ -373,33 +411,37 @@ function App() {
     void handleStartSession();
   }, [autoConnectOnLaunch, handleStartSession, session.isConnected, startupSettingsLoaded]);
 
-  const [showSettings, setShowSettings] = useState(false);
   // Tab 内联重命名状态
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
-  const navItems = [
-    { id: 'chat' as const, label: '对话', icon: MessageSquare },
-    { id: 'files' as const, label: '文件', icon: FolderOpen },
-    { id: 'tools' as const, label: '工具', icon: Wrench },
-    { id: 'tasks' as const, label: '任务', icon: ClipboardList, badge: todoItems.filter((t) => t.status !== 'completed').length },
-    { id: 'git' as const, label: 'Git', icon: GitBranch },
-    { id: 'changes' as const, label: '变更', icon: FileDiff },
-    { id: 'skills' as const, label: 'Skills', icon: BookOpen },
-    { id: 'history' as const, label: '历史', icon: History },
-    { id: 'mem' as const, label: '记忆搜索', icon: Brain },
-    { id: 'claude-md' as const, label: 'CLAUDE.md', icon: FileEdit },
-    { id: 'checkpoints' as const, label: '文件快照', icon: RotateCcw },
-    { id: 'mcp' as const, label: 'MCP', icon: Server },
-    { id: 'agents' as const, label: 'Agents', icon: Bot },
-    { id: 'plugins' as const, label: 'Plugins', icon: Puzzle },
-    { id: 'worktrees' as const, label: 'Worktree', icon: GitFork },
-    { id: 'hooks' as const, label: 'Hooks', icon: Zap },
-    { id: 'rules' as const, label: '权限规则', icon: Shield },
-    { id: 'cost' as const, label: '成本', icon: TrendingUp },
+  // Phase 1 新导航：5 个一级入口（精简自原 18 项）
+  const navItems: { id: NavSection; label: string; icon: React.ElementType; badge?: number }[] = [
+    { id: 'chat', label: '对话', icon: MessageSquare },
+    { id: 'project', label: '项目', icon: FolderOpen },
+    { id: 'tools', label: '工具', icon: Wrench },
+    { id: 'config', label: '配置', icon: Settings },
+    { id: 'history', label: '历史', icon: History },
   ];
 
-  const isChatWorkspace = activePanel === 'chat' && !showSettings;
+  // 点击一级导航：同一非 chat 入口再次点击则收起辅助面板
+  const handleNavClick = useCallback((section: NavSection) => {
+    if (section === activeNavSection && section !== 'chat') {
+      setActiveNavSection('chat');
+    } else {
+      setActiveNavSection(section);
+      if (section !== 'chat') {
+        const validSubs = AUX_TABS[section].map((t) => t.id);
+        const currentSub = activeAuxSubPanel;
+        if (!validSubs.includes(currentSub)) {
+          setActiveAuxSubPanel(SECTION_DEFAULTS[section]);
+        }
+      }
+    }
+  }, [activeNavSection, activeAuxSubPanel, setActiveNavSection, setActiveAuxSubPanel]);
+
+  const auxPanelOpen = activeNavSection !== 'chat';
+
   const workspaceLabel = session.workingDirectory
     ? session.workingDirectory.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() || session.workingDirectory
     : '未选择项目';
@@ -426,38 +468,16 @@ function App() {
       >
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activePanel === item.id;
-          const badge = (item as { badge?: number }).badge;
+          // Phase 1：使用 activeNavSection 判断激活状态
+          const isActive = activeNavSection === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => setActivePanel(item.id)}
+              onClick={() => handleNavClick(item.id)}
               title={item.label}
               className={`nav-button ${isActive ? 'active' : ''}`}
-              style={{ position: 'relative' }}
             >
               <Icon size={20} />
-              {badge != null && badge > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  minWidth: 14,
-                  height: 14,
-                  borderRadius: 7,
-                  background: 'var(--accent-color)',
-                  color: '#fff',
-                  fontSize: 9,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  lineHeight: 1,
-                  padding: '0 2px',
-                }}>
-                  {badge}
-                </span>
-              )}
             </button>
           );
         })}
@@ -475,288 +495,166 @@ function App() {
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          title="设置"
-          className={`nav-button ${showSettings ? 'active' : ''}`}
-        >
-          <Settings size={18} />
-        </button>
       </div>
 
-      {/* Sidebar Content — non-chat panels */}
-      {sidebarVisible && !isChatWorkspace && (
-        <>
-        <div
-          style={{
-            width: sidebarWidth,
-            background: 'rgba(10, 8, 28, 0.75)',
-            backdropFilter: 'var(--glass-blur)',
-            WebkitBackdropFilter: 'var(--glass-blur)',
-            borderRight: '1px solid var(--glass-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span style={{ fontWeight: 600, fontSize: 13 }}>
-              {showSettings ? '设置' : navItems.find((n) => n.id === activePanel)?.label}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {session.isConnected ? (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--success-text)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: 'var(--success-text)',
-                      display: 'inline-block',
-                    }}
-                  />
-                  已连接
-                </span>
-              ) : (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: 'var(--text-muted)',
-                      display: 'inline-block',
-                    }}
-                  />
-                  未连接
-                </span>
-              )}
+      {/* 对话主区域（永置，不被辅助面板替换）*/}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="workspace-shell">
+          <div className="workspace-main-column">
+            <div className="workspace-topbar">
+              <div>
+                <div className="workspace-topbar-eyebrow">对话工作区</div>
+                <div className="workspace-topbar-title-row">
+                  <strong>{workspaceLabel}</strong>
+                  {session.isConnected && (
+                    <span className="workspace-topbar-pill connected">
+                      Claude 已连接
+                    </span>
+                  )}
+                  {session.conversationSessionId && (
+                    <span className="workspace-topbar-pill">
+                      会话 {session.conversationSessionId.slice(0, 8)}…
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {showSettings ? (
-              <SettingsPanel />
-            ) : (
-              <>
-                {activePanel === 'chat' && (
-                  <>
-                    <div style={{ padding: 12, flexShrink: 0 }}>
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-                          工作目录
-                        </label>
-                        <input
-                          type="text"
-                          className="input"
-                          value={session.workingDirectory}
-                          onChange={(e) => setSession({ workingDirectory: e.target.value })}
-                          placeholder="选择工作目录..."
-                          style={{ fontSize: 12 }}
-                        />
-                      </div>
-                      {session.isConnected ? (
-                        <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
-                          断开连接
-                        </button>
-                      ) : (
-                        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
-                          启动 Claude Code
-                        </button>
-                      )}
-                    </div>
-                    <SessionList />
-                  </>
-                )}
-                {activePanel !== 'chat' && (
-                  <div style={{ flex: 1, overflow: 'auto' }}>
-                    {activePanel === 'files' && <FileExplorer />}
-                    {activePanel === 'tools' && <ToolCallView />}
-                  </div>
-                )}
-              </>
-            )}
+            {/* 多会话标签条 */}
+            <div className="session-tab-bar">
+              {tabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setRenamingTabId(tab.id);
+                    setRenameValue(tab.label);
+                  }}
+                  className={`session-tab${tab.id === activeTabId ? ' active' : ''}`}
+                >
+                  {renamingTabId === tab.id ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = renameValue.trim();
+                        if (trimmed) renameTab(tab.id, trimmed);
+                        setRenamingTabId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const trimmed = renameValue.trim();
+                          if (trimmed) renameTab(tab.id, trimmed);
+                          setRenamingTabId(null);
+                        } else if (e.key === 'Escape') {
+                          setRenamingTabId(null);
+                        }
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="session-tab-rename-input"
+                      style={{ width: Math.max(60, renameValue.length * 8) }}
+                    />
+                  ) : (
+                    <span className="session-tab-label" title="双击重命名">{tab.label}</span>
+                  )}
+                  {tabs.length > 1 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                      className="session-tab-close"
+                      title="关闭标签"
+                    >×</button>
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => addTab()}
+                className="session-tab-new"
+                title="新建会话标签 (Ctrl+T)"
+              >+</button>
+            </div>
+            <ChatPanel key={activeTabId} />
+            <TerminalPanel />
           </div>
         </div>
-        {/* 拖拽调整宽度的把手 */}
-        <div
-          className="resize-handle"
-          onMouseDown={handleResizeMouseDown}
-        />
-        </>
-      )}
+      </div>
 
-      {/* Main Content */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
-        {activePanel === 'history' ? (
-          <HistoryPanel />
-        ) : activePanel === 'skills' ? (
-          <SkillsPanel />
-        ) : activePanel === 'tasks' ? (
-          <TaskPanel />
-        ) : activePanel === 'git' ? (
-          <GitPanel />
-        ) : activePanel === 'changes' ? (
-          <ChangeSummaryPanel />
-        ) : activePanel === 'mem' ? (
-          <MemSearchPanel />
-        ) : activePanel === 'claude-md' ? (
-          <MemoryEditPanel />
-        ) : activePanel === 'checkpoints' ? (
-          <CheckpointPanel />
-        ) : activePanel === 'mcp' ? (
-          <McpPanel />
-        ) : activePanel === 'agents' ? (
-          <AgentPanel />
-        ) : activePanel === 'plugins' ? (
-          <PluginPanel />
-        ) : activePanel === 'worktrees' ? (
-          <WorktreePanel />
-        ) : activePanel === 'hooks' ? (
-          <HooksPanel />
-        ) : activePanel === 'rules' ? (
-          <RulesPanel />
-        ) : activePanel === 'cost' ? (
-          <CostPanel />
-        ) : (
-          <>
-            <div className="workspace-shell with-inspector">
-              <div className="workspace-main-column">
-                <div className="workspace-topbar">
-                  <div>
-                    <div className="workspace-topbar-eyebrow">对话工作区</div>
-                    <div className="workspace-topbar-title-row">
-                      <strong>{workspaceLabel}</strong>
-                      {session.isConnected && (
-                        <span className="workspace-topbar-pill connected">
-                          Claude 已连接
-                        </span>
-                      )}
-                      {session.conversationSessionId && (
-                        <span className="workspace-topbar-pill">
-                          会话 {session.conversationSessionId.slice(0, 8)}…
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 多会话标签条 */}
-                <div className="session-tab-bar">
-                  {tabs.map((tab) => (
-                    <div
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setRenamingTabId(tab.id);
-                        setRenameValue(tab.label);
-                      }}
-                      className={`session-tab${tab.id === activeTabId ? ' active' : ''}`}
-                    >
-                      {renamingTabId === tab.id ? (
-                        <input
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onBlur={() => {
-                            const trimmed = renameValue.trim();
-                            if (trimmed) renameTab(tab.id, trimmed);
-                            setRenamingTabId(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const trimmed = renameValue.trim();
-                              if (trimmed) renameTab(tab.id, trimmed);
-                              setRenamingTabId(null);
-                            } else if (e.key === 'Escape') {
-                              setRenamingTabId(null);
-                            }
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="session-tab-rename-input"
-                          style={{ width: Math.max(60, renameValue.length * 8) }}
-                        />
-                      ) : (
-                        <span className="session-tab-label" title="双击重命名">{tab.label}</span>
-                      )}
-                      {tabs.length > 1 && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                          className="session-tab-close"
-                          title="关闭标签"
-                        >×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addTab()}
-                    className="session-tab-new"
-                    title="新建会话标签 (Ctrl+T)"
-                  >+</button>
-                </div>
-                <ChatPanel key={activeTabId} />
-                <TerminalPanel />
-              </div>
-
-              <aside className="workspace-inspector">
-                  <div className="workspace-inspector-card workspace-inspector-hero">
-                    <div className="workspace-inspector-kicker">当前项目</div>
-                    <div className="workspace-inspector-title">{workspaceLabel}</div>
-                    <div className="workspace-inspector-path" title={session.workingDirectory || '未设置工作目录'}>
-                      {session.workingDirectory || '尚未设置工作目录'}
-                    </div>
-                    <div className="workspace-inspector-stats">
-                      <div className="workspace-stat-tile">
-                        <span>连接状态</span>
-                        <strong>{session.isConnected ? '在线' : '离线'}</strong>
-                      </div>
-                      <div className="workspace-stat-tile">
-                        <span>标签页</span>
-                        <strong>{tabs.length}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="workspace-inspector-card">
-                    <div className="workspace-card-header">
-                      <span>会话控制</span>
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>
+      {/* 辅助面板（右侧，按需展开） */}
+      {auxPanelOpen && (
+        <>
+          <div className="resize-handle" onMouseDown={handleResizeMouseDown} />
+          <div
+            style={{
+              width: sidebarWidth,
+              borderLeft: '1px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              flexShrink: 0,
+              background: 'var(--bg-primary)',
+            }}
+          >
+            {/* 辅助面板子标签栏 */}
+            <div
+              style={{
+                display: 'flex',
+                borderBottom: '1px solid var(--border-color)',
+                flexShrink: 0,
+                overflowX: 'auto',
+              }}
+            >
+              {(AUX_TABS[activeNavSection as Exclude<NavSection, 'chat'>] ?? []).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveAuxSubPanel(tab.id)}
+                  style={{
+                    padding: '8px 14px',
+                    fontSize: 12,
+                    fontWeight: activeAuxSubPanel === tab.id ? 600 : 400,
+                    color: activeAuxSubPanel === tab.id ? 'var(--accent-color)' : 'var(--text-secondary)',
+                    borderBottom: activeAuxSubPanel === tab.id ? '2px solid var(--accent-color)' : '2px solid transparent',
+                    background: 'transparent',
+                    border: 'none',
+                    borderTopWidth: 0,
+                    borderLeftWidth: 0,
+                    borderRightWidth: 0,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {/* 辅助面板内容区 */}
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {/* project section */}
+              {activeNavSection === 'project' && activeAuxSubPanel === 'files' && <FileExplorer />}
+              {activeNavSection === 'project' && activeAuxSubPanel === 'git' && <GitPanel />}
+              {activeNavSection === 'project' && activeAuxSubPanel === 'changes' && <ChangeSummaryPanel />}
+              {activeNavSection === 'project' && activeAuxSubPanel === 'worktrees' && <WorktreePanel />}
+              {activeNavSection === 'project' && activeAuxSubPanel === 'checkpoints' && <CheckpointPanel />}
+              {/* tools section */}
+              {activeNavSection === 'tools' && activeAuxSubPanel === 'mcp' && <McpPanel />}
+              {activeNavSection === 'tools' && activeAuxSubPanel === 'agents' && <AgentPanel />}
+              {activeNavSection === 'tools' && activeAuxSubPanel === 'plugins' && <PluginPanel />}
+              {activeNavSection === 'tools' && activeAuxSubPanel === 'hooks' && <HooksPanel />}
+              {activeNavSection === 'tools' && activeAuxSubPanel === 'skills' && <SkillsPanel />}
+              {activeNavSection === 'tools' && activeAuxSubPanel === 'tasks' && <TaskPanel />}
+              {/* config section */}
+              {activeNavSection === 'config' && activeAuxSubPanel === 'settings' && <SettingsPanel />}
+              {activeNavSection === 'config' && activeAuxSubPanel === 'rules' && <RulesPanel />}
+              {activeNavSection === 'config' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
+              {/* history section */}
+              {activeNavSection === 'history' && activeAuxSubPanel === 'sessions' && (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ padding: 12, flexShrink: 0, borderBottom: '1px solid var(--border-color)' }}>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
                         工作目录
                       </label>
                       <input
@@ -768,38 +666,28 @@ function App() {
                         style={{ fontSize: 12 }}
                       />
                     </div>
-                    <div className="workspace-inspector-actions">
-                      {session.isConnected ? (
-                        <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
-                          断开连接
-                        </button>
-                      ) : (
-                        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
-                          启动 Claude Code
-                        </button>
-                      )}
-                    </div>
-                    <div className="workspace-inline-meta">
-                      <span className="workspace-topbar-chip">
-                        {session.conversationSessionId ? '续接旧会话' : '新对话模式'}
-                      </span>
-                    </div>
+                    {session.isConnected ? (
+                      <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
+                        断开连接
+                      </button>
+                    ) : (
+                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
+                        启动 Claude Code
+                      </button>
+                    )}
                   </div>
-
-                  <div className="workspace-inspector-card workspace-inspector-list-card">
-                    <div className="workspace-card-header">
-                      <span>最近会话</span>
-                      <span className="workspace-card-muted">按项目聚合</span>
-                    </div>
-                    <div className="workspace-session-list-wrap">
-                      <SessionList />
-                    </div>
+                  <div style={{ flex: 1, overflow: 'auto' }}>
+                    <SessionList />
                   </div>
-                </aside>
+                </div>
+              )}
+              {activeNavSection === 'history' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
+              {activeNavSection === 'history' && activeAuxSubPanel === 'cost' && <CostPanel />}
+              {activeNavSection === 'history' && activeAuxSubPanel === 'history-list' && <HistoryPanel />}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
       </div>{/* /inner flex-row */}
 
       {/* 底部状态栏 */}
