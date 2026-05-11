@@ -7,12 +7,13 @@
 
 html, body, #root {
   height: 100%;
-  background: #07070f;
+  background: var(--bg-app, #08080f);
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
+  color: var(--text-1);
 }
 
 /* App 根节点：渐变网格背景 */
@@ -21,18 +22,17 @@ body {
     radial-gradient(ellipse at 15% 40%, rgba(120, 60, 240, 0.18) 0%, transparent 50%),
     radial-gradient(ellipse at 85% 15%, rgba(59, 130, 246, 0.14) 0%, transparent 40%),
     radial-gradient(ellipse at 65% 85%, rgba(100, 40, 200, 0.10) 0%, transparent 35%),
-    #07070f;
+    var(--bg-app, #08080f);
 }
 
 
 :root {
-  /* ── 基础背景 ── */
-  --bg-base: #07070f;
-  --bg-primary: #0d0d1a;
-  --bg-secondary: #111128;
-  --bg-tertiary: #181830;
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  /* ── 玻璃态 ── */
+  /* ══ 背景层级（3层，精简自4层） ══ */
+  --bg-app:         #08080f;
+  --bg-surface:     #0f0f1e;
+  --bg-elevated:    #16162a;
+
+  /* ══ 玻璃态（保留，组件使用） ══ */
   --glass: rgba(255, 255, 255, 0.04);
   --glass-hover: rgba(255, 255, 255, 0.07);
   --glass-active: rgba(255, 255, 255, 0.10);
@@ -40,45 +40,130 @@ body {
   --glass-border-bright: rgba(255, 255, 255, 0.18);
   --glass-blur: blur(20px);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  /* ── 文字层级 ── */
-  --text-primary: #f0f0ff;
-  --text-secondary: #8890aa;
-  --text-muted: #4a5068;
-  /* ── 强调色 ── */
-  --accent-color: #8b5cf6;
-  --accent-hover: #a78bfa;
-  --accent-blue: #3b82f6;
+
+  /* ══ 边框 ══ */
+  --border:         rgba(255, 255, 255, 0.07);
+  --border-strong:  rgba(255, 255, 255, 0.14);
+
+  /* ══ 文字层级 ══ */
+  --text-1:  #f0f0ff;
+  --text-2:  #8890aa;
+  --text-3:  #4a5068;
+
+  /* ══ 强调色 ══ */
+  --accent:        #7c3aed;
+  --accent-light:  #a78bfa;
+  --accent-blue:   #3b82f6;
   --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
-  /* ── 状态色 ── */
-  --success: #22c55e;
+
+  /* ══ 状态色 ══ */
+  --success:      #22c55e;
   --success-text: #4ade80;
-  --error: #ef4444;
-  --error-text: #f87171;
-  --error-color: #ef4444;
-  --warning: #f59e0b;
-  --code-bg: #111128;
-  /* ── 边框 ── */
-  --border-color: rgba(255, 255, 255, 0.07);
-  /* ── 圆角 ── */
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-lg: 16px;
-  /* ── 字体 ── */
+  --warning:      #f59e0b;
+  --error:        #ef4444;
+  --error-text:   #f87171;
+
+  /* ══ 工具调用类型色 ══ */
+  --tool-bash:  #f59e0b;
+  --tool-write: #22c55e;
+  --tool-read:  #3b82f6;
+  --tool-edit:  #a78bfa;
+
+  /* ══ 字体 ══ */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
-  /* ── 阴影 ── */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.8);
-  /* ── 用户消息渐变 ── */
+
+  /* ══ 字号阶梯 ══ */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+
+  /* ══ 行高 ══ */
+  --leading-tight:  1.4;
+  --leading-normal: 1.6;
+  --leading-loose:  1.8;
+
+  /* ══ 间距系统（4px 网格） ══ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ══ 圆角系统 ══ */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-full: 9999px;
+
+  /* ══ 阴影（仅浮层使用） ══ */
+  --shadow-sm:  0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg:  0 12px 40px rgba(0, 0, 0, 0.7);
+
+  /* ══ 动效 ══ */
+  --duration-fast:   100ms;
+  --duration-normal: 200ms;
+  --duration-slow:   300ms;
+  --ease-out:   cubic-bezier(0.0, 0.0, 0.2, 1.0);
+  --ease-in:    cubic-bezier(0.4, 0.0, 1.0, 1.0);
+  --ease-inout: cubic-bezier(0.4, 0.0, 0.2, 1.0);
+
+  /* ══ 兼容别名（旧组件继续可用，逐步迁移） ══ */
+  --bg-base:       var(--bg-app);
+  --bg-primary:    var(--bg-surface);
+  --bg-secondary:  var(--bg-elevated);
+  --bg-tertiary:   #1c1c38;
+  --bg-hover:      rgba(255, 255, 255, 0.06);
+  --text-primary:  var(--text-1);
+  --text-secondary: var(--text-2);
+  --text-muted:    var(--text-3);
+  --accent-color:  var(--accent);
+  --accent-hover:  var(--accent-light);
+  --error-color:   var(--error);
+  --border-color:  var(--border);
+  --radius:        var(--radius-md);
+  --code-bg:       var(--bg-elevated);
   --message-user-bg: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
-    padding: 24px 24px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    background:
-      radial-gradient(circle at top center, rgba(88, 166, 255, 0.06), transparent 26%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 18%);
-  }
+}
+
+/* ══ 亮色主题覆盖 ══ */
+[data-theme="light"] {
+  --bg-app:        #f5f5fc;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #eeeef8;
+  --border:        rgba(0, 0, 0, 0.07);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --text-1:        #1a1a2e;
+  --text-2:        #5a6080;
+  --text-3:        #9aa0b8;
+  --accent:        #7c3aed;
+  --accent-light:  #6d28d9;
+  --bg-hover:      rgba(0, 0, 0, 0.04);
+  --glass:         rgba(0, 0, 0, 0.03);
+  --glass-hover:   rgba(0, 0, 0, 0.06);
+  --code-bg:       #f0f0f8;
+  --shadow-sm:     0 1px 4px rgba(0, 0, 0, 0.12);
+  --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.16);
+  --shadow-lg:     0 12px 40px rgba(0, 0, 0, 0.22);
+}
+
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background:
+    radial-gradient(circle at top center, rgba(88, 166, 255, 0.06), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 18%);
+}
 
   .message-list-inner {
     width: 100%;
