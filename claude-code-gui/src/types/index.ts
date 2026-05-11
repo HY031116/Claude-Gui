@@ -4,6 +4,8 @@ export interface Message {
   content: string;
   timestamp: number;
   toolCalls?: ToolCall[];
+  /** 当前消息对应回合的步骤快照，用于在对话流中保留执行历史 */
+  planSteps?: PlanStep[];
   /** Claude 的扩展思考链内容（extended thinking 模式下可用） */
   thinking?: string;
 }
@@ -16,6 +18,8 @@ export interface ToolCall {
   status: 'pending' | 'success' | 'error';
   /** Write 工具执行前的原始文件内容快照（用于 diff 展示） */
   originalContent?: string;
+  /** Diff 审阅状态：accepted 为已确认，reverted 为已回滚 */
+  diffReviewStatus?: 'accepted' | 'reverted';
 }
 
 /** 实时执行步骤（对标 Codex turn/plan/updated） */
@@ -71,6 +75,18 @@ export interface CliSessionRecord {
   projectDirName: string;
 }
 
+/** Token 使用量历史记录（持久化到 localStorage） */
+export interface TokenRecord {
+  id: string;
+  timestamp: number;
+  sessionId?: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd?: number;
+  model?: string;
+  workingDirectory?: string;
+}
+
 export interface AppSettings {
   apiKey: string;
   authMode: 'api-key' | 'official';
@@ -105,6 +121,19 @@ export interface AppSettings {
   // Google Vertex AI 配置
   vertexProjectId?: string;
   vertexRegion?: string;
+  // Microsoft Foundry 配置
+  foundryResource?: string;
+  foundryBaseUrl?: string;
+  foundryApiKey?: string;
+  // LLM Gateway 配置
+  /** Bearer 认证 Token（ANTHROPIC_AUTH_TOKEN，优先于 API Key） */
+  gatewayAuthToken?: string;
+  /** 自定义请求头（ANTHROPIC_CUSTOM_HEADERS，JSON 格式） */
+  gatewayCustomHeaders?: string;
+  /** 启用网关模型自动发现（CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY） */
+  enableGatewayModelDiscovery?: boolean;
+  /** 动态 API Key 脚本路径（apiKeyHelper，写入 ~/.claude/settings.json） */
+  apiKeyHelper?: string;
   /** 限制 agentic 最大轮次（--max-turns，print 模式有效） */
   maxTurns?: number;
   /** 是否在界面展示扩展思维摘要（showThinkingSummaries） */

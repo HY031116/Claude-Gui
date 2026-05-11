@@ -1,0 +1,7 @@
+# 统一行尾：跨平台协作时使用 LF
+* text=auto eol=lf
+
+# 二进制文件不转换
+*.png binary
+*.ico binary
+*.svg text

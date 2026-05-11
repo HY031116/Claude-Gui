@@ -40,7 +40,7 @@ export function FileExplorer() {
 
   useEffect(() => {
     if (!currentPath) {
-      const defaultPath = 'D:\\My Project\\claude';
+      const defaultPath = '~';
       loadDirectory(defaultPath);
     }
   }, [currentPath, loadDirectory]);

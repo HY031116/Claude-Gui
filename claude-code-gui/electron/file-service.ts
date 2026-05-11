@@ -410,12 +410,10 @@ export class FileService {
     const pluginDir = this.findClaudeMemPluginDir();
     if (!pluginDir) return { installed: false, enabled: false };
     const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
-    let enabled = false;
-    try {
-      const content = await fs.readFile(settingsPath, 'utf-8');
+    const enabled = await fs.readFile(settingsPath, 'utf-8').then((content) => {
       const settings = JSON.parse(content);
-      enabled = settings?.enabledPlugins?.['claude-mem@thedotmack'] === true;
-    } catch { enabled = true; }
+      return settings?.enabledPlugins?.['claude-mem@thedotmack'] === true;
+    }).catch(() => true);
     return { installed: true, enabled, pluginDir };
   }
 

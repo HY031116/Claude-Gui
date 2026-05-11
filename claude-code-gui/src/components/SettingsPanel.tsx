@@ -38,17 +38,6 @@ export function SettingsPanel() {
   // 可用 agents 列表（从 CLI 加载）
   const [availableAgents, setAvailableAgents] = useState<Array<{ name: string; model: string; type: 'builtin' | 'custom' }>>([]);
 
-  // Load settings on mount
-  useEffect(() => {
-    loadSettings();
-    // 加载 agent 列表
-    window.electronAPI?.listAgents?.().then((result) => {
-      if (result?.success && result.agents) {
-        setAvailableAgents(result.agents);
-      }
-    });
-  }, []);
-
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -129,6 +118,17 @@ export function SettingsPanel() {
     }
   }, []);
 
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+    // 加载 agent 列表
+    window.electronAPI?.listAgents?.().then((result) => {
+      if (result?.success && result.agents) {
+        setAvailableAgents(result.agents);
+      }
+    });
+  }, [loadSettings]);
+
   const applyPreset = useCallback((presetId: string) => {
     const preset = CONFIG_PRESETS.find(p => p.id === presetId);
     if (preset) {
@@ -180,7 +180,7 @@ export function SettingsPanel() {
       console.error('Failed to save settings:', error);
       setSaveStatus('error');
     }
-  }, [settings, useNativeConfig, loadSettings]);
+  }, [settings, useNativeConfig, loadSettings, mcpServers, enabledPlugins, setCurrentStatus]);
 
 
   if (isLoading) {

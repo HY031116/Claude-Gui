@@ -103,7 +103,6 @@ export function MemSearchPanel() {
         setLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [loading, options],
   );
 
@@ -141,7 +140,6 @@ export function MemSearchPanel() {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, tlAnchor, tlQuery, tlDepthBefore, tlDepthAfter]);
 
   // 切换模式时清空结果

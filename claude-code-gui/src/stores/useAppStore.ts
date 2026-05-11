@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { Message, DirEntry, TerminalLine, SessionState, CliPrompt, ConversationRecord, PlanStep } from '../types';
+import type { Message, DirEntry, TerminalLine, SessionState, CliPrompt, ConversationRecord, PlanStep, TokenRecord } from '../types';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
+const TOKEN_HISTORY_KEY = 'claude-gui-token-history';
 
 /** 从 localStorage 读取历史（最多 50 条） */
 function loadHistory(): ConversationRecord[] {
@@ -18,6 +19,15 @@ function saveHistory(history: ConversationRecord[]): void {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
   } catch { /* 忽略存储失败 */ }
+}
+
+/** 从 localStorage 读取 token 历史 */
+function loadTokenHistory(): TokenRecord[] {
+  try {
+    return JSON.parse(localStorage.getItem(TOKEN_HISTORY_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
 }
 
 /** 每个 Tab 的状态快照 */
@@ -98,8 +108,8 @@ interface AppState {
   clearConversationHistory: () => void;
 
   // UI
-  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents';
-  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents') => void;
+  activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost';
+  setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost') => void;
   sidebarVisible: boolean;
   setSidebarVisible: (visible: boolean) => void;
   // 主题
@@ -112,6 +122,10 @@ interface AppState {
   // Token 用量（每次会话结束后更新）
   tokenUsage: { inputTokens: number; outputTokens: number; costUsd?: number } | null;
   setTokenUsage: (usage: { inputTokens: number; outputTokens: number; costUsd?: number } | null) => void;
+  // Token 历史（持久化，跨会话累积）
+  tokenHistory: TokenRecord[];
+  addTokenRecord: (record: TokenRecord) => void;
+  clearTokenHistory: () => void;
   // 任务追踪（来自 TodoWrite 工具调用）
   todoItems: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[];
   setTodoItems: (items: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[]) => void;
@@ -167,7 +181,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // 切换到相邻 tab
       newActiveId = newTabs[Math.max(0, idx - 1)].id;
       const snapshot = state.tabSnapshots[newActiveId] ?? DEFAULT_SNAPSHOT;
-      const { [tabId]: _, ...restSnapshots } = state.tabSnapshots;
+      const restSnapshots = { ...state.tabSnapshots };
+      delete restSnapshots[tabId];
       set({
         tabs: newTabs,
         activeTabId: newActiveId,
@@ -179,7 +194,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         activePlanSteps: snapshot.activePlanSteps,
       });
     } else {
-      const { [tabId]: _, ...restSnapshots } = state.tabSnapshots;
+      const restSnapshots = { ...state.tabSnapshots };
+      delete restSnapshots[tabId];
       set({ tabs: newTabs, tabSnapshots: restSnapshots });
     }
   },
@@ -296,6 +312,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentStatus: (model, authMode) => set({ currentModel: model, currentAuthMode: authMode }),
   tokenUsage: null,
   setTokenUsage: (usage) => set({ tokenUsage: usage }),
+  tokenHistory: loadTokenHistory(),
+  addTokenRecord: (record) => set((state) => {
+    const next = [record, ...state.tokenHistory].slice(0, 500);
+    try { localStorage.setItem(TOKEN_HISTORY_KEY, JSON.stringify(next)); } catch { /* 忽略 */ }
+    return { tokenHistory: next };
+  }),
+  clearTokenHistory: () => {
+    try { localStorage.removeItem(TOKEN_HISTORY_KEY); } catch { /* 忽略 */ }
+    set({ tokenHistory: [] });
+  },
   todoItems: [],
   setTodoItems: (items) => set({ todoItems: items }),
 
