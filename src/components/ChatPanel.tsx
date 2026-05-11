@@ -1214,12 +1214,16 @@ export function ChatPanel() {
         )}
 
         {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            msg={msg}
-            searchQuery={searchQuery}
-            isMatch={matchingMsgIds.has(msg.id)}
-          />
+          <span key={msg.id} style={{ display: 'contents' }}>
+            {msg.role === 'assistant' && msg.planSteps && msg.planSteps.length > 0 && (
+              <TurnCard planSteps={msg.planSteps} toolCallsCount={msg.toolCalls?.length ?? 0} />
+            )}
+            <MessageBubble
+              msg={msg}
+              searchQuery={searchQuery}
+              isMatch={matchingMsgIds.has(msg.id)}
+            />
+          </span>
         ))}
 
         {isProcessing && (
@@ -1870,6 +1874,56 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   );
 });
 
+/** TurnCard — 独立 Turn 执行步骤卡片（Phase 1：从消息气泡中抽离）*/
+const TurnCard = memo(function TurnCard({ planSteps, toolCallsCount }: { planSteps: PlanStep[]; toolCallsCount: number }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const doneCount = planSteps.filter((s) => s.status === 'done').length;
+  const errorCount = planSteps.filter((s) => s.status === 'error').length;
+  const runningCount = planSteps.filter((s) => s.status === 'running').length;
+  const isComplete = runningCount === 0;
+  const statusColor = !isComplete ? 'var(--accent-color)' : errorCount > 0 ? 'var(--error-text, #f85149)' : 'var(--success-text)';
+  const statusLabel = !isComplete ? '执行中…' : errorCount > 0 ? `已完成（含 ${errorCount} 个错误）` : '已完成';
+
+  return (
+    <div style={{ margin: '2px 16px 2px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: statusColor, letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'left' }}
+      >
+        <Activity size={12} />
+        <span style={{ flex: 1 }}>
+          {statusLabel} · {planSteps.length} 个步骤{toolCallsCount > 0 ? ` · ${toolCallsCount} 个工具` : ''}
+        </span>
+        {collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+      </button>
+      {!collapsed && (
+        <div style={{ padding: '4px 12px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {planSteps.map((step) => (
+            <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, opacity: step.status === 'done' ? 0.7 : 1 }}>
+              <div style={{ flexShrink: 0, marginTop: 1, color: step.status === 'done' ? 'var(--success-text)' : step.status === 'error' ? 'var(--error-text, #f85149)' : 'var(--accent-color)' }}>
+                {step.status === 'running' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : step.status === 'done' ? <Check size={13} /> : <X size={13} />}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{step.label}</div>
+                {step.description && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-word' }}>{step.description}</div>
+                )}
+              </div>
+            </div>
+          ))}
+          {isComplete && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {([`${doneCount} 完成`, errorCount > 0 ? `${errorCount} 失败` : null, toolCallsCount > 0 ? `${toolCallsCount} 工具调用` : null] as (string | null)[]).filter(Boolean).map((m) => (
+                <span key={m!} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 999, background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>{m}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
 /** 消息气泡 — memo 防止流式输出时历史消息无效重渲 */
 const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -1925,25 +1979,6 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
     return preview.length > 140 ? preview.slice(0, 140) + '…' : preview;
   }, [msg.thinking]);
 
-  const turnSummary = useMemo(() => {
-    if (isUser || !msg.planSteps || msg.planSteps.length === 0) return null;
-    const runningCount = msg.planSteps.filter((step) => step.status === 'running').length;
-    if (runningCount > 0) return null;
-    const doneCount = msg.planSteps.filter((step) => step.status === 'done').length;
-    const errorCount = msg.planSteps.filter((step) => step.status === 'error').length;
-    const toolCount = msg.toolCalls?.length ?? 0;
-    return {
-      statusLabel: errorCount > 0 ? '本轮已结束（含失败步骤）' : '本轮已完成',
-      statusTone: errorCount > 0 ? 'var(--error-text, #f85149)' : 'var(--success-text)',
-      metrics: [
-        `${msg.planSteps.length} 个步骤`,
-        `${doneCount} 已完成`,
-        errorCount > 0 ? `${errorCount} 失败` : null,
-        toolCount > 0 ? `${toolCount} 个工具调用` : null,
-      ].filter(Boolean) as string[],
-    };
-  }, [isUser, msg.planSteps, msg.toolCalls]);
-
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(msg.content);
@@ -1974,37 +2009,6 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
           <span className="message-sender">{isUser ? '你' : 'Claude'}</span>
           <span className="message-time">{formatTime(msg.timestamp)}</span>
         </div>
-
-        {!isUser && msg.planSteps && msg.planSteps.length > 0 && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            marginBottom: 12,
-            padding: '10px 12px',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            background: 'var(--bg-secondary)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--accent-color)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              <Activity size={12} />
-              <span>本轮步骤</span>
-            </div>
-            {msg.planSteps.map((step) => (
-              <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, opacity: step.status === 'done' ? 0.7 : 1 }}>
-                <div style={{ flexShrink: 0, marginTop: 1, color: step.status === 'done' ? 'var(--success-text)' : step.status === 'error' ? 'var(--error-text, #f85149)' : 'var(--accent-color)' }}>
-                  {step.status === 'running' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : step.status === 'done' ? <Check size={13} /> : <X size={13} />}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{step.label}</div>
-                  {step.description && (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-word' }}>{step.description}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* 工具调用列表（assistant 消息） */}
         {!isUser && msg.toolCalls && msg.toolCalls.length > 0 && (
@@ -2054,41 +2058,6 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
             className="message-content message-content-assistant markdown-body"
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
-        )}
-
-        {!isUser && turnSummary && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            marginTop: 12,
-            padding: '10px 12px',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: turnSummary.statusTone }}>
-              <Check size={13} />
-              <span>{turnSummary.statusLabel}</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {turnSummary.metrics.map((metric) => (
-                <span
-                  key={metric}
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                  }}
-                >
-                  {metric}
-                </span>
-              ))}
-            </div>
-          </div>
         )}
       </div>
 

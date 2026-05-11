@@ -59,7 +59,7 @@
 - [x] assistant 消息支持 `planSteps` 快照留存
 - [x] 对话内展示“本轮步骤”区块
 - [x] 对话内展示 Turn 结束汇总卡片
-- [ ] 将步骤留存从“嵌在 assistant 消息内”升级为独立 Turn 卡片
+- [x] 将步骤留存从"嵌在 assistant 消息内"升级为独立 TurnCard 组件（列表内独立渲染）
 - [ ] 让 `TaskPanel` 退化为辅助视图，而不是主视图
 
 完成标准：

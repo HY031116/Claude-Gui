@@ -21,7 +21,6 @@ export function TerminalPanel() {
   const [expanded, setExpanded] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [input, setInput] = useState('');
-  const lastLineCountRef = useRef(terminalLines.length);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -29,12 +28,7 @@ export function TerminalPanel() {
     }
   }, [terminalLines]);
 
-  useEffect(() => {
-    if (terminalLines.length > 0 && lastLineCountRef.current === 0) {
-      setCollapsed(false);
-    }
-    lastLineCountRef.current = terminalLines.length;
-  }, [terminalLines.length]);
+  // 终端默认折叠，不再自动展开（用户手动展开）
 
   // Combine all lines into a single buffer for ANSI state continuity
   const renderedOutput = useMemo(() => {
