@@ -1199,7 +1199,7 @@ export function ChatPanel() {
                 ) : (
                   <>
                     <p className="empty-state-desc">
-                      {autoConnectOnLaunch ? '请先在左侧侧边栏启动 Claude Code 会话' : '自动连接已关闭，请手动启动 Claude Code'}
+                      {autoConnectOnLaunch ? '请点击右上角「启动」按钮开始 Claude Code 会话' : '自动连接已关闭，请手动启动 Claude Code'}
                     </p>
                     {!autoConnectOnLaunch && (
                       <p className="empty-state-desc" style={{ marginTop: 4, opacity: 0.76 }}>
