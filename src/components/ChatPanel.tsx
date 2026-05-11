@@ -6,7 +6,7 @@ import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import type { Message, PlanStep, ToolCall } from '../types';
 import type { PermissionRequestEvent } from '../types/electron';
-import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
+import { InlineDiff, WritePreview, WriteDiff, computeLineDiff } from './DiffView';
 
 // 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
 const renderer = new marked.Renderer();
@@ -1218,6 +1218,9 @@ export function ChatPanel() {
             {msg.role === 'assistant' && msg.planSteps && msg.planSteps.length > 0 && (
               <TurnCard planSteps={msg.planSteps} toolCallsCount={msg.toolCalls?.length ?? 0} />
             )}
+            {msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && (
+              <ChangeSummaryCard toolCalls={msg.toolCalls} msgId={msg.id} />
+            )}
             <MessageBubble
               msg={msg}
               searchQuery={searchQuery}
@@ -1894,6 +1897,145 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
           )}
         </div>
       )}
+    </div>
+  );
+});
+
+/** ChangeSummaryCard — 本轮变更总览卡片（Phase 3：统一变更确认）*/
+const FILE_MODIFY_NAMES = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
+
+const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: { toolCalls: ToolCall[]; msgId: string }) {
+  const messages = useAppStore((s) => s.messages);
+  const updateMessage = useAppStore((s) => s.updateMessage);
+  const [busy, setBusy] = useState(false);
+
+  // 已成功且有 originalContent 的文件修改工具调用（可回滚）
+  const reviewable = useMemo(() =>
+    toolCalls.filter(c =>
+      FILE_MODIFY_NAMES.includes(c.name) &&
+      c.status === 'success' &&
+      c.originalContent !== undefined,
+    ), [toolCalls]);
+
+  // Turn 完成前（仍有 pending）不展示
+  const isComplete = toolCalls.every(c => c.status !== 'pending');
+  if (!isComplete || reviewable.length === 0) return null;
+
+  const allReviewed = reviewable.every(c => c.diffReviewStatus === 'accepted' || c.diffReviewStatus === 'reverted');
+
+  // 用 computeLineDiff 统计每个文件的行增删
+  const fileStats = useMemo(() => {
+    const map = new Map<string, { added: number; removed: number }>();
+    for (const c of reviewable) {
+      const path = String(c.arguments?.file_path ?? c.arguments?.path ?? '');
+      if (!path) continue;
+      let added = 0, removed = 0;
+      if ((c.name === 'Write' || c.name === 'write_file') && c.arguments?.content !== undefined) {
+        const diff = computeLineDiff(c.originalContent ?? '', String(c.arguments.content));
+        added += diff.filter(l => l.type === 'add').length;
+        removed += diff.filter(l => l.type === 'del').length;
+      } else if (['Edit', 'edit_file', 'str_replace_editor', 'str_replace_based_edit_tool'].includes(c.name) &&
+                 c.arguments?.old_string !== undefined && c.arguments?.new_string !== undefined) {
+        const diff = computeLineDiff(String(c.arguments.old_string), String(c.arguments.new_string));
+        added += diff.filter(l => l.type === 'add').length;
+        removed += diff.filter(l => l.type === 'del').length;
+      } else if ((c.name === 'MultiEdit' || c.name === 'multiedit') && Array.isArray(c.arguments?.edits)) {
+        for (const edit of c.arguments.edits as Array<{ old_string: string; new_string: string }>) {
+          const diff = computeLineDiff(edit.old_string ?? '', edit.new_string ?? '');
+          added += diff.filter(l => l.type === 'add').length;
+          removed += diff.filter(l => l.type === 'del').length;
+        }
+      }
+      const prev = map.get(path) ?? { added: 0, removed: 0 };
+      map.set(path, { added: prev.added + added, removed: prev.removed + removed });
+    }
+    return map;
+  }, [reviewable]);
+
+  const totalAdded = useMemo(() => Array.from(fileStats.values()).reduce((s, v) => s + v.added, 0), [fileStats]);
+  const totalRemoved = useMemo(() => Array.from(fileStats.values()).reduce((s, v) => s + v.removed, 0), [fileStats]);
+
+  // 将所有 reviewable 工具调用标记为指定状态
+  const patchAll = useCallback((status: 'accepted' | 'reverted') => {
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg) return;
+    const reviewableIds = new Set(reviewable.map(r => r.id));
+    const nextToolCalls = msg.toolCalls?.map(c =>
+      reviewableIds.has(c.id) ? { ...c, diffReviewStatus: status } : c,
+    ) ?? [];
+    updateMessage(msgId, { toolCalls: nextToolCalls });
+  }, [messages, msgId, reviewable, updateMessage]);
+
+  const handleAcceptAll = useCallback(() => patchAll('accepted'), [patchAll]);
+
+  const handleRevertAll = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // 每个文件路径只用最早一次修改的 originalContent（保证回滚到本 Turn 开始前状态）
+      const earliestByPath = new Map<string, ToolCall>();
+      for (const c of reviewable) {
+        const path = String(c.arguments?.file_path ?? c.arguments?.path ?? '');
+        if (path && !earliestByPath.has(path)) earliestByPath.set(path, c);
+      }
+      await Promise.allSettled(
+        Array.from(earliestByPath.values()).map(c =>
+          window.electronAPI.writeFile(
+            String(c.arguments?.file_path ?? c.arguments?.path ?? ''),
+            c.originalContent ?? '',
+          ),
+        ),
+      );
+      patchAll('reverted');
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, patchAll, reviewable]);
+
+  return (
+    <div style={{ margin: '2px 16px 6px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+      {/* 卡片头部 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: fileStats.size > 0 ? '1px solid var(--border-color)' : 'none' }}>
+        <FileDiff size={13} color="var(--accent-color)" />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+          本轮变更 — {fileStats.size} 个文件
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--success-text)', marginRight: 2 }}>+{totalAdded}</span>
+        <span style={{ fontSize: 11, color: 'var(--error-text, #f85149)', marginRight: 8 }}>-{totalRemoved}</span>
+        {allReviewed ? (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>已完成审阅</span>
+        ) : (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              className="btn"
+              onClick={handleAcceptAll}
+              disabled={busy}
+              style={{ fontSize: 11, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 3, color: 'var(--success-text)' }}
+            >
+              <Check size={11} /> 全部接受
+            </button>
+            <button
+              className="btn"
+              onClick={() => void handleRevertAll()}
+              disabled={busy}
+              style={{ fontSize: 11, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 3 }}
+              title="将所有文件回滚到本轮任务开始前的状态"
+            >
+              <RotateCcw size={11} /> 全部撤销
+            </button>
+          </div>
+        )}
+      </div>
+      {/* 文件列表 */}
+      <div style={{ padding: '6px 12px 8px' }}>
+        {Array.from(fileStats.entries()).map(([path, stats]) => (
+          <div key={path} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0', fontSize: 11 }}>
+            <code style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</code>
+            <span style={{ color: 'var(--success-text)', flexShrink: 0 }}>+{stats.added}</span>
+            <span style={{ color: 'var(--error-text, #f85149)', flexShrink: 0 }}>-{stats.removed}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 });
