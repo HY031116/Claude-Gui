@@ -369,7 +369,7 @@ function App() {
     }
   }, [activeNavSection, activeAuxSubPanel, setActiveNavSection, setActiveAuxSubPanel]);
 
-  const auxPanelOpen = activeNavSection !== 'chat';
+  const auxPanelOpen = activeNavSection !== 'chat' && activeNavSection in SECTION_VALID_SUBS;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>

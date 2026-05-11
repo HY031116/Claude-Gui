@@ -86,6 +86,9 @@ export function AuxPanel({
 
   const tabs = AUX_TABS[activeNavSection as Exclude<NavSection, 'chat'>] ?? [];
 
+  // 防御：section 不在 AUX_TABS 里（旧存储值或 HMR 状态残留）→ 不渲染
+  if (tabs.length === 0) return null;
+
   return (
     <>
       <div className="resize-handle" onMouseDown={onResizeMouseDown} />
