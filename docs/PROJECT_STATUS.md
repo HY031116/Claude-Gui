@@ -1,17 +1,24 @@
 # Claude Code GUI — 项目进度与路线图
 
-> 本文档记录截至 v1.6.0 的项目现状、与目标的差距评估及后续改进方向。
+> 本文档记录截至 v1.7.0 的项目现状、与目标的差距评估及后续改进方向。
 >
 > 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
-## 0. 最新里程碑（v1.6.0）
+## 0. 最新里程碑（v1.7.0 — UI 重构完成）
 
+### UI 重构（本轮核心工作）
+- **Phase 1**：导航收缩 18 项 → 5 项（chat/project/tools/config/history），消除导航噪声。
+- **Phase 2**：文件修改工具 Diff 默认展开，操作按钮提升至卡片头部，降低操作成本。
+- **Phase 3**：CSS 设计系统重构，建立完整 Token 体系（字号/间距/圆角/动效变量）。
+- **Phase 4**：App.tsx 拆分为 NavRail/WorkspaceArea/AuxPanel 三个 layout 组件（App.tsx 从 870+ 行精简）。
+- **视觉精修**：NavRail 左侧指示条 + CSS tooltip，AuxPanel 子标签图标，WorkspaceArea 精简顶栏（40px），ChatPanel 消息气泡/动画/输入框精修。
+- **CSS 变量化**：新增 7 个主题感知语义变量（`--nav-rail-bg`/`--accent-glass*`/`--info-glass*`），系统性消除硬编码 rgba 颜色，亮色主题覆盖从 8 条组件规则缩减为 3 条。
+- **代码分割**：`vite.config.ts` 添加 `manualChunks`，主 bundle 从 765KB 拆分为 4 个 chunk（最大 283KB），消除构建警告。
+
+### 历史里程碑（v1.6.0）
 - 已修复 GUI 中工具审批按钮无法真正批准/拒绝的问题。
-- 非交互审批链路已切换为 Claude Code 官方 `--permission-prompt-tool` + MCP 工具桥接，不再依赖旧的 stdin `y/n` 路径。
-- GUI 人工“允许”与“拒绝”两条路径均已完成真实验证。
-- 已完成 `npm run lint -- --max-warnings=0`、`npm run build`、`npm run dist`。
-- 已生成并验证安装包 `Claude Code GUI Setup 1.6.0.exe`，且完成了解包版启动验证与一次静默试装验证。
-- 已开始 2.0 渐进式改造的 Phase 1：对话流内已新增步骤留存与 Turn 汇总卡片雏形。
+- 非交互审批链路已切换为 Claude Code 官方 `--permission-prompt-tool` + MCP 工具桥接。
+- 已生成并验证安装包 `Claude Code GUI Setup 1.6.0.exe`。
 
 ---
 
@@ -64,11 +71,12 @@
 | 优先级 | 问题 | 影响 |
 |:---:|---|---|
 | 🔴 高 | 零测试覆盖 | 回归风险极高，无法安全重构 |
-| 🔴 高 | `App.tsx` 膨胀至 870+ 行 | 违反 SRP，维护困难 |
+| ✅ 已解决 | `App.tsx` 膨胀至 870+ 行 | Phase 4 已拆分为 NavRail/WorkspaceArea/AuxPanel |
 | 🔴 高 | 无 README / 开发文档 | 新成员 onboarding 困难 |
 | 🟡 中 | 魔法数字散落（500 行缓冲、1500ms 防抖等） | 难以统一调整 |
 | 🟡 中 | Claude CLI 安装路径兼容性仍有限 | 仍依赖固定安装约定，不同安装方式可能需额外适配 |
 | 🟡 中 | Error Handling 不一致 | 部分 IPC 无 try-catch |
+| ✅ 已解决 | CSS 硬编码颜色（rgba 散落） | 已统一为 CSS 语义变量系统 |
 | 🟢 低 | 文件路径无白名单校验 | `../` 穿越风险 |
 | 🟢 低 | API Key 明文存储 | 无加密 |
 

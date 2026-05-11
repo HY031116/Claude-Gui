@@ -37,6 +37,19 @@
 
 ## 三、阶段路线图
 
+### Phase 0：UI 重构 & 设计系统（✅ 已完成）
+
+目标：重建 UI 交互框架，为 2.0 功能铺设视觉基础。
+
+- [x] 导航收缩 18 项 → 5 项（chat/project/tools/config/history）
+- [x] App.tsx 拆分为 NavRail/WorkspaceArea/AuxPanel 三个 layout 组件
+- [x] 文件修改工具 Diff 默认展开 + 操作按钮提升至头部
+- [x] CSS 设计系统 Token 体系（字号/间距/圆角/动效/阴影）
+- [x] NavRail/AuxPanel/WorkspaceArea/ChatPanel 视觉精修
+- [x] CSS 语义变量化（7 个主题感知变量，消除硬编码 rgba）
+- [x] 亮色主题完整兼容性覆盖
+- [x] Vite manualChunks 代码分割（主 bundle 765KB → 283KB）
+
 ### Phase 1：Turn 工作流基础
 
 目标：让步骤信息和回合收口留在对话流里。
