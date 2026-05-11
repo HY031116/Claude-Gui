@@ -3437,3 +3437,65 @@ pre code {
   opacity: 1;
   color: var(--accent-color);
 }
+
+/* ===== 亮色主题组件覆盖 ===== */
+[data-theme="light"] .nav-rail {
+  background: rgba(245, 245, 252, 0.95);
+  border-right-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .nav-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .nav-button.active {
+  background: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.2);
+}
+
+[data-theme="light"] .nav-rail-logo {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(59, 130, 246, 0.12));
+}
+
+[data-theme="light"] .message-content-assistant {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.025) 0%,
+    rgba(0, 0, 0, 0.015) 100%
+  );
+}
+
+[data-theme="light"] .chat-input-area {
+  background:
+    linear-gradient(180deg, rgba(250, 250, 255, 0.45), rgba(245, 245, 252, 0.95) 22%, var(--bg-primary));
+}
+
+[data-theme="light"] .chat-input-area-inner {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.6));
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .chat-input-wrapper {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .chat-input {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .chat-input:focus {
+  border-color: rgba(124, 58, 237, 0.45);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+[data-theme="light"] .message-list {
+  background:
+    radial-gradient(circle at top center, rgba(124, 58, 237, 0.04), transparent 26%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.01), transparent 18%);
+}
