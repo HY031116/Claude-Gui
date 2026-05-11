@@ -1,6 +1,14 @@
 export interface CliOutputEvent {
-  type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error';
+  type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved';
   data: string;
+}
+
+export interface PermissionRequestEvent {
+  id: string;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  inputPreview: string;
+  suggestions?: unknown;
 }
 
 export interface WorktreeInfo {
@@ -21,6 +29,8 @@ export interface ElectronAPI {
   cliStopMessage: () => Promise<{ success: boolean }>;
   /** 向当前运行中的消息进程 stdin 写入数据（supervised 审批用：'y\n'/'n\n'） */
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
+  /** 响应 Claude Code PermissionRequest hook 审批 */
+  cliRespondPermission: (requestId: string, allow: boolean) => Promise<{ success: boolean; error?: string }>;
   onCliOutput: (callback: (event: CliOutputEvent) => void) => () => void;
   listDirectory: (path: string) => Promise<{ success: boolean; entries?: any[]; error?: string }>;
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;

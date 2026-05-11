@@ -181,7 +181,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // 切换到相邻 tab
       newActiveId = newTabs[Math.max(0, idx - 1)].id;
       const snapshot = state.tabSnapshots[newActiveId] ?? DEFAULT_SNAPSHOT;
-      const { [tabId]: _, ...restSnapshots } = state.tabSnapshots;
+      const restSnapshots = { ...state.tabSnapshots };
+      delete restSnapshots[tabId];
       set({
         tabs: newTabs,
         activeTabId: newActiveId,
@@ -193,7 +194,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         activePlanSteps: snapshot.activePlanSteps,
       });
     } else {
-      const { [tabId]: _, ...restSnapshots } = state.tabSnapshots;
+      const restSnapshots = { ...state.tabSnapshots };
+      delete restSnapshots[tabId];
       set({ tabs: newTabs, tabSnapshots: restSnapshots });
     }
   },

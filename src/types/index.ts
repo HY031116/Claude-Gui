@@ -4,6 +4,8 @@ export interface Message {
   content: string;
   timestamp: number;
   toolCalls?: ToolCall[];
+  /** 当前消息对应回合的步骤快照，用于在对话流中保留执行历史 */
+  planSteps?: PlanStep[];
   /** Claude 的扩展思考链内容（extended thinking 模式下可用） */
   thinking?: string;
 }
@@ -16,6 +18,8 @@ export interface ToolCall {
   status: 'pending' | 'success' | 'error';
   /** Write 工具执行前的原始文件内容快照（用于 diff 展示） */
   originalContent?: string;
+  /** Diff 审阅状态：accepted 为已确认，reverted 为已回滚 */
+  diffReviewStatus?: 'accepted' | 'reverted';
 }
 
 /** 实时执行步骤（对标 Codex turn/plan/updated） */
@@ -88,6 +92,7 @@ export interface AppSettings {
   authMode: 'api-key' | 'official';
   model: string;
   permissionMode: string;
+  autoConnectOnLaunch: boolean;
   allowedTools: string;
   disallowedTools?: string;
   extraArgs: string;

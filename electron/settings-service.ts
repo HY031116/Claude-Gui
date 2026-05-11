@@ -7,6 +7,7 @@ export interface AppSettings {
   authMode: 'api-key' | 'official';
   model: string;
   permissionMode: string;
+  autoConnectOnLaunch: boolean;
   allowedTools: string;
   disallowedTools?: string;
   extraArgs: string;
@@ -64,6 +65,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   authMode: 'official',
   model: 'sonnet',
   permissionMode: 'auto',
+  autoConnectOnLaunch: true,
   allowedTools: 'default',
   extraArgs: '',
   useBareMode: false,

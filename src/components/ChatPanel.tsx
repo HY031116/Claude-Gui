@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff, Search, Download } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff, Search, Download, Activity, ListChecks, CircleDollarSign, Shield, RotateCcw } from 'lucide-react';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
-import type { Message, ToolCall } from '../types';
+import type { Message, PlanStep, ToolCall } from '../types';
+import type { PermissionRequestEvent } from '../types/electron';
 import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
 
 // 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
@@ -156,6 +157,19 @@ function formatPlanStep(name: string, input: Record<string, unknown>): { label: 
   return { label: '工具调用', description: name };
 }
 
+function formatCompactTokens(inputTokens: number, outputTokens: number): string {
+  const total = inputTokens + outputTokens;
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)}M`;
+  if (total >= 1_000) return `${(total / 1_000).toFixed(1)}K`;
+  return String(total);
+}
+
+function formatCompactCost(costUsd?: number): string {
+  if (costUsd == null) return '—';
+  if (costUsd < 0.0001) return '<$0.0001';
+  return `$${costUsd.toFixed(4)}`;
+}
+
 /** Slash 命令列表 */
 const SLASH_COMMANDS: { cmd: string; desc: string }[] = [
   { cmd: '/clear',       desc: '清空当前对话' },
@@ -171,6 +185,14 @@ const SLASH_COMMANDS: { cmd: string; desc: string }[] = [
   { cmd: '/exit',        desc: '退出 Claude Code' },
 ];
 
+const PERMISSION_MODE_OPTIONS = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'plan', label: 'Plan' },
+  { value: 'acceptEdits', label: 'Accept Edits' },
+  { value: 'dontAsk', label: 'Don\'t Ask' },
+  { value: 'bypassPermissions', label: 'Bypass' },
+];
+
 export function ChatPanel() {
   // 精确订阅各自所需字段，避免无关 store 更新触发 ChatPanel 整体重渲
   const messages = useAppStore((s) => s.messages);
@@ -183,8 +205,12 @@ export function ChatPanel() {
   const setTodoItems = useAppStore((s) => s.setTodoItems);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const setTokenUsage = useAppStore((s) => s.setTokenUsage);
+  const tokenUsage = useAppStore((s) => s.tokenUsage);
   const addTokenRecord = useAppStore((s) => s.addTokenRecord);
   const currentModel = useAppStore((s) => s.currentModel);
+  const todoItems = useAppStore((s) => s.todoItems);
+  const activePlanSteps = useAppStore((s) => s.activePlanSteps);
+  const setActivePanel = useAppStore((s) => s.setActivePanel);
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
@@ -213,11 +239,17 @@ export function ChatPanel() {
   const [exporting, setExporting] = useState(false);
   // 模型快切（从 settings 读取当前值）
   const [localModel, setLocalModel] = useState('');
+  // 权限/执行模式快切（Claude Code 原生 permission-mode）
+  const [localPermissionMode, setLocalPermissionMode] = useState('auto');
+  const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
   // Agent 快切
   const [localAgent, setLocalAgent] = useState('');
   const [customAgentNames, setCustomAgentNames] = useState<string[]>([]);
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
+  // Claude Code PermissionRequest hook 触发的真实工具审批请求
+  const [permissionRequests, setPermissionRequests] = useState<PermissionRequestEvent[]>([]);
+  const [permissionRespondingId, setPermissionRespondingId] = useState<string | null>(null);
 
   /** 是否处于"继续上次会话"模式（下次发消息时用 --continue） */
   const [continueMode, setContinueMode] = useState(false);
@@ -237,6 +269,8 @@ export function ChatPanel() {
   const stderrErrShownRef = useRef(false);
   // 当前消息正在执行的工具调用列表
   const pendingToolCallsRef = useRef<ToolCall[]>([]);
+  // 当前 assistant 消息对应的步骤快照，保留到消息历史中
+  const currentPlanStepsRef = useRef<PlanStep[]>([]);
   // 当前对话的第一条用户消息（作为预览）
   const firstUserMessageRef = useRef<string>('');
   // 当前对话开始时间戳
@@ -287,6 +321,17 @@ export function ChatPanel() {
     }
   }, [runTypewriter]);
 
+  const updateCurrentAssistantMessage = useCallback((updates: Partial<Message>) => {
+    if (assistantIdRef.current) {
+      updateMessage(assistantIdRef.current, updates);
+    }
+  }, [updateMessage]);
+
+  const syncCurrentPlanSteps = useCallback((planSteps: PlanStep[]) => {
+    currentPlanStepsRef.current = planSteps;
+    updateCurrentAssistantMessage({ planSteps: [...planSteps] });
+  }, [updateCurrentAssistantMessage]);
+
   /**
    * 确保当前已有助手消息气泡，返回其 id
    * 若不存在则创建新的（含空 toolCalls 数组）
@@ -296,7 +341,8 @@ export function ChatPanel() {
       const id = `msg-${Date.now()}`;
       assistantIdRef.current = id;
       pendingToolCallsRef.current = [];
-      addMessage({ id, role: 'assistant', content: '', timestamp: Date.now(), toolCalls: [] });
+      currentPlanStepsRef.current = [];
+      addMessage({ id, role: 'assistant', content: '', timestamp: Date.now(), toolCalls: [], planSteps: [] });
     }
     return assistantIdRef.current;
   }, [addMessage]);
@@ -304,6 +350,29 @@ export function ChatPanel() {
   // 监听 cli:output 事件，完整处理 stream-json 所有类型
   useEffect(() => {
     const unsubscribe = window.electronAPI.onCliOutput((event) => {
+      if (event.type === 'permission-request') {
+        try {
+          const request = JSON.parse(event.data) as PermissionRequestEvent;
+          setPermissionRequests((prev) => (
+            prev.some((item) => item.id === request.id) ? prev : [...prev, request]
+          ));
+        } catch {
+          addMessage({ id: `msg-${Date.now()}-permission`, role: 'system', content: '权限审批请求解析失败。', timestamp: Date.now() });
+        }
+        return;
+      }
+
+      if (event.type === 'permission-resolved') {
+        try {
+          const resolved = JSON.parse(event.data) as { id?: string };
+          if (resolved.id) {
+            setPermissionRequests((prev) => prev.filter((item) => item.id !== resolved.id));
+            setPermissionRespondingId((current) => current === resolved.id ? null : current);
+          }
+        } catch { /* 忽略解析失败 */ }
+        return;
+      }
+
       if (event.type === 'message-chunk') {
         const lines = event.data.split('\n');
         let hasNewText = false;
@@ -333,7 +402,9 @@ export function ChatPanel() {
 
               // 实时计划步骤：添加 running 状态
               const { label, description } = formatPlanStep(toolUse.name, toolUse.input);
+              const nextPlanSteps = [...currentPlanStepsRef.current, { id: toolUse.id, toolName: toolUse.name, label, description, status: 'running' as const }];
               addPlanStep({ id: toolUse.id, toolName: toolUse.name, label, description, status: 'running' });
+              syncCurrentPlanSteps(nextPlanSteps);
 
               // 文件写入/编辑工具：异步读取执行前文件内容作为快照（用于 Checkpointing 回滚）
               const FILE_MODIFY_TOOLS = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
@@ -368,6 +439,11 @@ export function ChatPanel() {
 
                 // 实时计划步骤：标记为 done
                 updatePlanStep(res.tool_use_id, 'done');
+                syncCurrentPlanSteps(
+                  currentPlanStepsRef.current.map((step) =>
+                    step.id === res.tool_use_id ? { ...step, status: 'done' } : step,
+                  ),
+                );
 
                 // 解析 TodoWrite 的 input 参数（工具调用的 arguments.todos 字段）
                 const tc = pendingToolCallsRef.current[idx];
@@ -393,11 +469,15 @@ export function ChatPanel() {
                     const updatedCalls = msg.toolCalls!.map((tc, i) =>
                       i === tcIdx ? { ...tc, result: res.content, status: 'success' as const } : tc,
                     );
-                    updateMessage(msg.id, { toolCalls: updatedCalls });
+                    const updatedPlanSteps = (msg.planSteps ?? []).map((step) =>
+                      step.id === res.tool_use_id ? { ...step, status: 'done' as const } : step,
+                    );
+                    updateMessage(msg.id, { toolCalls: updatedCalls, planSteps: updatedPlanSteps });
                     updatePlanStep(res.tool_use_id, 'done');
                     // 重建 refs，确保同批次后续工具也能正确更新
                     assistantIdRef.current = msg.id;
                     pendingToolCallsRef.current = updatedCalls;
+                    currentPlanStepsRef.current = updatedPlanSteps;
                     break;
                   }
                 }
@@ -462,6 +542,9 @@ export function ChatPanel() {
         displayedLengthRef.current = 0;
         stderrErrShownRef.current = false;
         pendingToolCallsRef.current = [];
+        currentPlanStepsRef.current = [];
+        setPermissionRequests([]);
+        setPermissionRespondingId(null);
 
       } else if (event.type === 'message-stderr') {
         const stderrText = event.data;
@@ -497,10 +580,13 @@ export function ChatPanel() {
         displayedLengthRef.current = 0;
         stderrErrShownRef.current = false;
         pendingToolCallsRef.current = [];
+        currentPlanStepsRef.current = [];
+        setPermissionRequests([]);
+        setPermissionRespondingId(null);
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep, syncCurrentPlanSteps]);
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {
@@ -547,6 +633,7 @@ export function ChatPanel() {
     displayedLengthRef.current = 0;
     stderrErrShownRef.current = false;
     pendingToolCallsRef.current = [];
+    currentPlanStepsRef.current = [];
     if (!currentSessionId) {
       firstUserMessageRef.current = userMsg.slice(0, 100);
       conversationStartedAtRef.current = Date.now();
@@ -743,12 +830,28 @@ export function ChatPanel() {
     displayedLengthRef.current = 0;
     stderrErrShownRef.current = false;
     pendingToolCallsRef.current = [];
+    currentPlanStepsRef.current = [];
+    setPermissionRequests([]);
+    setPermissionRespondingId(null);
   }, [updateMessage, addMessage]);
 
-  /** 输入框上方横幅的审批操作 */
-  const handleApprovalAction = useCallback(async (allow: boolean) => {
-    await window.electronAPI.cliSendToStdin(allow ? 'y\n' : 'n\n');
-  }, []);
+  /** 输入框上方横幅的真实 PermissionRequest 审批操作 */
+  const handleApprovalAction = useCallback(async (request: PermissionRequestEvent, allow: boolean) => {
+    setPermissionRespondingId(request.id);
+    const result = await window.electronAPI.cliRespondPermission(request.id, allow);
+    if (!result.success) {
+      addMessage({
+        id: `msg-${Date.now()}-permission`,
+        role: 'system',
+        content: result.error || '权限审批响应失败。',
+        timestamp: Date.now(),
+      });
+      setPermissionRespondingId(null);
+      return;
+    }
+    setPermissionRequests((prev) => prev.filter((item) => item.id !== request.id));
+    setPermissionRespondingId(null);
+  }, [addMessage]);
 
   /** 开始编辑工作目录 */
   const handleWdEdit = useCallback(() => {
@@ -790,6 +893,29 @@ export function ChatPanel() {
     return `…/${parts.slice(-2).join('/')}`;
   }, [session.workingDirectory]);
 
+  const runOverview = useMemo(() => {
+    const toolCalls = messages.flatMap((msg) => msg.toolCalls ?? []);
+    const runningTools = toolCalls.filter((call) => call.status === 'pending').length;
+    const failedTools = toolCalls.filter((call) => call.status === 'error').length;
+    const doneTodos = todoItems.filter((item) => item.status === 'completed').length;
+    const runningStep = activePlanSteps.find((step) => step.status === 'running');
+    const latestStep = runningStep ?? activePlanSteps.at(-1);
+    const stateLabel = isProcessing ? '运行中' : session.isConnected ? '待命' : '未连接';
+    const stateTone = isProcessing ? 'running' : session.isConnected ? 'ready' : 'offline';
+    return {
+      stateLabel,
+      stateTone,
+      latestStep,
+      toolSummary: toolCalls.length === 0
+        ? '0'
+        : `${toolCalls.length}${runningTools ? ` · ${runningTools} 执行中` : ''}${failedTools ? ` · ${failedTools} 失败` : ''}`,
+      todoSummary: todoItems.length === 0 ? '0' : `${doneTodos}/${todoItems.length}`,
+      tokenSummary: tokenUsage
+        ? `${formatCompactTokens(tokenUsage.inputTokens, tokenUsage.outputTokens)} · ${formatCompactCost(tokenUsage.costUsd)}`
+        : '—',
+    };
+  }, [messages, todoItems, activePlanSteps, isProcessing, session.isConnected, tokenUsage]);
+
   // 搜索匹配的消息 ID 列表
   const matchingMsgIds = useMemo(() => {
     if (!searchQuery.trim()) return new Set<string>();
@@ -813,18 +939,7 @@ export function ChatPanel() {
     return atCurrentDirEntries.filter((e) => e.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 12);
   }, [atMenuOpen, atQuery, atCurrentDirEntries]);
 
-  // 检测最新的待审批 Bash 工具调用（supervised 模式）
-  const pendingApproval = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role !== 'assistant') continue;
-      const pending = m.toolCalls?.find(
-        (tc) => tc.status === 'pending' && (tc.name === 'Bash' || tc.name === 'bash'),
-      );
-      if (pending) return pending;
-    }
-    return null;
-  }, [messages]);
+  const pendingApproval = permissionRequests[0] ?? null;
 
   // Ctrl+F 打开搜索
   useEffect(() => {
@@ -849,7 +964,19 @@ export function ChatPanel() {
       if (res.success && res.settings?.model) {
         setLocalModel(res.settings.model);
       }
+      if (res.success && res.settings?.permissionMode) {
+        setLocalPermissionMode(res.settings.permissionMode);
+      }
+      if (res.success && typeof res.settings?.autoConnectOnLaunch === 'boolean') {
+        setAutoConnectOnLaunch(res.settings.autoConnectOnLaunch);
+      }
     });
+    window.electronAPI.loadCliConfig().then((res) => {
+      const mode = res.settings?.permissions?.mode;
+      if (res.success && typeof mode === 'string') {
+        setLocalPermissionMode(mode);
+      }
+    }).catch(() => { /* 原生配置不可用时沿用 GUI 设置 */ });
     // 加载自定义 Agent 列表
     window.electronAPI.agentList().then((res) => {
       if (res.success && res.agents) {
@@ -867,6 +994,26 @@ export function ChatPanel() {
       setCurrentStatus(model, res.settings.authMode ?? '');
     }
   }, [setCurrentStatus]);
+
+  const handlePermissionModeChange = useCallback(async (permissionMode: string) => {
+    setLocalPermissionMode(permissionMode);
+    const guiResult = await window.electronAPI.loadSettings();
+    if (guiResult.success && guiResult.settings) {
+      await window.electronAPI.saveSettings({ ...guiResult.settings, permissionMode });
+    }
+
+    const cliResult = await window.electronAPI.loadCliConfig();
+    if (cliResult.success) {
+      const currentSettings = cliResult.settings ?? {};
+      await window.electronAPI.saveCliConfig({
+        ...currentSettings,
+        permissions: {
+          ...(currentSettings.permissions ?? {}),
+          mode: permissionMode,
+        },
+      });
+    }
+  }, []);
 
   /** 导出会话为 Markdown */
   const handleExport = useCallback(async () => {
@@ -979,6 +1126,37 @@ export function ChatPanel() {
           </div>
         )}
 
+        <div className="run-overview-strip">
+          <div className={`run-overview-status ${runOverview.stateTone}`}>
+            <span className="run-overview-dot" />
+            <span>{runOverview.stateLabel}</span>
+          </div>
+          <div className="run-overview-main" title={runOverview.latestStep?.description || wdDisplayPath}>
+            <Activity size={13} />
+            <span className="run-overview-label">当前</span>
+            <span className="run-overview-value">
+              {runOverview.latestStep
+                ? `${runOverview.latestStep.label}${runOverview.latestStep.description ? ` · ${runOverview.latestStep.description}` : ''}`
+                : wdDisplayPath}
+            </span>
+          </div>
+          <button className="run-overview-metric" onClick={() => setActivePanel('tasks')} title="打开任务面板">
+            <ListChecks size={12} />
+            <span>任务</span>
+            <strong>{runOverview.todoSummary}</strong>
+          </button>
+          <button className="run-overview-metric" onClick={() => setActivePanel('tools')} title="打开工具调用">
+            <Wrench size={12} />
+            <span>工具</span>
+            <strong>{runOverview.toolSummary}</strong>
+          </button>
+          <button className="run-overview-metric" onClick={() => setActivePanel('cost')} title="打开成本面板">
+            <CircleDollarSign size={12} />
+            <span>成本</span>
+            <strong>{runOverview.tokenSummary}</strong>
+          </button>
+        </div>
+
         {messages.length === 0 && (
           <div className="empty-state">
             <div className="empty-state-icon">
@@ -1002,24 +1180,33 @@ export function ChatPanel() {
                     <p className="empty-state-desc">有什么可以帮你的？</p>
                     <div className="empty-state-suggestions">
                       {[
-                        { emoji: '📋', text: '审查当前项目代码' },
-                        { emoji: '🔧', text: '帮我修复 Bug' },
-                        { emoji: '📝', text: '创建一个新文件' },
-                        { emoji: '🔍', text: '解释这段代码' },
+                        { icon: <Search size={14} />, text: '审查当前项目代码' },
+                        { icon: <Wrench size={14} />, text: '帮我修复 Bug' },
+                        { icon: <FileCode size={14} />, text: '创建一个新文件' },
+                        { icon: <Activity size={14} />, text: '分析性能瓶颈' },
                       ].map((s) => (
                         <button
                           key={s.text}
                           className="suggestion-chip"
                           onClick={() => setInput(s.text)}
                         >
-                          <span>{s.emoji}</span>
+                          {s.icon}
                           {s.text}
                         </button>
                       ))}
                     </div>
                   </>
                 ) : (
-                  <p className="empty-state-desc">请先在左侧侧边栏启动 Claude Code 会话</p>
+                  <>
+                    <p className="empty-state-desc">
+                      {autoConnectOnLaunch ? '请先在左侧侧边栏启动 Claude Code 会话' : '自动连接已关闭，请手动启动 Claude Code'}
+                    </p>
+                    {!autoConnectOnLaunch && (
+                      <p className="empty-state-desc" style={{ marginTop: 4, opacity: 0.76 }}>
+                        可在设置的“会话”标签里重新开启自动连接
+                      </p>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -1132,19 +1319,29 @@ export function ChatPanel() {
             ))}
           </div>
         )}
-        {/* 命令审批横幅（有待审批 Bash 命令时显示于输入框上方） */}
+        {/* 命令审批横幅（真实 PermissionRequest hook 请求时显示于输入框上方） */}
         {pendingApproval && (
           <div className="approval-banner">
             <div className="approval-banner-cmd">
               <span style={{ color: '#7ee787', userSelect: 'none', marginRight: 6, fontSize: 13 }}>$</span>
               <code>
-                {String(pendingApproval.arguments?.command ?? '').split('\n')[0].slice(0, 120)}
+                {(pendingApproval.inputPreview || JSON.stringify(pendingApproval.toolInput)).slice(0, 120)}
               </code>
             </div>
             <div className="approval-banner-actions">
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>等待审批</span>
-              <button className="btn-approve" onClick={() => handleApprovalAction(true)}>✓ 允许</button>
-              <button className="btn-deny" onClick={() => handleApprovalAction(false)}>✗ 拒绝</button>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>
+                等待审批 · {pendingApproval.toolName}{permissionRequests.length > 1 ? ` +${permissionRequests.length - 1}` : ''}
+              </span>
+              <button
+                className="btn-approve"
+                disabled={permissionRespondingId === pendingApproval.id}
+                onClick={() => handleApprovalAction(pendingApproval, true)}
+              >✓ 允许</button>
+              <button
+                className="btn-deny"
+                disabled={permissionRespondingId === pendingApproval.id}
+                onClick={() => handleApprovalAction(pendingApproval, false)}
+              >✗ 拒绝</button>
             </div>
           </div>
         )}
@@ -1292,6 +1489,19 @@ export function ChatPanel() {
             <option value="claude-opus-4-7">Claude Opus 4.7</option>
             <option value="ark-code-latest">Ark Code Latest</option>
           </select>
+          <div className="chat-mode-select-wrap" title="切换 Claude Code 执行模式">
+            <Shield size={12} />
+            <select
+              value={localPermissionMode}
+              onChange={(e) => handlePermissionModeChange(e.target.value)}
+              disabled={!!session.conversationSessionId || isProcessing}
+              className="chat-mode-select"
+            >
+              {PERMISSION_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>模式: {option.label}</option>
+              ))}
+            </select>
+          </div>
           {/* Agent 快切 */}
           {customAgentNames.length > 0 && (
             <select
@@ -1348,11 +1558,68 @@ export function ChatPanel() {
 /** 工具调用折叠卡片 — memo 防止父消息文本更新时未变工具卡片重渲 */
 const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const messages = useAppStore((s) => s.messages);
+  const updateMessage = useAppStore((s) => s.updateMessage);
 
   const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
   const bashCommand = isBash
     ? (toolCall.arguments?.command as string | undefined) ?? ''
     : '';
+
+  const filePath = useMemo(() => {
+    return String(toolCall.arguments?.file_path ?? toolCall.arguments?.path ?? toolCall.arguments?.filename ?? '');
+  }, [toolCall.arguments]);
+
+  const isFileModifyTool = useMemo(() => {
+    return ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'].includes(toolCall.name);
+  }, [toolCall.name]);
+
+  const canReviewDiff = isFileModifyTool && toolCall.status === 'success' && !!filePath && toolCall.originalContent !== undefined;
+
+  const isLatestFileChange = useMemo(() => {
+    if (!canReviewDiff) return false;
+    let latestId = '';
+    for (const msg of messages) {
+      for (const call of msg.toolCalls ?? []) {
+        const callPath = String(call.arguments?.file_path ?? call.arguments?.path ?? call.arguments?.filename ?? '');
+        const isFileTool = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'].includes(call.name);
+        if (isFileTool && call.status === 'success' && callPath === filePath) {
+          latestId = call.id;
+        }
+      }
+    }
+    return latestId === toolCall.id;
+  }, [canReviewDiff, filePath, messages, toolCall.id]);
+
+  const patchToolCall = useCallback((updates: Partial<ToolCall>) => {
+    for (let mi = messages.length - 1; mi >= 0; mi--) {
+      const msg = messages[mi];
+      const idx = msg.toolCalls?.findIndex((call) => call.id === toolCall.id) ?? -1;
+      if (idx >= 0) {
+        const nextToolCalls = msg.toolCalls!.map((call, i) => i === idx ? { ...call, ...updates } : call);
+        updateMessage(msg.id, { toolCalls: nextToolCalls });
+        return;
+      }
+    }
+  }, [messages, toolCall.id, updateMessage]);
+
+  const handleAcceptDiff = useCallback(() => {
+    patchToolCall({ diffReviewStatus: 'accepted' });
+  }, [patchToolCall]);
+
+  const handleRejectDiff = useCallback(async () => {
+    if (!canReviewDiff || !isLatestFileChange || reviewBusy) return;
+    setReviewBusy(true);
+    try {
+      const result = await window.electronAPI.writeFile(filePath, toolCall.originalContent ?? '');
+      if (result.success) {
+        patchToolCall({ diffReviewStatus: 'reverted' });
+      }
+    } finally {
+      setReviewBusy(false);
+    }
+  }, [canReviewDiff, filePath, isLatestFileChange, patchToolCall, reviewBusy, toolCall.originalContent]);
 
   // 常见工具图标映射
   const toolIcon = useMemo(() => {
@@ -1410,7 +1677,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
                 padding: '4px 0 8px 0', fontSize: 11, color: 'var(--text-muted)',
               }}>
                 <span style={{ opacity: 0.6 }}>⏳</span>
-                <span>等待审批中，请在输入框上方操作</span>
+                <span>命令已提交，等待 Claude 返回执行结果</span>
               </div>
             )}
             {/* 执行结果 */}
@@ -1505,6 +1772,38 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               }
             </div>
           )}
+          {canReviewDiff && (
+            <div className="tool-call-section">
+              <div className="tool-call-section-label">变更确认</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="btn"
+                  onClick={handleAcceptDiff}
+                  disabled={reviewBusy || toolCall.diffReviewStatus === 'accepted'}
+                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Check size={11} />
+                  {toolCall.diffReviewStatus === 'accepted' ? '已接受' : '接受'}
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => void handleRejectDiff()}
+                  disabled={reviewBusy || !isLatestFileChange || toolCall.diffReviewStatus === 'reverted'}
+                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  title={isLatestFileChange ? '将文件回滚到本次修改前的内容' : '仅允许回滚该文件最新一次修改，避免覆盖后续变更'}
+                >
+                  <RotateCcw size={11} />
+                  {toolCall.diffReviewStatus === 'reverted' ? '已拒绝并回滚' : '拒绝'}
+                </button>
+                {reviewBusy && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>处理中…</span>
+                )}
+                {!isLatestFileChange && toolCall.diffReviewStatus !== 'reverted' && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>仅最新一次文件修改可直接回滚</span>
+                )}
+              </div>
+            </div>
+          )}
           {/* Read 工具结果：显示文件内容而非 JSON */}
           {toolCall.name === 'Read' && toolCall.result !== undefined && (
             <div className="tool-call-section">
@@ -1542,7 +1841,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
 });
 
 /** 消息气泡 — memo 防止流式输出时历史消息无效重渲 */
-const MessageBubble = memo(function MessageBubble({ msg, searchQuery: _searchQuery = '', isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1596,6 +1895,25 @@ const MessageBubble = memo(function MessageBubble({ msg, searchQuery: _searchQue
     return preview.length > 140 ? preview.slice(0, 140) + '…' : preview;
   }, [msg.thinking]);
 
+  const turnSummary = useMemo(() => {
+    if (isUser || !msg.planSteps || msg.planSteps.length === 0) return null;
+    const runningCount = msg.planSteps.filter((step) => step.status === 'running').length;
+    if (runningCount > 0) return null;
+    const doneCount = msg.planSteps.filter((step) => step.status === 'done').length;
+    const errorCount = msg.planSteps.filter((step) => step.status === 'error').length;
+    const toolCount = msg.toolCalls?.length ?? 0;
+    return {
+      statusLabel: errorCount > 0 ? '本轮已结束（含失败步骤）' : '本轮已完成',
+      statusTone: errorCount > 0 ? 'var(--error-text, #f85149)' : 'var(--success-text)',
+      metrics: [
+        `${msg.planSteps.length} 个步骤`,
+        `${doneCount} 已完成`,
+        errorCount > 0 ? `${errorCount} 失败` : null,
+        toolCount > 0 ? `${toolCount} 个工具调用` : null,
+      ].filter(Boolean) as string[],
+    };
+  }, [isUser, msg.planSteps, msg.toolCalls]);
+
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(msg.content);
@@ -1626,6 +1944,37 @@ const MessageBubble = memo(function MessageBubble({ msg, searchQuery: _searchQue
           <span className="message-sender">{isUser ? '你' : 'Claude'}</span>
           <span className="message-time">{formatTime(msg.timestamp)}</span>
         </div>
+
+        {!isUser && msg.planSteps && msg.planSteps.length > 0 && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            marginBottom: 12,
+            padding: '10px 12px',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            background: 'var(--bg-secondary)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--accent-color)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              <Activity size={12} />
+              <span>本轮步骤</span>
+            </div>
+            {msg.planSteps.map((step) => (
+              <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, opacity: step.status === 'done' ? 0.7 : 1 }}>
+                <div style={{ flexShrink: 0, marginTop: 1, color: step.status === 'done' ? 'var(--success-text)' : step.status === 'error' ? 'var(--error-text, #f85149)' : 'var(--accent-color)' }}>
+                  {step.status === 'running' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : step.status === 'done' ? <Check size={13} /> : <X size={13} />}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{step.label}</div>
+                  {step.description && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-word' }}>{step.description}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 工具调用列表（assistant 消息） */}
         {!isUser && msg.toolCalls && msg.toolCalls.length > 0 && (
@@ -1675,6 +2024,41 @@ const MessageBubble = memo(function MessageBubble({ msg, searchQuery: _searchQue
             className="message-content message-content-assistant markdown-body"
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
+        )}
+
+        {!isUser && turnSummary && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            marginTop: 12,
+            padding: '10px 12px',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: turnSummary.statusTone }}>
+              <Check size={13} />
+              <span>{turnSummary.statusLabel}</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {turnSummary.metrics.map((metric) => (
+                <span
+                  key={metric}
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  {metric}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

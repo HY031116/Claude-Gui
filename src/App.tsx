@@ -151,11 +151,19 @@ function App() {
 
   // 启动时加载设置到 store，供状态栏展示
   useEffect(() => {
-    window.electronAPI.loadSettings().then((res) => {
-      if (res.success && res.settings) {
-        setCurrentStatus(res.settings.model ?? '', res.settings.authMode ?? '');
-      }
-    });
+    window.electronAPI.loadSettings()
+      .then((res) => {
+        if (res.success && res.settings) {
+          setCurrentStatus(res.settings.model ?? '', res.settings.authMode ?? '');
+          setAutoConnectOnLaunch(res.settings.autoConnectOnLaunch ?? true);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load startup settings:', error);
+      })
+      .finally(() => {
+        setStartupSettingsLoaded(true);
+      });
   }, [setCurrentStatus]);
 
   // Buffer for accumulating terminal output to detect interactive prompts
@@ -165,12 +173,15 @@ function App() {
   const compatibilityRestartPending = useRef(false);
   const compatibilityFallbackUsed = useRef(false);
   const skipNextExitCleanup = useRef(false);
+  const autoConnectAttempted = useRef(false);
 
   // RAF 批次写入终端行，避免高频输出时每行一次 setState
   const terminalLineBuffer = useRef<TerminalLine[]>([]);
   const terminalRafPending = useRef(false);
 
   const [autofillStatus, setAutofillStatus] = useState<string | null>(null);
+  const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
+  const [startupSettingsLoaded, setStartupSettingsLoaded] = useState(false);
 
   const appendSystemStatus = useCallback((content: string) => {
     addMessage({
@@ -356,7 +367,17 @@ function App() {
     setPendingPrompt(null);
   }, [setPendingPrompt, setSession]);
 
+  useEffect(() => {
+    if (!startupSettingsLoaded || !autoConnectOnLaunch || autoConnectAttempted.current || session.isConnected) {
+      return;
+    }
+
+    autoConnectAttempted.current = true;
+    void handleStartSession();
+  }, [autoConnectOnLaunch, handleStartSession, session.isConnected, startupSettingsLoaded]);
+
   const [showSettings, setShowSettings] = useState(false);
+  const [chatInspectorVisible, setChatInspectorVisible] = useState(false);
   // Tab 内联重命名状态
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -381,6 +402,11 @@ function App() {
     { id: 'rules' as const, label: '权限规则', icon: Shield },
     { id: 'cost' as const, label: '成本', icon: TrendingUp },
   ];
+
+  const isChatWorkspace = activePanel === 'chat' && !showSettings;
+  const workspaceLabel = session.workingDirectory
+    ? session.workingDirectory.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() || session.workingDirectory
+    : '未选择项目';
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 24px)', width: '100vw', overflow: 'hidden' }}>
@@ -466,7 +492,7 @@ function App() {
       </div>
 
       {/* Sidebar Content */}
-      {sidebarVisible && (
+      {sidebarVisible && !isChatWorkspace && (
         <>
         <div
           style={{
@@ -631,114 +657,175 @@ function App() {
           <CostPanel />
         ) : (
           <>
-            {/* 多会话标签条 */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: 'var(--bg-secondary)',
-              borderBottom: '1px solid var(--border-color)',
-              flexShrink: 0,
-              minHeight: 32,
-              overflowX: 'auto',
-              overflowY: 'hidden',
-            }}>
-              {tabs.map((tab) => (
-                <div
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setRenamingTabId(tab.id);
-                    setRenameValue(tab.label);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    borderRight: '1px solid var(--border-color)',
-                    borderBottom: tab.id === activeTabId ? '2px solid var(--accent-color)' : '2px solid transparent',
-                    background: tab.id === activeTabId ? 'var(--bg-primary)' : 'transparent',
-                    color: tab.id === activeTabId ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    userSelect: 'none',
-                  }}
-                >
-                  {renamingTabId === tab.id ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => {
-                        const trimmed = renameValue.trim();
-                        if (trimmed) renameTab(tab.id, trimmed);
-                        setRenamingTabId(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const trimmed = renameValue.trim();
-                          if (trimmed) renameTab(tab.id, trimmed);
-                          setRenamingTabId(null);
-                        } else if (e.key === 'Escape') {
-                          setRenamingTabId(null);
-                        }
-                        e.stopPropagation();
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        fontSize: 12,
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--accent-color)',
-                        borderRadius: 3,
-                        color: 'var(--text-primary)',
-                        padding: '0 4px',
-                        width: Math.max(60, renameValue.length * 8),
-                        outline: 'none',
-                      }}
-                    />
-                  ) : (
-                    <span title="双击重命名">{tab.label}</span>
-                  )}
-                  {tabs.length > 1 && (
+            <div className={`workspace-shell ${chatInspectorVisible ? 'with-inspector' : ''}`}>
+              <div className="workspace-main-column">
+                <div className="workspace-topbar">
+                  <div>
+                    <div className="workspace-topbar-eyebrow">对话工作区</div>
+                    <div className="workspace-topbar-title-row">
+                      <strong>{workspaceLabel}</strong>
+                      {session.isConnected && (
+                        <span className="workspace-topbar-pill connected">
+                          Claude 已连接
+                        </span>
+                      )}
+                      {session.conversationSessionId && (
+                        <span className="workspace-topbar-pill">
+                          会话 {session.conversationSessionId.slice(0, 8)}…
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="workspace-topbar-actions">
+                    {session.isConnected && currentModel && <span className="workspace-topbar-chip">{currentModel}</span>}
+                    {session.isConnected && currentAuthMode && (
+                      <span className="workspace-topbar-chip">
+                        {currentAuthMode === 'api-key' ? 'API Key' : 'Claude 账户'}
+                      </span>
+                    )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        fontSize: 13,
-                        lineHeight: 1,
-                        padding: '0 2px',
-                        marginLeft: 2,
-                        borderRadius: 3,
-                      }}
-                      title="关闭标签"
-                    >×</button>
-                  )}
+                      className="workspace-toolbar-btn"
+                      onClick={() => setChatInspectorVisible((visible) => !visible)}
+                      title={chatInspectorVisible ? '隐藏右侧检查栏' : '显示右侧检查栏'}
+                    >
+                      {chatInspectorVisible ? <PanelRight size={14} /> : <PanelLeft size={14} />}
+                      {chatInspectorVisible ? '隐藏侧栏' : '显示侧栏'}
+                    </button>
+                  </div>
                 </div>
-              ))}
-              {/* 新建标签按钮 */}
-              <button
-                onClick={() => addTab()}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-muted)',
-                  fontSize: 16,
-                  padding: '2px 10px',
-                  lineHeight: 1,
-                  flexShrink: 0,
-                }}
-                title="新建会话标签 (Ctrl+T)"
-              >+</button>
+
+                {/* 多会话标签条 */}
+                <div className="session-tab-bar">
+                  {tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setRenamingTabId(tab.id);
+                        setRenameValue(tab.label);
+                      }}
+                      className={`session-tab${tab.id === activeTabId ? ' active' : ''}`}
+                    >
+                      {renamingTabId === tab.id ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => {
+                            const trimmed = renameValue.trim();
+                            if (trimmed) renameTab(tab.id, trimmed);
+                            setRenamingTabId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const trimmed = renameValue.trim();
+                              if (trimmed) renameTab(tab.id, trimmed);
+                              setRenamingTabId(null);
+                            } else if (e.key === 'Escape') {
+                              setRenamingTabId(null);
+                            }
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="session-tab-rename-input"
+                          style={{ width: Math.max(60, renameValue.length * 8) }}
+                        />
+                      ) : (
+                        <span className="session-tab-label" title="双击重命名">{tab.label}</span>
+                      )}
+                      {tabs.length > 1 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                          className="session-tab-close"
+                          title="关闭标签"
+                        >×</button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => addTab()}
+                    className="session-tab-new"
+                    title="新建会话标签 (Ctrl+T)"
+                  >+</button>
+                </div>
+                <ChatPanel key={activeTabId} />
+                <TerminalPanel />
+              </div>
+
+              {chatInspectorVisible && (
+                <aside className="workspace-inspector">
+                  <div className="workspace-inspector-card workspace-inspector-hero">
+                    <div className="workspace-inspector-kicker">当前项目</div>
+                    <div className="workspace-inspector-title">{workspaceLabel}</div>
+                    <div className="workspace-inspector-path" title={session.workingDirectory || '未设置工作目录'}>
+                      {session.workingDirectory || '尚未设置工作目录'}
+                    </div>
+                    <div className="workspace-inspector-stats">
+                      <div className="workspace-stat-tile">
+                        <span>连接状态</span>
+                        <strong>{session.isConnected ? '在线' : '离线'}</strong>
+                      </div>
+                      <div className="workspace-stat-tile">
+                        <span>标签页</span>
+                        <strong>{tabs.length}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="workspace-inspector-card">
+                    <div className="workspace-card-header">
+                      <span>会话控制</span>
+                      {currentModel && <span className="workspace-card-muted">{currentModel}</span>}
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>
+                        工作目录
+                      </label>
+                      <input
+                        type="text"
+                        className="input"
+                        value={session.workingDirectory}
+                        onChange={(e) => setSession({ workingDirectory: e.target.value })}
+                        placeholder="选择工作目录..."
+                        style={{ fontSize: 12 }}
+                      />
+                    </div>
+                    <div className="workspace-inspector-actions">
+                      {session.isConnected ? (
+                        <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleStopSession}>
+                          断开连接
+                        </button>
+                      ) : (
+                        <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleStartSession}>
+                          启动 Claude Code
+                        </button>
+                      )}
+                    </div>
+                    <div className="workspace-inline-meta">
+                      {currentAuthMode && (
+                        <span className="workspace-topbar-chip">
+                          {currentAuthMode === 'api-key' ? 'API Key 认证' : 'Claude 账户认证'}
+                        </span>
+                      )}
+                      <span className="workspace-topbar-chip">
+                        {session.conversationSessionId ? '续接旧会话' : '新对话模式'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="workspace-inspector-card workspace-inspector-list-card">
+                    <div className="workspace-card-header">
+                      <span>最近会话</span>
+                      <span className="workspace-card-muted">按项目聚合</span>
+                    </div>
+                    <div className="workspace-session-list-wrap">
+                      <SessionList />
+                    </div>
+                  </div>
+                </aside>
+              )}
             </div>
-            <ChatPanel key={activeTabId} />
-            <TerminalPanel />
           </>
         )}
       </div>
@@ -749,13 +836,13 @@ function App() {
         <span className="status-item">
           {session.isConnected ? '已连接' : '未连接'}
         </span>
-        {currentModel && (
+        {session.isConnected && currentModel && (
           <>
             <span className="status-sep">|</span>
             <span className="status-item">{currentModel}</span>
           </>
         )}
-        {currentAuthMode && (
+        {session.isConnected && currentAuthMode && (
           <>
             <span className="status-sep">|</span>
             <span className="status-item">
@@ -763,7 +850,7 @@ function App() {
             </span>
           </>
         )}
-        {tokenUsage && (
+        {session.isConnected && tokenUsage && (
           <>
             <span className="status-sep">|</span>
             <span className="status-item status-tokens" title={`输入 ${tokenUsage.inputTokens.toLocaleString()} tokens，输出 ${tokenUsage.outputTokens.toLocaleString()} tokens${tokenUsage.costUsd != null ? `，费用 $${tokenUsage.costUsd.toFixed(4)}` : ''}`}>

@@ -1,64 +1,10 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Settings, Check, X, Loader2, Database } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import { TabBar } from './TabBar';
 import type { AppSettings, AuthStatus } from '../types';
 import { ModelTab, PermissionsTab, SessionTab, ConnectionTab, IntegrationsTab } from './settings';
-
-const MODEL_OPTIONS = [
-  { value: 'default', label: '默认 (default)' },
-  { value: 'sonnet', label: 'Sonnet (推荐)' },
-  { value: 'opus', label: 'Opus (最�?' },
-  { value: 'haiku', label: 'Haiku (最�?' },
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
-  { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'AWS Bedrock Sonnet v2' },
-  { value: 'anthropic/claude-3.5-sonnet', label: 'OpenRouter Claude 3.5 Sonnet' },
-  { value: 'meta/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
-];
-
-const EFFORT_LEVELS = [
-  { value: 'low', label: '�? },
-  { value: 'medium', label: '�?(默认)' },
-  { value: 'high', label: '�? },
-  { value: 'xhigh', label: '超高 (xhigh)' },
-  { value: 'max', label: '最�?(max)' },
-];
-
-const CONFIG_PRESETS: Array<{
-  id: string;
-  label: string;
-  description: string;
-  settings: Partial<AppSettings>;
-}> = [
-  {
-    id: 'developer',
-    label: '开发模�?,
-    description: 'Sonnet + 高努�?,
-    settings: {
-      model: 'sonnet',
-      effortLevel: 'high',
-    } as Partial<AppSettings>,
-  },
-  {
-    id: 'power',
-    label: '强力模式',
-    description: 'Opus + 最高努�?,
-    settings: {
-      model: 'opus',
-      effortLevel: 'max',
-    } as Partial<AppSettings>,
-  },
-  {
-    id: 'fast',
-    label: '快速模�?,
-    description: 'Haiku + 低努�?,
-    settings: {
-      model: 'haiku',
-      effortLevel: 'low',
-    } as Partial<AppSettings>,
-  },
-];
+import { CONFIG_PRESETS } from './settings/constants';
 
 export function SettingsPanel() {
   const { setCurrentStatus } = useAppStore();
@@ -72,6 +18,7 @@ export function SettingsPanel() {
     authMode: 'official',
     model: 'sonnet',
     permissionMode: 'auto',
+    autoConnectOnLaunch: true,
     allowedTools: 'default',
     extraArgs: '',
     useBareMode: false,
@@ -85,20 +32,12 @@ export function SettingsPanel() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState<'model' | 'permissions' | 'session' | 'connection' | 'integrations'>('model');
 
-  // MCP 服务器状�?  const [mcpServers, setMcpServers] = useState<Record<string, any>>({});
-  // Plugins 状�?  const [enabledPlugins, setEnabledPlugins] = useState<Record<string, boolean>>({});
-  // 可用 agents 列表（从 CLI 加载�?  const [availableAgents, setAvailableAgents] = useState<Array<{ name: string; model: string; type: 'builtin' | 'custom' }>>([]);
-
-  // Load settings on mount
-  useEffect(() => {
-    loadSettings();
-    // 加载 agent 列表
-    window.electronAPI?.listAgents?.().then((result) => {
-      if (result?.success && result.agents) {
-        setAvailableAgents(result.agents);
-      }
-    });
-  }, []);
+  // MCP 服务器状态
+  const [mcpServers, setMcpServers] = useState<Record<string, any>>({});
+  // Plugins 状态
+  const [enabledPlugins, setEnabledPlugins] = useState<Record<string, boolean>>({});
+  // 可用 agents 列表（从 CLI 加载）
+  const [availableAgents, setAvailableAgents] = useState<Array<{ name: string; model: string; type: 'builtin' | 'custom' }>>([]);
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -127,7 +66,8 @@ export function SettingsPanel() {
           permissionDeny: nativeResult.settings.permissions?.deny ?? prev.permissionDeny,
           permissionAsk: nativeResult.settings.permissions?.ask ?? prev.permissionAsk,
         }));
-        // 初始�?MCP �?Plugins 状�?        setMcpServers(nativeResult.settings.mcpServers ?? {});
+        // 初始化 MCP 和 Plugins 状态
+        setMcpServers(nativeResult.settings.mcpServers ?? {});
         setEnabledPlugins(nativeResult.settings.enabledPlugins ?? {});
       }
 
@@ -140,6 +80,7 @@ export function SettingsPanel() {
           authMode: guiResult.settings.authMode || prev.authMode,
           apiBaseUrl: guiResult.settings.apiBaseUrl || prev.apiBaseUrl,
           httpProxy: guiResult.settings.httpProxy || prev.httpProxy,
+          autoConnectOnLaunch: guiResult.settings.autoConnectOnLaunch ?? prev.autoConnectOnLaunch,
           useBareMode: guiResult.settings.useBareMode !== undefined ? guiResult.settings.useBareMode : prev.useBareMode,
           extraArgs: guiResult.settings.extraArgs || prev.extraArgs,
           disallowedTools: guiResult.settings.disallowedTools ?? prev.disallowedTools,
@@ -178,6 +119,17 @@ export function SettingsPanel() {
       setIsLoading(false);
     }
   }, []);
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+    // 加载 agent 列表
+    window.electronAPI?.listAgents?.().then((result) => {
+      if (result?.success && result.agents) {
+        setAvailableAgents(result.agents);
+      }
+    });
+  }, [loadSettings]);
 
   const applyPreset = useCallback((presetId: string) => {
     const preset = CONFIG_PRESETS.find(p => p.id === presetId);
@@ -230,7 +182,7 @@ export function SettingsPanel() {
       console.error('Failed to save settings:', error);
       setSaveStatus('error');
     }
-  }, [settings, useNativeConfig, loadSettings]);
+  }, [settings, useNativeConfig, loadSettings, mcpServers, enabledPlugins, setCurrentStatus]);
 
 
   if (isLoading) {
@@ -261,7 +213,7 @@ export function SettingsPanel() {
             onChange={(e) => setUseNativeConfig(e.target.checked)}
             style={{ cursor: 'pointer' }}
           />
-          <span>�?VSCode Claude Code 插件共享配置</span>
+          <span>与 VSCode Claude Code 插件共享配置</span>
         </label>
         {nativeConfigPath && (
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, fontFamily: 'monospace', wordBreak: 'break-all' }}>
@@ -270,12 +222,12 @@ export function SettingsPanel() {
         )}
         {nativeSettings && (
           <div style={{ fontSize: 11, color: 'var(--success-text)', marginTop: 4 }}>
-            �?已加�?{Object.keys(nativeSettings).length} 个配置项
+            ✓ 已加载{Object.keys(nativeSettings).length} 个配置项
           </div>
         )}
       </div>
 
-      {/* Tab 导航�?*/}
+      {/* Tab 导航栏 */}
       <TabBar
         tabs={[
           { key: 'model', label: '模型' },
@@ -331,15 +283,15 @@ export function SettingsPanel() {
         {saveStatus === 'saved' && <Check size={14} />}
         {saveStatus === 'error' && <X size={14} />}
         {saveStatus === 'idle' && '保存设置'}
-        {saveStatus === 'saving' && '保存�?..'}
-        {saveStatus === 'saved' && '已保�?}
+        {saveStatus === 'saving' && '保存中..'}
+        {saveStatus === 'saved' && '已保存'}
         {saveStatus === 'error' && '保存失败'}
       </button>
 
       {/* VSCode Link */}
       <div style={{ marginTop: 16, textAlign: 'center' }}>
         <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          保存后设置将�?VSCode Claude Code 插件自动同步
+          保存后设置将与 VSCode Claude Code 插件自动同步
         </p>
       </div>
 

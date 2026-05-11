@@ -86,6 +86,10 @@ ipcMain.handle('cli:sendToStdin', async (_event, data: string) => {
   return cliService.sendToMessageStdin(data);
 });
 
+ipcMain.handle('cli:respondPermission', async (_event, requestId: string, allow: boolean) => {
+  return cliService.respondPermissionRequest(requestId, allow);
+});
+
 // IPC handlers for filesystem
 ipcMain.handle('fs:list', async (_, dirPath: string) => {
   return fileService.listDirectory(dirPath);

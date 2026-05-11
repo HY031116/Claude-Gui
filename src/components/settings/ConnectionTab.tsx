@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { AppSettings, AuthStatus } from '../../types';
 
 interface ConnectionTabProps {

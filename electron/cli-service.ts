@@ -1,5 +1,7 @@
 import { BrowserWindow } from 'electron';
 import { spawnSync, spawn, ChildProcess } from 'child_process';
+import { randomUUID } from 'crypto';
+import * as http from 'http';
 import * as path from 'path';
 import * as pty from 'node-pty';
 import * as os from 'os';
@@ -78,11 +80,45 @@ export interface CliStartOptions {
   forceBareMode?: boolean;
 }
 
+interface PermissionHookPayload {
+  tool_name?: string;
+  toolName?: string;
+  tool_input?: Record<string, unknown>;
+  toolInput?: Record<string, unknown>;
+  permission_suggestions?: unknown;
+  permissionSuggestions?: unknown;
+  [key: string]: unknown;
+}
+
+interface PermissionRequestForRenderer {
+  id: string;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  inputPreview: string;
+  suggestions?: unknown;
+}
+
+type PermissionDecision =
+  | { behavior: 'allow'; updatedInput: Record<string, unknown> }
+  | { behavior: 'deny'; message: string };
+
+interface PendingPermissionRequest {
+  request: PermissionRequestForRenderer;
+  resolve: (decision: PermissionDecision) => void;
+  timer: NodeJS.Timeout;
+}
+
 export class CliService {
   private process: pty.IPty | null = null;
   private isReady = false;
   private config: CliConfig = {};
   private activeMessageProcess: ChildProcess | null = null;
+  private permissionServer: http.Server | null = null;
+  private permissionServerPort: number | null = null;
+  private permissionServerPromise: Promise<number> | null = null;
+  private pendingPermissionRequests = new Map<string, PendingPermissionRequest>();
+  private readonly permissionMcpServerName = 'claude_code_gui_permission';
+  private readonly permissionMcpToolName = 'gui_permission_prompt';
 
   setConfig(config: CliConfig): void {
     this.config = { ...this.config, ...config };
@@ -321,7 +357,7 @@ export class CliService {
    * 非交互模式发送消息：使用 claude -p --output-format stream-json
    * 每条消息独立启动子进程，流式推送响应到渲染进程
    */
-  sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string): { success: boolean; error?: string } {
+  async sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string): Promise<{ success: boolean; error?: string }> {
     // 如果有正在运行的消息进程，先终止
     if (this.activeMessageProcess) {
       this.activeMessageProcess.kill();
@@ -429,6 +465,34 @@ export class CliService {
       }
     }
 
+    try {
+      const permissionPort = await this.ensurePermissionServer();
+      const mcpConfig = this.buildPermissionMcpConfig(permissionPort);
+      args.push(
+        '--mcp-config', JSON.stringify(mcpConfig),
+        '--permission-prompt-tool', `mcp__${this.permissionMcpServerName}__${this.permissionMcpToolName}`,
+        '--settings', JSON.stringify({
+          hooks: {
+            PermissionRequest: [
+              {
+                matcher: '*',
+                hooks: [
+                  {
+                    type: 'http',
+                    url: `http://127.0.0.1:${permissionPort}/permission-request`,
+                    timeout: 3600,
+                    statusMessage: '等待 GUI 审批工具权限',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+    } catch (err) {
+      return { success: false, error: `启动权限审批桥失败：${String(err)}` };
+    }
+
     // 准备环境变量
     const env: NodeJS.ProcessEnv = { ...process.env };
 
@@ -491,12 +555,14 @@ export class CliService {
       child.on('exit', (code) => {
         console.log('[CLI] sendMessage process exited with code:', code);
         this.activeMessageProcess = null;
+        this.cancelPendingPermissionRequests('Claude 进程已结束，审批请求已取消。');
         this.emit('message-done', String(code ?? 0));
       });
 
       child.on('error', (err) => {
         console.error('[CLI] sendMessage spawn error:', err);
         this.activeMessageProcess = null;
+        this.cancelPendingPermissionRequests('Claude 进程启动失败，审批请求已取消。');
         this.emit('message-error', String(err));
       });
 
@@ -511,8 +577,27 @@ export class CliService {
     if (this.activeMessageProcess) {
       this.activeMessageProcess.kill();
       this.activeMessageProcess = null;
+      this.cancelPendingPermissionRequests('用户已停止生成，审批请求已取消。');
       this.emit('message-done', '-1');
     }
+    return { success: true };
+  }
+
+  respondPermissionRequest(requestId: string, allow: boolean): { success: boolean; error?: string } {
+    const pending = this.pendingPermissionRequests.get(requestId);
+    if (!pending) {
+      return { success: false, error: '审批请求不存在或已结束' };
+    }
+
+    this.pendingPermissionRequests.delete(requestId);
+    clearTimeout(pending.timer);
+
+    const decision: PermissionDecision = allow
+      ? { behavior: 'allow', updatedInput: pending.request.toolInput }
+      : { behavior: 'deny', message: '用户在 Claude Code GUI 中拒绝了此工具调用。' };
+
+    pending.resolve(decision);
+    this.emit('permission-resolved', JSON.stringify({ id: requestId, behavior: decision.behavior }));
     return { success: true };
   }
 
@@ -537,6 +622,182 @@ export class CliService {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('cli:output', { type, data });
     });
+  }
+
+  private ensurePermissionServer(): Promise<number> {
+    if (this.permissionServerPort) return Promise.resolve(this.permissionServerPort);
+    if (this.permissionServerPromise) return this.permissionServerPromise;
+
+    this.permissionServerPromise = new Promise((resolve, reject) => {
+      const server = http.createServer((req, res) => {
+        void this.handlePermissionHookRequest(req, res);
+      });
+
+      server.on('error', (err) => {
+        this.permissionServer = null;
+        this.permissionServerPort = null;
+        this.permissionServerPromise = null;
+        reject(err);
+      });
+
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+          reject(new Error('无法获取权限审批桥端口'));
+          return;
+        }
+        this.permissionServer = server;
+        this.permissionServerPort = address.port;
+        resolve(address.port);
+      });
+    });
+
+    return this.permissionServerPromise;
+  }
+
+  private buildPermissionMcpConfig(permissionPort: number): Record<string, unknown> {
+    const serverPath = path.join(__dirname, 'permission-prompt-server.js');
+    return {
+      mcpServers: {
+        [this.permissionMcpServerName]: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [serverPath],
+          env: {
+            ELECTRON_RUN_AS_NODE: '1',
+            CLAUDE_GUI_PERMISSION_URL: `http://127.0.0.1:${permissionPort}/permission-tool`,
+          },
+        },
+      },
+    };
+  }
+
+  private async handlePermissionHookRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (req.method !== 'POST') {
+      this.writeJsonResponse(res, 404, { error: 'Not found' });
+      return;
+    }
+
+    const route = req.url?.split('?')[0];
+    if (route === '/permission-tool') {
+      await this.handlePermissionToolRequest(req, res);
+      return;
+    }
+
+    if (route !== '/permission-request') {
+      this.writeJsonResponse(res, 404, { error: 'Not found' });
+      return;
+    }
+
+    try {
+      const body = await this.readRequestBody(req);
+      const payload = JSON.parse(body || '{}') as PermissionHookPayload;
+      const request = this.createPermissionRequest(payload);
+      const decision = await this.waitForPermissionDecision(request);
+
+      this.writeJsonResponse(res, 200, {
+        hookSpecificOutput: {
+          hookEventName: 'PermissionRequest',
+          decision,
+        },
+      });
+    } catch (err) {
+      this.writeJsonResponse(res, 200, {
+        hookSpecificOutput: {
+          hookEventName: 'PermissionRequest',
+          decision: {
+            behavior: 'deny',
+            message: `GUI 权限审批桥处理失败：${String(err)}`,
+          },
+        },
+      });
+    }
+  }
+
+  private async handlePermissionToolRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      const body = await this.readRequestBody(req);
+      const payload = JSON.parse(body || '{}') as PermissionHookPayload;
+      const request = this.createPermissionRequest(payload);
+      const decision = await this.waitForPermissionDecision(request);
+      this.writeJsonResponse(res, 200, decision);
+    } catch (err) {
+      this.writeJsonResponse(res, 200, {
+        behavior: 'deny',
+        message: `GUI 权限审批桥处理失败：${String(err)}`,
+      });
+    }
+  }
+
+  private readRequestBody(req: http.IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      req.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > 1024 * 1024) {
+          reject(new Error('权限请求体过大'));
+          req.destroy();
+          return;
+        }
+        chunks.push(chunk);
+      });
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      req.on('error', reject);
+    });
+  }
+
+  private createPermissionRequest(payload: PermissionHookPayload): PermissionRequestForRenderer {
+    const toolName = String(payload.tool_name ?? payload.toolName ?? payload.tool ?? payload.name ?? '工具调用');
+    const rawToolInput = payload.tool_input ?? payload.toolInput ?? payload.input ?? {};
+    const toolInput = rawToolInput && typeof rawToolInput === 'object' && !Array.isArray(rawToolInput)
+      ? rawToolInput as Record<string, unknown>
+      : {};
+
+    return {
+      id: randomUUID(),
+      toolName,
+      toolInput,
+      inputPreview: this.formatPermissionInput(toolName, toolInput),
+      suggestions: payload.permission_suggestions ?? payload.permissionSuggestions ?? payload.suggestions,
+    };
+  }
+
+  private waitForPermissionDecision(request: PermissionRequestForRenderer): Promise<PermissionDecision> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingPermissionRequests.delete(request.id);
+        resolve({ behavior: 'deny', message: 'GUI 权限审批超时，已自动拒绝工具调用。' });
+        this.emit('permission-resolved', JSON.stringify({ id: request.id, behavior: 'deny', timeout: true }));
+      }, 60 * 60 * 1000);
+
+      this.pendingPermissionRequests.set(request.id, { request, resolve, timer });
+      this.emit('permission-request', JSON.stringify(request));
+    });
+  }
+
+  private cancelPendingPermissionRequests(message: string): void {
+    for (const [id, pending] of this.pendingPermissionRequests) {
+      clearTimeout(pending.timer);
+      pending.resolve({ behavior: 'deny', message });
+      this.emit('permission-resolved', JSON.stringify({ id, behavior: 'deny', cancelled: true }));
+    }
+    this.pendingPermissionRequests.clear();
+  }
+
+  private writeJsonResponse(res: http.ServerResponse, statusCode: number, body: unknown): void {
+    res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(body));
+  }
+
+  private formatPermissionInput(toolName: string, input: Record<string, unknown>): string {
+    const name = toolName.toLowerCase();
+    if (name === 'bash' || name === 'shell') {
+      return String(input.command ?? '').split('\n')[0].slice(0, 200);
+    }
+    const pathLike = input.file_path ?? input.path ?? input.filename;
+    if (typeof pathLike === 'string') return pathLike;
+    return JSON.stringify(input).slice(0, 200);
   }
 
   private checkOfficialAuth(claudePath: string): ClaudeAuthStatus {

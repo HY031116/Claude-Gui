@@ -8,6 +8,20 @@ interface SessionTabProps {
 export function SessionTab({ settings, setSettings }: SessionTabProps) {
   return (
     <>
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={settings.autoConnectOnLaunch}
+            onChange={(e) => setSettings({ ...settings, autoConnectOnLaunch: e.target.checked })}
+          />
+          <span style={{ fontWeight: 500 }}>应用启动时自动连接 Claude CLI</span>
+        </label>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, marginLeft: 20 }}>
+          默认开启；关闭后需要手动点击“启动 Claude Code”
+        </div>
+      </div>
+
       {/* 思维 (Thinking) 设置 */}
       <div style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'block', fontWeight: 500 }}>

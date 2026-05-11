@@ -139,7 +139,8 @@ export function ChangeSummaryPanel() {
   const toggleFile = (fp: string) => {
     setExpandedFiles(prev => {
       const next = new Set(prev);
-      next.has(fp) ? next.delete(fp) : next.add(fp);
+      if (next.has(fp)) next.delete(fp);
+      else next.add(fp);
       return next;
     });
   };
@@ -147,7 +148,8 @@ export function ChangeSummaryPanel() {
   const toggleChange = (key: string) => {
     setExpandedChanges(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };

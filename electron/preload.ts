@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 export interface CliOutputEvent {
-  type: 'stdout' | 'stderr' | 'exit';
+  type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved';
   data: string;
 }
 
@@ -14,6 +14,8 @@ export interface ElectronAPI {
   cliStopMessage: () => Promise<{ success: boolean }>;
   /** 向当前运行中的消息进程 stdin 写入数据（用于 supervised 模式审批：'y\n' 或 'n\n'） */
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
+  /** 响应 Claude Code 的真实 PermissionRequest hook 审批 */
+  cliRespondPermission: (requestId: string, allow: boolean) => Promise<{ success: boolean; error?: string }>;
   onCliOutput: (callback: (event: CliOutputEvent) => void) => () => void;
   listDirectory: (path: string) => Promise<{ success: boolean; entries?: any[]; error?: string }>;
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
@@ -88,6 +90,7 @@ const api: ElectronAPI = {
   cliSendMessage: (message, cwd, sessionId, imagePaths, agentOverride) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId, imagePaths, agentOverride),
   cliStopMessage: () => ipcRenderer.invoke('cli:stopMessage'),
   cliSendToStdin: (data: string) => ipcRenderer.invoke('cli:sendToStdin', data),
+  cliRespondPermission: (requestId, allow) => ipcRenderer.invoke('cli:respondPermission', requestId, allow),
   onCliOutput: (callback) => {
     const handler = (_: any, event: CliOutputEvent) => callback(event);
     ipcRenderer.on('cli:output', handler);

@@ -56,6 +56,16 @@ export function SkillsPanel() {
     localStorage.setItem(CUSTOM_FILES_KEY, JSON.stringify(files));
   }, []);
 
+  /** 打开文件 */
+  const openFile = useCallback(async (file: SkillFile) => {
+    setSelectedFile(file);
+    const c = await tryReadFile(file.path);
+    const text = c ?? '';
+    setContent(text);
+    setOriginalContent(text);
+    setSaveResult(null);
+  }, []);
+
   /** 浏览选择文件并添加到自定义列表 */
   const addCustomFile = useCallback(async () => {
     const res = await window.electronAPI.selectFile({ defaultPath: cwd || undefined });
@@ -67,7 +77,7 @@ export function SkillsPanel() {
     saveCustomFiles([...customFiles, newFile]);
     // 自动打开
     void openFile(newFile);
-  }, [cwd, customFiles, saveCustomFiles]);
+  }, [cwd, customFiles, saveCustomFiles, openFile]);
 
   /** 删除自定义文件（从列表移除，不删除实际文件） */
   const removeCustomFile = useCallback((filePath: string) => {
@@ -126,16 +136,6 @@ export function SkillsPanel() {
   useEffect(() => {
     void scan();
   }, [scan]);
-
-  /** 打开文件 */
-  const openFile = useCallback(async (file: SkillFile) => {
-    setSelectedFile(file);
-    const c = await tryReadFile(file.path);
-    const text = c ?? '';
-    setContent(text);
-    setOriginalContent(text);
-    setSaveResult(null);
-  }, []);
 
   /** 保存文件 */
   const saveFile = useCallback(async () => {

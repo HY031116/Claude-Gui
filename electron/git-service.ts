@@ -3,7 +3,6 @@
  * 所有操作基于 spawnSync，保持同步简洁
  */
 import { spawnSync, spawn } from 'child_process';
-import * as path from 'path';
 
 export interface GitStatus {
   branch: string;
