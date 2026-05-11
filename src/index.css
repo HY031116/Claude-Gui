@@ -1419,28 +1419,6 @@ pre code {
   background: rgba(63, 185, 80, 0.1);
 }
 
-.workspace-topbar-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.workspace-toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
 .workspace-toolbar-btn:hover {
   background: var(--bg-hover);
   border-color: var(--accent-color);
@@ -1592,10 +1570,6 @@ pre code {
 @media (max-width: 760px) {
   .workspace-topbar {
     padding: 12px;
-  }
-
-  .workspace-topbar-actions {
-    justify-content: flex-start;
   }
 
   .workspace-topbar-title-row strong {

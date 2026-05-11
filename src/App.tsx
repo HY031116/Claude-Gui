@@ -671,8 +671,6 @@ function App() {
                       )}
                     </div>
                   </div>
-                  <div className="workspace-topbar-actions">
-                  </div>
                 </div>
 
                 {/* 多会话标签条 */}
