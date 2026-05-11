@@ -96,6 +96,8 @@ export interface ElectronAPI {
   pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
   pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
+  /** 用系统默认编辑器打开文件 */
+  openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface GitFile {

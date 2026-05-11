@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme, session } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme, session, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { CliService, type CliStartOptions } from './cli-service';
@@ -357,6 +357,18 @@ ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
     return { success: true };
   }
   return { success: false, error: '系统不支持通知' };
+});
+
+// ── 用系统默认编辑器打开文件 ───────────────────────────────────────────────────
+ipcMain.handle('fs:openInEditor', async (_event, filePath: string) => {
+  try {
+    // shell.openPath 成功返回空字符串，失败返回错误描述
+    const errMsg = await shell.openPath(filePath);
+    if (errMsg) return { success: false, error: errMsg };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: String(err?.message ?? err) };
+  }
 });
 
 // ── Claude-Mem 插件集成 ────────────────────────────────────────────────────────

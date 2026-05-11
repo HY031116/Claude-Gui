@@ -81,6 +81,8 @@ export interface ElectronAPI {
   pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
   pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
+  /** 用系统默认编辑器打开文件 */
+  openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const api: ElectronAPI = {
@@ -151,6 +153,7 @@ const api: ElectronAPI = {
   pluginToggle: (key, enabled) => ipcRenderer.invoke('plugin:toggle', key, enabled),
   pluginInstall: (pluginSpec) => ipcRenderer.invoke('plugin:install', pluginSpec),
   pluginUninstall: (pluginSpec) => ipcRenderer.invoke('plugin:uninstall', pluginSpec),
+  openInEditor: (filePath) => ipcRenderer.invoke('fs:openInEditor', filePath),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

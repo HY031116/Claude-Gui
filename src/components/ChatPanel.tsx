@@ -1614,6 +1614,11 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
     patchToolCall({ diffReviewStatus: 'accepted' });
   }, [patchToolCall]);
 
+  const handleOpenInEditor = useCallback(() => {
+    if (!filePath) return;
+    void window.electronAPI.openInEditor(filePath);
+  }, [filePath]);
+
   const handleRejectDiff = useCallback(async () => {
     if (!canReviewDiff || !isLatestFileChange || reviewBusy) return;
     setReviewBusy(true);
@@ -1762,6 +1767,17 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
         {canReviewDiff && toolCall.diffReviewStatus === 'reverted' && (
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>↩ 已回滚</span>
         )}
+        {/* 编辑按钮：始终可用，用系统默认编辑器打开文件 */}
+        {isFileModifyTool && !!filePath && toolCall.status === 'success' && (
+          <button
+            className="btn"
+            onClick={(e) => { e.stopPropagation(); handleOpenInEditor(); }}
+            title={`用系统编辑器打开 ${filePath}`}
+            style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, marginRight: 2 }}
+          >
+            <Pencil size={10} /> 编辑
+          </button>
+        )}
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </div>
       {expanded && (
@@ -1835,6 +1851,14 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
                 {!isLatestFileChange && toolCall.diffReviewStatus !== 'reverted' && (
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>仅最新一次文件修改可直接回滚</span>
                 )}
+                <button
+                  className="btn"
+                  onClick={handleOpenInEditor}
+                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}
+                  title="用系统默认编辑器打开文件进行手动编辑"
+                >
+                  <Pencil size={11} /> 编辑
+                </button>
               </div>
             </div>
           )}
