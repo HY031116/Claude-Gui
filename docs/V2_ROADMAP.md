@@ -60,7 +60,7 @@
 - [x] 对话内展示“本轮步骤”区块
 - [x] 对话内展示 Turn 结束汇总卡片
 - [x] 将步骤留存从"嵌在 assistant 消息内"升级为独立 TurnCard 组件（列表内独立渲染）
-- [ ] 让 `TaskPanel` 退化为辅助视图，而不是主视图
+- [x] 让 `TaskPanel` 退化为辅助视图（移除 activePlanSteps 实时步骤块，仅保留 todoItems 追踪）
 
 完成标准：
 
