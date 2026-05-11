@@ -378,7 +378,7 @@ function App() {
       <NavRail onNavClick={handleNavClick} />
 
       {/* 对话主区域（永置，不被辅助面板替换）*/}
-      <WorkspaceArea />
+      <WorkspaceArea onStartSession={handleStartSession} />
 
 
       {/* 辅助面板（右侧，按需展开） */}

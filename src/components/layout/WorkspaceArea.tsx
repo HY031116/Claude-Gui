@@ -9,7 +9,11 @@ import { ChatPanel } from '../ChatPanel';
 import { TerminalPanel } from '../TerminalPanel';
 import { SessionList } from '../SessionList';
 
-export function WorkspaceArea() {
+interface WorkspaceAreaProps {
+  onStartSession: () => void;
+}
+
+export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   const session = useAppStore((s) => s.session);
   const setSession = useAppStore((s) => s.setSession);
   const tabs = useAppStore((s) => s.tabs);
@@ -65,7 +69,7 @@ export function WorkspaceArea() {
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {session.isConnected && (
+              {session.isConnected ? (
                 <button
                   className="history-toggle-btn"
                   onClick={handleDisconnect}
@@ -74,6 +78,16 @@ export function WorkspaceArea() {
                   style={{ fontSize: 11, width: 'auto', padding: '0 8px', color: 'var(--danger)' }}
                 >
                   断开
+                </button>
+              ) : (
+                <button
+                  className="history-toggle-btn"
+                  onClick={onStartSession}
+                  title="启动 Claude Code 会话"
+                  aria-label="启动会话"
+                  style={{ fontSize: 11, width: 'auto', padding: '0 8px', color: 'var(--success)' }}
+                >
+                  启动
                 </button>
               )}
               <button
