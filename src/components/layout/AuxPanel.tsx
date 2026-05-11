@@ -3,6 +3,25 @@
  * 直接从 store 读取 activeNavSection / activeAuxSubPanel；
  * onStartSession / onStopSession 需要 IPC，由 App.tsx 传入。
  */
+import {
+  FolderOpen,
+  GitBranch,
+  GitCommit,
+  Layers,
+  Camera,
+  Plug,
+  Bot,
+  Package,
+  Zap,
+  Sparkles,
+  CheckSquare,
+  Settings,
+  Shield,
+  FileText,
+  Clock,
+  Brain,
+  DollarSign,
+} from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { FileExplorer } from '../FileExplorer';
 import { GitPanel } from '../GitPanel';
@@ -25,31 +44,34 @@ import { HistoryPanel } from '../HistoryPanel';
 
 type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
 
-const AUX_TABS: Record<Exclude<NavSection, 'chat'>, { id: string; label: string }[]> = {
+const AUX_TABS: Record<
+  Exclude<NavSection, 'chat'>,
+  { id: string; label: string; icon: React.ElementType }[]
+> = {
   project: [
-    { id: 'files', label: '文件' },
-    { id: 'git', label: 'Git' },
-    { id: 'changes', label: '变更' },
-    { id: 'worktrees', label: 'Worktree' },
-    { id: 'checkpoints', label: '快照' },
+    { id: 'files', label: '文件', icon: FolderOpen },
+    { id: 'git', label: 'Git', icon: GitBranch },
+    { id: 'changes', label: '变更', icon: GitCommit },
+    { id: 'worktrees', label: 'Worktree', icon: Layers },
+    { id: 'checkpoints', label: '快照', icon: Camera },
   ],
   tools: [
-    { id: 'mcp', label: 'MCP' },
-    { id: 'agents', label: 'Agents' },
-    { id: 'plugins', label: 'Plugins' },
-    { id: 'hooks', label: 'Hooks' },
-    { id: 'skills', label: 'Skills' },
-    { id: 'tasks', label: '任务' },
+    { id: 'mcp', label: 'MCP', icon: Plug },
+    { id: 'agents', label: 'Agents', icon: Bot },
+    { id: 'plugins', label: 'Plugins', icon: Package },
+    { id: 'hooks', label: 'Hooks', icon: Zap },
+    { id: 'skills', label: 'Skills', icon: Sparkles },
+    { id: 'tasks', label: '任务', icon: CheckSquare },
   ],
   config: [
-    { id: 'settings', label: '设置' },
-    { id: 'rules', label: '权限规则' },
-    { id: 'claude-md', label: 'CLAUDE.md' },
+    { id: 'settings', label: '设置', icon: Settings },
+    { id: 'rules', label: '权限规则', icon: Shield },
+    { id: 'claude-md', label: 'CLAUDE.md', icon: FileText },
   ],
   history: [
-    { id: 'sessions', label: '历史' },
-    { id: 'mem', label: '记忆搜索' },
-    { id: 'cost', label: '成本' },
+    { id: 'sessions', label: '历史', icon: Clock },
+    { id: 'mem', label: '记忆', icon: Brain },
+    { id: 'cost', label: '成本', icon: DollarSign },
   ],
 };
 
@@ -91,44 +113,22 @@ export function AuxPanel({
         }}
       >
         {/* 子标签栏 */}
-        <div
-          style={{
-            display: 'flex',
-            borderBottom: '1px solid var(--border-color)',
-            flexShrink: 0,
-            overflowX: 'auto',
-          }}
-        >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveAuxSubPanel(tab.id)}
-              style={{
-                padding: '8px 14px',
-                fontSize: 12,
-                fontWeight: activeAuxSubPanel === tab.id ? 600 : 400,
-                color:
-                  activeAuxSubPanel === tab.id
-                    ? 'var(--accent-color)'
-                    : 'var(--text-secondary)',
-                borderBottom:
-                  activeAuxSubPanel === tab.id
-                    ? '2px solid var(--accent-color)'
-                    : '2px solid transparent',
-                background: 'transparent',
-                border: 'none',
-                borderTopWidth: 0,
-                borderLeftWidth: 0,
-                borderRightWidth: 0,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'color var(--duration-normal), border-color var(--duration-normal)',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="aux-tab-bar">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeAuxSubPanel === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveAuxSubPanel(tab.id)}
+                className={`aux-tab-btn${isActive ? ' active' : ''}`}
+                title={tab.label}
+              >
+                <Icon size={13} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* 内容区 */}

@@ -13,6 +13,7 @@ import {
   History,
   Sun,
   Moon,
+  Bot,
 } from 'lucide-react';
 
 type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
@@ -41,22 +42,16 @@ export function NavRail({ onNavClick }: NavRailProps) {
   }, [theme, setTheme]);
 
   return (
-    <div
-      style={{
-        width: 56,
-        background: 'rgba(7, 7, 20, 0.85)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderRight: '1px solid var(--glass-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        paddingTop: 8,
-        paddingBottom: 8,
-        gap: 4,
-        flexShrink: 0,
-      }}
-    >
+    <div className="nav-rail">
+      {/* 顶部 Logo 区域 */}
+      <div className="nav-rail-logo" title="Claude Code GUI">
+        <Bot size={22} />
+      </div>
+
+      {/* 分割线 */}
+      <div className="nav-rail-divider" />
+
+      {/* 主导航按钮 */}
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         const isActive = activeNavSection === item.id;
@@ -64,19 +59,23 @@ export function NavRail({ onNavClick }: NavRailProps) {
           <button
             key={item.id}
             onClick={() => onNavClick(item.id)}
-            title={item.label}
             className={`nav-button ${isActive ? 'active' : ''}`}
+            aria-label={item.label}
+            data-tooltip={item.label}
           >
             <Icon size={20} />
           </button>
         );
       })}
+
       <div style={{ flex: 1 }} />
+
       {/* 暗/亮主题切换 */}
       <button
         onClick={handleThemeToggle}
-        title={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
         className="nav-button"
+        aria-label={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
+        data-tooltip={theme === 'dark' ? '亮色主题' : '暗色主题'}
       >
         {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
       </button>

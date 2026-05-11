@@ -1408,8 +1408,48 @@ pre code {
   outline: none;
 }
 
+/* ===== NavRail 导航栏 ===== */
+.nav-rail {
+  width: 56px;
+  background: rgba(7, 7, 20, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2) 0;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Logo 区域 */
+.nav-rail-logo {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.2));
+  color: var(--accent);
+  margin-bottom: var(--space-1);
+  flex-shrink: 0;
+}
+
+/* 分割线 */
+.nav-rail-divider {
+  width: 24px;
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
+  flex-shrink: 0;
+}
+
 /* 导航 */
 .nav-button {
+  position: relative;
   width: 40px;
   height: 40px;
   display: flex;
@@ -1420,20 +1460,120 @@ pre code {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+}
+
+/* 激活态左侧指示条 */
+.nav-button::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  transition: transform var(--duration-fast) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+  opacity: 0;
+}
+
+/* CSS tooltip via data-tooltip 属性 */
+.nav-button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+  z-index: 999;
+}
+
+.nav-button[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 
 .nav-button:hover {
   background: var(--glass-hover);
   color: var(--text-secondary);
   border-color: var(--glass-border);
+  transform: translateY(-1px);
+}
+
+.nav-button:active {
+  transform: translateY(0) scale(0.95);
 }
 
 .nav-button.active {
   background: rgba(139, 92, 246, 0.15);
-  color: var(--accent-color);
+  color: var(--accent);
   border-color: rgba(139, 92, 246, 0.3);
+  transform: none;
 }
+
+.nav-button.active::before {
+  transform: translateY(-50%) scaleY(1);
+  opacity: 1;
+}
+/* ===== AuxPanel 子标签栏 ===== */
+.aux-tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.aux-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.aux-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 11px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+
+.aux-tab-btn:hover {
+  color: var(--text-secondary);
+  background: var(--glass-hover);
+}
+
+.aux-tab-btn.active {
+  font-weight: 600;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 
 .workspace-shell {
   flex: 1;
