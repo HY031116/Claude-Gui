@@ -1557,7 +1557,9 @@ export function ChatPanel() {
 
 /** 工具调用折叠卡片 — memo 防止父消息文本更新时未变工具卡片重渲 */
 const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
-  const [expanded, setExpanded] = useState(false);
+  // 文件修改类工具默认展开（Diff 直接可见，无需用户主动点击）
+  const isFileModifyToolName = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'].includes(toolCall.name);
+  const [expanded, setExpanded] = useState(isFileModifyToolName);
   const [reviewBusy, setReviewBusy] = useState(false);
   const messages = useAppStore((s) => s.messages);
   const updateMessage = useAppStore((s) => s.updateMessage);
@@ -1728,6 +1730,34 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
         <span className={`tool-call-status tool-call-status-${toolCall.status}`}>
           {toolCall.status === 'pending' ? '执行中…' : toolCall.status === 'success' ? '✓ 完成' : '✗ 失败'}
         </span>
+        {/* 变更确认按钮：始终在头部可见，无需展开 */}
+        {canReviewDiff && toolCall.diffReviewStatus !== 'accepted' && toolCall.diffReviewStatus !== 'reverted' && (
+          <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              className="btn"
+              onClick={handleAcceptDiff}
+              disabled={reviewBusy}
+              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, color: 'var(--success-text)' }}
+            >
+              <Check size={10} /> 接受
+            </button>
+            <button
+              className="btn"
+              onClick={() => void handleRejectDiff()}
+              disabled={reviewBusy || !isLatestFileChange}
+              title={isLatestFileChange ? '回滚到修改前' : '仅允许回滚最新一次修改'}
+              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3 }}
+            >
+              <RotateCcw size={10} /> 拒绝
+            </button>
+          </div>
+        )}
+        {canReviewDiff && toolCall.diffReviewStatus === 'accepted' && (
+          <span style={{ fontSize: 10, color: 'var(--success-text)', marginRight: 4 }}>✓ 已接受</span>
+        )}
+        {canReviewDiff && toolCall.diffReviewStatus === 'reverted' && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>↩ 已回滚</span>
+        )}
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </div>
       {expanded && (
