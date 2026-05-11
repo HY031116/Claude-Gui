@@ -21,7 +21,7 @@ export interface WorktreeInfo {
 }
 
 export interface ElectronAPI {
-  cliStart: (options: { cwd: string; args?: string[]; forceBareMode?: boolean }) => Promise<{ success: boolean; pid?: number; error?: string }>;
+  cliStart: (options: { cwd: string; args?: string[] }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
   cliStop: () => Promise<{ success: boolean; error?: string }>;
   /** 非交互模式：每条消息独立子进程，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
