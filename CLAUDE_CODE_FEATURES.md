@@ -136,7 +136,7 @@ skills:
 | `Notification` | Claude 需要用户输入时 |
 | `PostCompact` | 上下文压缩后 |
 
-- **典型用例：** 保存后自动 ESLint/Prettier、阻止 `rm -rf /`、发送 Slack 通知、记录日志
+- **典型用例：** 保存后自动 ESLint/Prettier、阻止 `rm -rf /`、发送 Slack 通知、记录日志、在 Stop hook 中要求当前闭环后继续推进明确的最小下一步
 
 ### 6.5 MCP（Model Context Protocol）
 - 连接外部服务：数据库、Slack、浏览器、GitHub、Jira 等
