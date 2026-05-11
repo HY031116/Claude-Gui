@@ -130,6 +130,14 @@ body {
   --radius:        var(--radius-md);
   --code-bg:       var(--bg-elevated);
   --message-user-bg: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+
+  /* ══ 组件语义变量（主题感知） ══ */
+  --nav-rail-bg:         rgba(7, 7, 20, 0.88);
+  --accent-glass:        rgba(139, 92, 246, 0.15);
+  --accent-glass-border: rgba(139, 92, 246, 0.3);
+  --accent-glass-subtle: rgba(139, 92, 246, 0.08);
+  --accent-focus-border: rgba(139, 92, 246, 0.5);
+  --accent-focus-shadow: rgba(139, 92, 246, 0.12);
 }
 
 /* ══ 亮色主题覆盖 ══ */
@@ -151,6 +159,14 @@ body {
   --shadow-sm:     0 1px 4px rgba(0, 0, 0, 0.12);
   --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.16);
   --shadow-lg:     0 12px 40px rgba(0, 0, 0, 0.22);
+
+  /* 组件语义变量亮色覆盖 */
+  --nav-rail-bg:         rgba(245, 245, 252, 0.95);
+  --accent-glass:        rgba(124, 58, 237, 0.10);
+  --accent-glass-border: rgba(124, 58, 237, 0.20);
+  --accent-glass-subtle: rgba(124, 58, 237, 0.06);
+  --accent-focus-border: rgba(124, 58, 237, 0.45);
+  --accent-focus-shadow: rgba(124, 58, 237, 0.10);
 }
 
 .message-list {
@@ -749,8 +765,8 @@ pre code {
 }
 
 .chat-input:focus {
-  border-color: rgba(139, 92, 246, 0.5);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+  border-color: var(--accent-focus-border);
+  box-shadow: 0 0 0 3px var(--accent-focus-shadow);
 }
 
 .chat-input::placeholder {
@@ -1415,7 +1431,7 @@ pre code {
 /* ===== NavRail 导航栏 ===== */
 .nav-rail {
   width: 56px;
-  background: rgba(7, 7, 20, 0.88);
+  background: var(--nav-rail-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-right: 1px solid var(--glass-border);
@@ -1436,7 +1452,7 @@ pre code {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.2));
+  background: linear-gradient(135deg, var(--accent-glass), rgba(59, 130, 246, 0.15));
   color: var(--accent);
   margin-bottom: var(--space-1);
   flex-shrink: 0;
@@ -1525,9 +1541,9 @@ pre code {
 }
 
 .nav-button.active {
-  background: rgba(139, 92, 246, 0.15);
+  background: var(--accent-glass);
   color: var(--accent);
-  border-color: rgba(139, 92, 246, 0.3);
+  border-color: var(--accent-glass-border);
   transform: none;
 }
 
@@ -1658,8 +1674,8 @@ pre code {
 /* 模型 chip */
 .workspace-topbar-pill.model-chip {
   color: var(--accent);
-  border-color: rgba(139, 92, 246, 0.3);
-  background: rgba(139, 92, 246, 0.08);
+  border-color: var(--accent-glass-border);
+  background: var(--accent-glass-subtle);
 }
 
 
@@ -3438,24 +3454,8 @@ pre code {
   color: var(--accent-color);
 }
 
-/* ===== 亮色主题组件覆盖 ===== */
-[data-theme="light"] .nav-rail {
-  background: rgba(245, 245, 252, 0.95);
-  border-right-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .nav-button:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="light"] .nav-button.active {
-  background: rgba(124, 58, 237, 0.1);
-  border-color: rgba(124, 58, 237, 0.2);
-}
-
-[data-theme="light"] .nav-rail-logo {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(59, 130, 246, 0.12));
-}
+/* ===== 亮色主题组件覆盖（仅剩无法用变量覆盖的特例） ===== */
+/* nav-rail/nav-button/nav-rail-logo 已通过 --nav-rail-bg/--accent-glass/* 变量自动适配 */
 
 [data-theme="light"] .message-content-assistant {
   background: linear-gradient(
@@ -3487,11 +3487,6 @@ pre code {
   background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 0, 0, 0.06);
   color: var(--text-primary);
-}
-
-[data-theme="light"] .chat-input:focus {
-  border-color: rgba(124, 58, 237, 0.45);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
 }
 
 [data-theme="light"] .message-list {
