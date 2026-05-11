@@ -9,7 +9,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { SkillsPanel } from './components/SkillsPanel';
 import { TaskPanel } from './components/TaskPanel';
-import { MessageSquare, FolderOpen, Wrench, PanelLeft, PanelRight, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle, GitFork, Zap, Shield, TrendingUp } from 'lucide-react';
+import { MessageSquare, FolderOpen, Wrench, Settings, History, Sun, Moon, BookOpen, ClipboardList, GitBranch, FileDiff, Brain, FileEdit, RotateCcw, Server, Bot, Puzzle, GitFork, Zap, Shield, TrendingUp } from 'lucide-react';
 import { GitPanel } from './components/GitPanel';
 import { ChangeSummaryPanel } from './components/ChangeSummaryPanel';
 import { SessionList } from './components/SessionList';
@@ -84,7 +84,6 @@ function App() {
   const activePanel = useAppStore((s) => s.activePanel);
   const setActivePanel = useAppStore((s) => s.setActivePanel);
   const sidebarVisible = useAppStore((s) => s.sidebarVisible);
-  const setSidebarVisible = useAppStore((s) => s.setSidebarVisible);
   const session = useAppStore((s) => s.session);
   const setSession = useAppStore((s) => s.setSession);
   const addTerminalLine = useAppStore((s) => s.addTerminalLine);
@@ -375,7 +374,6 @@ function App() {
   }, [autoConnectOnLaunch, handleStartSession, session.isConnected, startupSettingsLoaded]);
 
   const [showSettings, setShowSettings] = useState(false);
-  const [chatInspectorVisible, setChatInspectorVisible] = useState(false);
   // Tab 内联重命名状态
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -407,17 +405,21 @@ function App() {
     : '未选择项目';
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 24px)', width: '100vw', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* Left Sidebar Navigation */}
       <div
         style={{
-          width: 48,
-          background: 'var(--bg-secondary)',
-          borderRight: '1px solid var(--border-color)',
+          width: 56,
+          background: 'rgba(7, 7, 20, 0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderRight: '1px solid var(--glass-border)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           paddingTop: 8,
+          paddingBottom: 8,
           gap: 4,
           flexShrink: 0,
         }}
@@ -480,23 +482,18 @@ function App() {
         >
           <Settings size={18} />
         </button>
-        <button
-          onClick={() => setSidebarVisible(!sidebarVisible)}
-          title="切换侧边栏"
-          className="nav-button"
-        >
-          {sidebarVisible ? <PanelLeft size={18} /> : <PanelRight size={18} />}
-        </button>
       </div>
 
-      {/* Sidebar Content */}
+      {/* Sidebar Content — non-chat panels */}
       {sidebarVisible && !isChatWorkspace && (
         <>
         <div
           style={{
             width: sidebarWidth,
-            background: 'var(--bg-primary)',
-            borderRight: 'none',
+            background: 'rgba(10, 8, 28, 0.75)',
+            backdropFilter: 'var(--glass-blur)',
+            WebkitBackdropFilter: 'var(--glass-blur)',
+            borderRight: '1px solid var(--glass-border)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -655,7 +652,7 @@ function App() {
           <CostPanel />
         ) : (
           <>
-            <div className={`workspace-shell ${chatInspectorVisible ? 'with-inspector' : ''}`}>
+            <div className="workspace-shell with-inspector">
               <div className="workspace-main-column">
                 <div className="workspace-topbar">
                   <div>
@@ -675,14 +672,6 @@ function App() {
                     </div>
                   </div>
                   <div className="workspace-topbar-actions">
-                    <button
-                      className="workspace-toolbar-btn"
-                      onClick={() => setChatInspectorVisible((visible) => !visible)}
-                      title={chatInspectorVisible ? '隐藏右侧检查栏' : '显示右侧检查栏'}
-                    >
-                      {chatInspectorVisible ? <PanelRight size={14} /> : <PanelLeft size={14} />}
-                      {chatInspectorVisible ? '隐藏侧栏' : '显示侧栏'}
-                    </button>
                   </div>
                 </div>
 
@@ -745,8 +734,7 @@ function App() {
                 <TerminalPanel />
               </div>
 
-              {chatInspectorVisible && (
-                <aside className="workspace-inspector">
+              <aside className="workspace-inspector">
                   <div className="workspace-inspector-card workspace-inspector-hero">
                     <div className="workspace-inspector-kicker">当前项目</div>
                     <div className="workspace-inspector-title">{workspaceLabel}</div>
@@ -810,11 +798,11 @@ function App() {
                     </div>
                   </div>
                 </aside>
-              )}
             </div>
           </>
         )}
       </div>
+      </div>{/* /inner flex-row */}
 
       {/* 底部状态栏 */}
       <div className="status-bar">

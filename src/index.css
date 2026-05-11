@@ -1,33 +1,76 @@
+/* ===== GLASSMORPHISM GLOBAL RESET ===== */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html, body, #root {
+  height: 100%;
+  background: #07070f;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* App 根节点：渐变网格背景 */
+#root {
+  background:
+    radial-gradient(ellipse at 15% 40%, rgba(120, 60, 240, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 15%, rgba(59, 130, 246, 0.14) 0%, transparent 40%),
+    radial-gradient(ellipse at 65% 85%, rgba(100, 40, 200, 0.10) 0%, transparent 35%),
+    #07070f;
+}
+
+
 :root {
-  --bg-primary: #09090b;
-  --bg-secondary: #0f0f12;
-  --bg-tertiary: #17171c;
-  --bg-hover: #25252d;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --text-primary: #ededf0;
-  --text-secondary: #9193a1;
-  --text-muted: #5c5e6e;
-  --accent-color: #58a6ff;
-  --accent-hover: #79b8ff;
-  --success: #238636;
-  --success-text: #3fb950;
-  --error: #da3633;
-  --error-text: #f85149;
-  --warning: #d29922;
-  --code-bg: #0f0f12;
-  --radius: 8px;
-  --radius-sm: 4px;
-  --radius-lg: 14px;
+  /* ── 基础背景 ── */
+  --bg-base: #07070f;
+  --bg-primary: #0d0d1a;
+  --bg-secondary: #111128;
+  --bg-tertiary: #181830;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  /* ── 玻璃态 ── */
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-hover: rgba(255, 255, 255, 0.07);
+  --glass-active: rgba(255, 255, 255, 0.10);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-bright: rgba(255, 255, 255, 0.18);
+  --glass-blur: blur(20px);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* ── 文字层级 ── */
+  --text-primary: #f0f0ff;
+  --text-secondary: #8890aa;
+  --text-muted: #4a5068;
+  /* ── 强调色 ── */
+  --accent-color: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-blue: #3b82f6;
+  --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+  /* ── 状态色 ── */
+  --success: #22c55e;
+  --success-text: #4ade80;
+  --error: #ef4444;
+  --error-text: #f87171;
+  --error-color: #ef4444;
+  --warning: #f59e0b;
+  --code-bg: #111128;
+  /* ── 边框 ── */
+  --border-color: rgba(255, 255, 255, 0.07);
+  /* ── 圆角 ── */
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+  /* ── 字体 ── */
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
-  --message-user-bg: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
+  /* ── 阴影 ── */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.8);
+  /* ── 用户消息渐变 ── */
+  --message-user-bg: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
     padding: 24px 24px 18px;
     display: flex;
     flex-direction: column;
@@ -1282,27 +1325,29 @@ pre code {
 
 /* 导航 */
 .nav-button {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  border: none;
+  border-radius: 10px;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
 }
 
 .nav-button:hover {
-  background: var(--bg-tertiary);
+  background: var(--glass-hover);
   color: var(--text-secondary);
+  border-color: var(--glass-border);
 }
 
 .nav-button.active {
-  background: rgba(88, 166, 255, 0.12);
+  background: rgba(139, 92, 246, 0.15);
   color: var(--accent-color);
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
 .workspace-shell {
@@ -1310,8 +1355,9 @@ pre code {
   min-height: 0;
   display: flex;
   background:
-    radial-gradient(circle at top right, rgba(88, 166, 255, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%);
+    radial-gradient(ellipse at 80% 0%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+    var(--bg-base);
 }
 
 .workspace-main-column {
@@ -1327,10 +1373,11 @@ pre code {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
-  backdrop-filter: blur(10px);
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(10, 8, 28, 0.7);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .workspace-topbar-eyebrow {
@@ -1400,29 +1447,40 @@ pre code {
 }
 
 .workspace-inspector {
-  width: 320px;
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
-  border-left: 1px solid var(--border-color);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 16%), var(--bg-secondary);
+  border-left: 1px solid var(--glass-border);
+  background: rgba(10, 8, 28, 0.6);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   overflow: auto;
 }
 
 .workspace-inspector-card {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.workspace-inspector-card:hover {
+  border-color: var(--glass-border-bright);
 }
 
 .workspace-inspector-hero {
   padding: 16px;
   background:
-    radial-gradient(circle at top right, rgba(88, 166, 255, 0.18), transparent 35%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+    radial-gradient(circle at top right, rgba(139, 92, 246, 0.25), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.15), transparent 45%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .workspace-inspector-kicker {
@@ -1635,13 +1693,16 @@ pre code {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: 28px;
   padding: 0 12px;
-  border-top: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
-  color: var(--text-secondary);
-  font-size: 12px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(7, 7, 15, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-muted);
+  font-size: 11px;
   flex-shrink: 0;
+  letter-spacing: 0.02em;
 }
 
 .status-item,
