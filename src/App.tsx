@@ -94,8 +94,6 @@ function App() {
   const setPendingPrompt = useAppStore((s) => s.setPendingPrompt);
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
-  const currentModel = useAppStore((s) => s.currentModel);
-  const currentAuthMode = useAppStore((s) => s.currentAuthMode);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const todoItems = useAppStore((s) => s.todoItems);
@@ -677,12 +675,6 @@ function App() {
                     </div>
                   </div>
                   <div className="workspace-topbar-actions">
-                    {session.isConnected && currentModel && <span className="workspace-topbar-chip">{currentModel}</span>}
-                    {session.isConnected && currentAuthMode && (
-                      <span className="workspace-topbar-chip">
-                        {currentAuthMode === 'api-key' ? 'API Key' : 'Claude 账户'}
-                      </span>
-                    )}
                     <button
                       className="workspace-toolbar-btn"
                       onClick={() => setChatInspectorVisible((visible) => !visible)}
@@ -776,7 +768,6 @@ function App() {
                   <div className="workspace-inspector-card">
                     <div className="workspace-card-header">
                       <span>会话控制</span>
-                      {currentModel && <span className="workspace-card-muted">{currentModel}</span>}
                     </div>
                     <div style={{ marginBottom: 12 }}>
                       <label style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>
@@ -803,11 +794,6 @@ function App() {
                       )}
                     </div>
                     <div className="workspace-inline-meta">
-                      {currentAuthMode && (
-                        <span className="workspace-topbar-chip">
-                          {currentAuthMode === 'api-key' ? 'API Key 认证' : 'Claude 账户认证'}
-                        </span>
-                      )}
                       <span className="workspace-topbar-chip">
                         {session.conversationSessionId ? '续接旧会话' : '新对话模式'}
                       </span>
@@ -836,20 +822,6 @@ function App() {
         <span className="status-item">
           {session.isConnected ? '已连接' : '未连接'}
         </span>
-        {session.isConnected && currentModel && (
-          <>
-            <span className="status-sep">|</span>
-            <span className="status-item">{currentModel}</span>
-          </>
-        )}
-        {session.isConnected && currentAuthMode && (
-          <>
-            <span className="status-sep">|</span>
-            <span className="status-item">
-              {currentAuthMode === 'api-key' ? 'API Key' : 'Claude 账户'}
-            </span>
-          </>
-        )}
         {session.isConnected && tokenUsage && (
           <>
             <span className="status-sep">|</span>
