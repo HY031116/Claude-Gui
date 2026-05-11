@@ -419,7 +419,7 @@ pre code {
   padding: 24px 24px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   background:
     radial-gradient(circle at top center, rgba(88, 166, 255, 0.06), transparent 26%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 18%);
@@ -431,7 +431,7 @@ pre code {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .message-bubble {
@@ -439,7 +439,7 @@ pre code {
   gap: 12px;
   align-items: flex-start;
   position: relative;
-  animation: msgFadeIn 0.2s ease;
+  animation: msgFadeIn var(--duration-normal) var(--ease-out);
 }
 
 .message-bubble-user {
@@ -525,7 +525,11 @@ pre code {
 }
 
 .message-content-assistant {
-  background: var(--bg-tertiary);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
   border: 1px solid var(--border-color);
   border-bottom-left-radius: 4px;
 }
@@ -745,8 +749,8 @@ pre code {
 }
 
 .chat-input:focus {
-  border-color: rgba(88, 166, 255, 0.45);
-  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
 }
 
 .chat-input::placeholder {
@@ -1850,7 +1854,7 @@ pre code {
 }
 
 @keyframes msgFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
