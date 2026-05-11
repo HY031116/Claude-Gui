@@ -1597,20 +1597,14 @@ pre code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 18px;
+  gap: 12px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--glass-border);
   background: rgba(10, 8, 28, 0.7);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-}
-
-.workspace-topbar-eyebrow {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  margin-bottom: 4px;
+  min-height: 40px;
+  flex-shrink: 0;
 }
 
 .workspace-topbar-title-row {
@@ -1620,17 +1614,19 @@ pre code {
   flex-wrap: wrap;
 }
 
-.workspace-topbar-title-row strong {
-  font-size: 18px;
-  font-weight: 650;
+/* 项目名 */
+.workspace-topbar-project {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .workspace-topbar-pill,
 .workspace-topbar-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: 5px;
+  padding: 3px 8px;
   border-radius: 999px;
   font-size: 11px;
   border: 1px solid var(--border-color);
@@ -1643,6 +1639,25 @@ pre code {
   border-color: rgba(63, 185, 80, 0.35);
   background: rgba(63, 185, 80, 0.1);
 }
+
+/* 连接状态动画绿点 */
+.workspace-topbar-pill.connected::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success-text);
+  flex-shrink: 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* 模型 chip */
+.workspace-topbar-pill.model-chip {
+  color: var(--accent);
+  border-color: rgba(139, 92, 246, 0.3);
+  background: rgba(139, 92, 246, 0.08);
+}
+
 
 .workspace-toolbar-btn:hover {
   background: var(--bg-hover);
@@ -1851,6 +1866,11 @@ pre code {
   50% {
     transform: translateY(-6px);
   }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
 }
 
 @keyframes pulse {
@@ -3270,12 +3290,15 @@ pre code {
   font-size: 12px;
   cursor: pointer;
   border-right: 1px solid var(--border-color);
-  border-bottom: 2px solid transparent;
+  /* 顶部激活线（替代底部线，视觉更清晰） */
+  border-top: 2px solid transparent;
   color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
   user-select: none;
-  transition: color 0.15s, background 0.15s, border-bottom-color 0.15s;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              border-top-color var(--duration-fast) var(--ease-out);
   position: relative;
 }
 
@@ -3287,7 +3310,8 @@ pre code {
 .session-tab.active {
   background: var(--bg-primary);
   color: var(--text-primary);
-  border-bottom-color: var(--accent-color);
+  /* 顶部紫色激活线 */
+  border-top-color: var(--accent);
 }
 
 .session-tab-label {

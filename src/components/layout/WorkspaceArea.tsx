@@ -3,6 +3,7 @@
  * 直接从 Zustand store 读取所需字段，减少 props 层数
  */
 import { useState } from 'react';
+import { Cpu } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { ChatPanel } from '../ChatPanel';
 import { TerminalPanel } from '../TerminalPanel';
@@ -15,11 +16,13 @@ export function WorkspaceArea() {
   const closeTab = useAppStore((s) => s.closeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const renameTab = useAppStore((s) => s.renameTab);
+  const currentModel = useAppStore((s) => s.currentModel);
 
   // 标签内联重命名本地状态（仅 WorkspaceArea 使用）
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
+  // 提取目录最后一段作为工作区名称显示
   const workspaceLabel = session.workingDirectory
     ? session.workingDirectory
         .replace(/\\/g, '/')
@@ -28,25 +31,28 @@ export function WorkspaceArea() {
         .pop() || session.workingDirectory
     : '未选择项目';
 
+  // 模型名称缩短显示（claude-3-5-sonnet-20241022 → claude-3.5-sonnet）
+  const modelShort = currentModel
+    ? currentModel.replace(/-\d{8}$/, '').replace('claude-', 'claude ')
+    : '';
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="workspace-shell">
         <div className="workspace-main-column">
-          {/* 顶栏：工作区标识 + 连接状态 */}
+          {/* 顶栏：项目名 + 状态标签 */}
           <div className="workspace-topbar">
-            <div>
-              <div className="workspace-topbar-eyebrow">对话工作区</div>
-              <div className="workspace-topbar-title-row">
-                <strong>{workspaceLabel}</strong>
-                {session.isConnected && (
-                  <span className="workspace-topbar-pill connected">Claude 已连接</span>
-                )}
-                {session.conversationSessionId && (
-                  <span className="workspace-topbar-pill">
-                    会话 {session.conversationSessionId.slice(0, 8)}…
-                  </span>
-                )}
-              </div>
+            <div className="workspace-topbar-title-row">
+              <strong className="workspace-topbar-project">{workspaceLabel}</strong>
+              {session.isConnected && (
+                <span className="workspace-topbar-pill connected">已连接</span>
+              )}
+              {modelShort && session.isConnected && (
+                <span className="workspace-topbar-pill model-chip" title={currentModel}>
+                  <Cpu size={10} />
+                  {modelShort}
+                </span>
+              )}
             </div>
           </div>
 
