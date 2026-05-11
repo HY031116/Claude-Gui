@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { CliService, type CliStartOptions } from './cli-service';
@@ -16,6 +16,9 @@ const fileService = new FileService();
 const settingsService = new SettingsService();
 const cliConfigService = new CliConfigService();
 
+// 模块顶层常量：是否为开发模式
+const isDev = !app.isPackaged;
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -32,7 +35,6 @@ function createWindow() {
   });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5185';
-  const isDev = !app.isPackaged;
 
   if (isDev) {
     win.loadURL(devServerUrl).catch(() => {
@@ -47,6 +49,25 @@ function createWindow() {
 app.whenReady().then(() => {
   // 初始化为暗色主题，让 Windows 原生菜单栏/标题栏随应用主题显示
   nativeTheme.themeSource = 'dark';
+
+  // 生产模式下设置 CSP，消除 Electron 安全警告
+  if (!isDev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self';"
+          ],
+        },
+      });
+    });
+  }
 
   createWindow();
 
