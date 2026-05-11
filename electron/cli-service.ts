@@ -163,10 +163,8 @@ export class CliService {
       // Build command line arguments from config
       const args: string[] = [];
 
-      // Add bare mode if enabled (simpler mode, uses only API key)
-      if (this.config.useBareMode || options.forceBareMode) {
-        args.push('--bare');
-      }
+      // 始终添加 --bare，跳过 Claude CLI 的交互式向导（文本样式选择等）
+      args.push('--bare');
 
       // Model selection
       if (this.config.model && this.config.model !== 'default') {

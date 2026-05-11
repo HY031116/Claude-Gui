@@ -68,7 +68,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoConnectOnLaunch: true,
   allowedTools: 'default',
   extraArgs: '',
-  useBareMode: false,
+  useBareMode: true,
   httpProxy: '',
   apiBaseUrl: '',
   provider: 'anthropic',
