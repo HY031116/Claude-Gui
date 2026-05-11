@@ -71,7 +71,7 @@ Main → Renderer: BrowserWindow.webContents.send('cli:output', event)
 ### Dual Settings System
 
 - **Native config** (`~/.claude/settings.json`): Shared with VSCode. Contains model, permissions, effortLevel, plugins.
-- **GUI config** (`userData/settings.json`): GUI-private. Contains apiKey, authMode, apiBaseUrl, httpProxy, extraArgs, useBareMode.
+- **GUI config** (`userData/settings.json`): GUI-private. Contains apiKey, authMode, apiBaseUrl, httpProxy, extraArgs.
 
 SettingsPanel loads from both and saves to both. When `useNativeConfig` is enabled, model/permissions/effort sync to `~/.claude/settings.json`.
 
