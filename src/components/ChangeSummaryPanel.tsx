@@ -3,11 +3,25 @@
  * 从当前会话的所有消息中扫描 Write/Edit/MultiEdit 工具调用，
  * 展示每个文件的变更次数、操作类型及可展开的 Diff 预览
  */
-import { useMemo, useState } from 'react';
-import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers } from 'lucide-react';
+import { useMemo, useState, useCallback } from 'react';
+import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers, CheckCheck, RotateCcw } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { ToolCall } from '../types';
 import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
+
+const FILE_MODIFY_TOOLS = [
+  'Write', 'write_file', 'Edit', 'edit_file',
+  'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool',
+];
+
+/** 文件修改工具调用的轻量记录（含所属消息 ID） */
+interface TrackedChange {
+  msgId: string;
+  toolCallId: string;
+  filePath: string;
+  originalContent?: string;
+  diffReviewStatus?: 'accepted' | 'reverted';
+}
 
 type ChangeType = 'write' | 'edit' | 'multi_edit';
 
@@ -110,11 +124,34 @@ function ChangeDetail({ change }: { change: FileChange }) {
 }
 
 export function ChangeSummaryPanel() {
-  const { messages } = useAppStore();
+  const messages = useAppStore((s) => s.messages);
+  const updateMessage = useAppStore((s) => s.updateMessage);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [expandedChanges, setExpandedChanges] = useState<Set<string>>(new Set());
+  const [revertBusy, setRevertBusy] = useState(false);
 
-  /** 从所有消息中收集工具调用 */
+  /** 从所有消息中收集文件修改工具调用（含消息 ID） */
+  const trackedChanges = useMemo((): TrackedChange[] => {
+    const result: TrackedChange[] = [];
+    for (const msg of messages) {
+      for (const tc of (msg.toolCalls ?? [])) {
+        if (!FILE_MODIFY_TOOLS.includes(tc.name)) continue;
+        const args = tc.arguments ?? {};
+        const fp = (args.file_path ?? args.path ?? args.filename ?? '') as string;
+        if (!fp || tc.status !== 'success') continue;
+        result.push({
+          msgId: msg.id,
+          toolCallId: tc.id,
+          filePath: fp,
+          originalContent: tc.originalContent,
+          diffReviewStatus: tc.diffReviewStatus,
+        });
+      }
+    }
+    return result;
+  }, [messages]);
+
+  /** 从所有消息中收集工具调用（用于展示 diff） */
   const fileSummaries = useMemo(() => {
     const allToolCalls: ToolCall[] = [];
     for (const msg of messages) {
@@ -124,8 +161,74 @@ export function ChangeSummaryPanel() {
     return summarizeByFile(changes);
   }, [messages]);
 
+  const pendingCount = trackedChanges.filter((c) => !c.diffReviewStatus).length;
+  const acceptedCount = trackedChanges.filter((c) => c.diffReviewStatus === 'accepted').length;
+  const revertedCount = trackedChanges.filter((c) => c.diffReviewStatus === 'reverted').length;
+
+  /** 应用全部：将所有待确认的工具调用标记为 accepted */
+  const handleAcceptAll = useCallback(() => {
+    const toAccept = new Set(
+      trackedChanges.filter((c) => !c.diffReviewStatus).map((c) => c.toolCallId)
+    );
+    if (toAccept.size === 0) return;
+    const msgIds = new Set(
+      trackedChanges.filter((c) => toAccept.has(c.toolCallId)).map((c) => c.msgId)
+    );
+    for (const msg of messages) {
+      if (!msgIds.has(msg.id) || !msg.toolCalls) continue;
+      updateMessage(msg.id, {
+        toolCalls: msg.toolCalls.map((tc) =>
+          toAccept.has(tc.id) ? { ...tc, diffReviewStatus: 'accepted' as const } : tc
+        ),
+      });
+    }
+  }, [trackedChanges, messages, updateMessage]);
+
+  /** 撤销全部：对每个文件取最早的 originalContent 快照写回磁盘，然后标记所有相关调用为 reverted */
+  const handleRevertAll = useCallback(async () => {
+    if (revertBusy) return;
+    setRevertBusy(true);
+    try {
+      // 每个文件路径只取最早一次原始快照
+      const fileFirstOriginal = new Map<string, string>();
+      for (const c of trackedChanges) {
+        if (c.originalContent !== undefined && !fileFirstOriginal.has(c.filePath)) {
+          fileFirstOriginal.set(c.filePath, c.originalContent);
+        }
+      }
+      // 写回磁盘（并行）
+      await Promise.all(
+        Array.from(fileFirstOriginal.entries()).map(([fp, original]) =>
+          window.electronAPI.writeFile(fp, original)
+        )
+      );
+      // 标记所有相关调用为 reverted
+      const toRevert = new Set(
+        trackedChanges
+          .filter((c) => fileFirstOriginal.has(c.filePath) && c.diffReviewStatus !== 'reverted')
+          .map((c) => c.toolCallId)
+      );
+      const msgIds = new Set(
+        trackedChanges.filter((c) => toRevert.has(c.toolCallId)).map((c) => c.msgId)
+      );
+      for (const msg of messages) {
+        if (!msgIds.has(msg.id) || !msg.toolCalls) continue;
+        updateMessage(msg.id, {
+          toolCalls: msg.toolCalls.map((tc) =>
+            toRevert.has(tc.id) ? { ...tc, diffReviewStatus: 'reverted' as const } : tc
+          ),
+        });
+      }
+    } catch (e) {
+      console.error('撤销全部失败', e);
+    } finally {
+      setRevertBusy(false);
+    }
+  }, [revertBusy, trackedChanges, messages, updateMessage]);
+
   const totalFiles = fileSummaries.length;
   const totalChanges = fileSummaries.reduce((s, f) => s + f.changes.length, 0);
+  const canRevertAll = trackedChanges.some((c) => c.originalContent !== undefined && c.diffReviewStatus !== 'reverted');
 
   if (totalFiles === 0) {
     return (
@@ -160,13 +263,57 @@ export function ChangeSummaryPanel() {
       <div style={{
         padding: '10px 14px',
         borderBottom: '1px solid var(--border-color)',
-        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+        flexShrink: 0,
       }}>
-        <FileText size={14} style={{ color: 'var(--accent-primary, #7c3aed)' }} />
-        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>变更文件汇总</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {totalFiles} 个文件 · {totalChanges} 次操作
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <FileText size={14} style={{ color: 'var(--accent-primary, #7c3aed)' }} />
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>变更文件汇总</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {totalFiles} 个文件 · {totalChanges} 次操作
+          </span>
+        </div>
+        {/* 统计 + 批量操作 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
+            {pendingCount > 0 && <span style={{ color: 'var(--accent-warning, #f59e0b)' }}>{pendingCount} 待确认</span>}
+            {pendingCount > 0 && (acceptedCount > 0 || revertedCount > 0) && ' · '}
+            {acceptedCount > 0 && <span style={{ color: 'var(--accent-success, #22c55e)' }}>{acceptedCount} 已应用</span>}
+            {acceptedCount > 0 && revertedCount > 0 && ' · '}
+            {revertedCount > 0 && <span style={{ color: 'var(--text-muted)' }}>{revertedCount} 已回滚</span>}
+          </span>
+          <button
+            onClick={handleAcceptAll}
+            disabled={pendingCount === 0}
+            title="将所有待确认变更标记为已应用"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 11, padding: '3px 8px', borderRadius: 4,
+              border: '1px solid var(--accent-success, #22c55e)',
+              color: pendingCount === 0 ? 'var(--text-muted)' : 'var(--accent-success, #22c55e)',
+              background: 'transparent', cursor: pendingCount === 0 ? 'not-allowed' : 'pointer',
+              opacity: pendingCount === 0 ? 0.5 : 1,
+            }}
+          >
+            <CheckCheck size={12} />
+            应用全部
+          </button>
+          <button
+            onClick={handleRevertAll}
+            disabled={!canRevertAll || revertBusy}
+            title="将所有文件恢复到 Claude 修改前的状态"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 11, padding: '3px 8px', borderRadius: 4,
+              border: '1px solid var(--accent-danger, #ef4444)',
+              color: (!canRevertAll || revertBusy) ? 'var(--text-muted)' : 'var(--accent-danger, #ef4444)',
+              background: 'transparent', cursor: (!canRevertAll || revertBusy) ? 'not-allowed' : 'pointer',
+              opacity: (!canRevertAll || revertBusy) ? 0.5 : 1,
+            }}
+          >
+            <RotateCcw size={12} style={{ animation: revertBusy ? 'tab-spin 0.7s linear infinite' : undefined }} />
+            {revertBusy ? '回滚中…' : '撤销全部'}
+          </button>
+        </div>
       </div>
 
       {/* 文件列表 */}
