@@ -228,6 +228,10 @@ export function ChatPanel() {
   const addTokenRecord = useAppStore((s) => s.addTokenRecord);
   const currentModel = useAppStore((s) => s.currentModel);
   const todoItems = useAppStore((s) => s.todoItems);
+  // 当前活跃 tab ID，用于事件路由过滤
+  const activeTabId = useAppStore((s) => s.activeTabId);
+  const activeTabIdRef = useRef<string>(activeTabId);
+  useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
   const activePlanSteps = useAppStore((s) => s.activePlanSteps);
   const setActivePanel = useAppStore((s) => s.setActivePanel);
   const addPlanStep = useAppStore((s) => s.addPlanStep);
@@ -370,6 +374,11 @@ export function ChatPanel() {
   // 监听 cli:output 事件，完整处理 stream-json 所有类型
   useEffect(() => {
     const unsubscribe = window.electronAPI.onCliOutput((event) => {
+      // message-* 事件按 tabId 路由，只处理当前 tab 的输出
+      if (event.type === 'message-chunk' || event.type === 'message-done' ||
+          event.type === 'message-stderr' || event.type === 'message-error') {
+        if (event.tabId && event.tabId !== activeTabIdRef.current) return;
+      }
       if (event.type === 'permission-request') {
         try {
           const request = JSON.parse(event.data) as PermissionRequestEvent;
@@ -671,6 +680,7 @@ export function ChatPanel() {
         effectiveSessionId,
         pastedImages.length > 0 ? pastedImages.map((img) => img.path) : undefined,
         localAgent && localAgent !== 'default' ? localAgent : undefined,
+        activeTabId,
       );
       if (!result.success) {
         addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: result.error || '消息发送失败。', timestamp: Date.now() });

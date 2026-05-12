@@ -3,15 +3,17 @@ import { contextBridge, ipcRenderer } from 'electron';
 export interface CliOutputEvent {
   type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved';
   data: string;
+  /** 发起请求的 tab ID，用于多会话并行路由（仅 message-* 事件携带） */
+  tabId?: string;
 }
 
 export interface ElectronAPI {
   cliStart: (options: { cwd: string; args?: string[] }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
   cliStop: () => Promise<{ success: boolean; error?: string }>;
-  /** 非交互模式：每条消息独立子违，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
-  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string) => Promise<{ success: boolean; error?: string }>;
-  cliStopMessage: () => Promise<{ success: boolean }>;
+  /** 非交互模式：每条消息独立子进，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送; tabId 区分多个并行会话 */
+  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string) => Promise<{ success: boolean; error?: string }>;
+  cliStopMessage: (tabId?: string) => Promise<{ success: boolean }>;
   /** 向当前运行中的消息进程 stdin 写入数据（用于 supervised 模式审批：'y\n' 或 'n\n'） */
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
   /** 响应 Claude Code 的真实 PermissionRequest hook 审批 */
@@ -89,8 +91,8 @@ const api: ElectronAPI = {
   cliStart: (options) => ipcRenderer.invoke('cli:start', options),
   cliSend: (message) => ipcRenderer.invoke('cli:send', message),
   cliStop: () => ipcRenderer.invoke('cli:stop'),
-  cliSendMessage: (message, cwd, sessionId, imagePaths, agentOverride) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId, imagePaths, agentOverride),
-  cliStopMessage: () => ipcRenderer.invoke('cli:stopMessage'),
+  cliSendMessage: (message, cwd, sessionId, imagePaths, agentOverride, tabId) => ipcRenderer.invoke('cli:sendMessage', message, cwd, sessionId, imagePaths, agentOverride, tabId),
+  cliStopMessage: (tabId) => ipcRenderer.invoke('cli:stopMessage', tabId),
   cliSendToStdin: (data: string) => ipcRenderer.invoke('cli:sendToStdin', data),
   cliRespondPermission: (requestId, allow) => ipcRenderer.invoke('cli:respondPermission', requestId, allow),
   onCliOutput: (callback) => {

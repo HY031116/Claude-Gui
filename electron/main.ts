@@ -107,12 +107,12 @@ ipcMain.handle('cli:stop', async () => {
 });
 
 // 非交互模式发送消息（每条消息独立子进程）
-ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string) => {
-  return cliService.sendMessage(message, cwd, sessionId, imagePaths, agentOverride);
+ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string) => {
+  return cliService.sendMessage(message, cwd, sessionId, imagePaths, agentOverride, tabId);
 });
 
-ipcMain.handle('cli:stopMessage', async () => {
-  return cliService.stopMessage();
+ipcMain.handle('cli:stopMessage', async (_, tabId?: string) => {
+  return cliService.stopMessage(tabId);
 });
 
 ipcMain.handle('cli:sendToStdin', async (_event, data: string) => {
