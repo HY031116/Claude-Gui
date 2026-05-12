@@ -485,6 +485,10 @@ pre code {
   align-items: flex-start;
   position: relative;
   animation: msgFadeIn var(--duration-normal) var(--ease-out);
+  /* 跳过视口外元素的布局与绘制，大幅降低长对话 CPU/GPU 消耗 */
+  content-visibility: auto;
+  /* 给浏览器一个预估高度，防止滚动条跳动（平均消息高度约 120px） */
+  contain-intrinsic-size: auto 120px;
 }
 
 .message-bubble-user {
