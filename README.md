@@ -2,7 +2,7 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.7.0**
+**版本：v1.9.2**
 
 > 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
@@ -159,15 +159,17 @@
 
 ### 侧边栏面板
 
-v1.7.0 已将导航精简为 **5 个主区域**，消除认知噪声：
+v1.9.1 将导航精简为 **5 个 NavRail 按钮**，直达常用区域：
 
-| 主区域 | 子功能 |
-|--------|--------|
-| **💬 对话** | 主聊天界面 + 终端面板 + 多标签管理 |
-| **📁 项目** | 文件浏览器、Git 状态、变更摘要、检查点 |
-| **🔧 工具** | 工具调用历史、任务追踪、Skills、记忆搜索、MCP、Agent、Hooks |
-| **⚙️ 设置** | 完整配置面板（模型/权限/连接/集成/关于） |
-| **📜 历史** | 对话历史记录（localStorage 持久化，最多 50 条），支持搜索、排序、重新加载 |
+| 按钮 | 行为 | 映射区域 |
+|------|------|----------|
+| **💬 对话** | 切换至聊天主界面 | chat section |
+| **📁 文件** | 直达文件浏览器（辅助面板） | project → files |
+| **🔀 变更** | 直达 Git 变更摘要（辅助面板） | project → changes |
+| **🔧 工具** | 展开工具面板（MCP / Agent / Hooks 等） | tools section |
+| **⚙️ 配置** | 展开配置面板（设置 / 规则 / 记忆等） | config section |
+
+> 再次点击已激活的按钮 → 折叠辅助面板，回到纯聊天模式。
 
 ---
 
@@ -226,6 +228,8 @@ Renderer Process (React 19 + Vite)
 
 **依赖**：Electron、React 19、TypeScript、Vite、Zustand、marked、highlight.js、node-pty、lucide-react、electron-builder
 
+**测试依赖**：Vitest、@testing-library/react、jsdom、@vitest/ui
+
 ---
 
 ## 快速开始
@@ -250,6 +254,21 @@ npm run electron:dev
 
 > 主进程热重载有 3 秒冷却期（防止 tsc 初始编译误触发），冷却期后修改 `electron/` 下任意 `.ts` 文件保存即可触发自动重启。
 
+### 单元测试
+
+```bash
+# 单次运行（CI 模式）
+npm test
+
+# 监听模式（TDD）
+npm run test:watch
+
+# 浏览器 UI 模式
+npm run test:ui
+```
+
+测试框架：[Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) + jsdom
+
 ### 生产打包
 
 ```bash
@@ -270,6 +289,25 @@ npm run dist
 ---
 
 ## Changelog
+
+### v1.9.2 — Phase 4 首次启动引导 + Phase 5 工程稳态
+- **Onboarding 引导**：首次启动时在聊天空状态展示功能介绍卡片（5 大功能 + 直达设置按钮），完成后写入 localStorage 不再重复显示
+- **Vitest 测试体系**：引入 Vitest + Testing Library，添加 `computeLineDiff`（8 用例）和 `useAppStore`（11 用例）单元测试，19 用例全绿
+- **`npm test`**：新增 test / test:watch / test:ui 脚本
+
+### v1.9.1 — Phase 4 导航直达
+- **文件 / 变更直达导航**：NavRail 将 "项目" 拆为独立的 **📁 文件** 和 **🔀 变更** 两个按钮，单击直达对应辅助面板
+- **NavRail 折叠逻辑**：再次点击已激活按钮 → 收起辅助面板，回到纯聊天视图
+
+### v1.9.0 — API 配置文件自动重启
+- API Key 多档配置文件切换后 CLI 进程自动重启，无需手动停止再启动
+- 配置文件增删改命名，支持设置默认文件
+
+### v1.8.x — 功能完善
+- `--disallowed-tools` 工具黑名单支持
+- LLM Gateway / Microsoft Foundry 认证模式
+- 系统提示（追加 / 覆盖）配置支持
+- API 配置文件多档管理初始实现
 
 ### v1.7.0 — UI 重构
 - **导航精简**：18 项 → 5 项（chat/project/tools/config/history），消除导航噪声
