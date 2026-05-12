@@ -8,6 +8,7 @@ import { useAppStore } from '../../stores/useAppStore';
 import {
   MessageSquare,
   FolderOpen,
+  GitCommit,
   Wrench,
   Settings,
   Sun,
@@ -15,23 +16,33 @@ import {
   Bot,
 } from 'lucide-react';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'config';
+// NavClick：NavRail 可展发的点击 id（包含快捷入口 files/changes）
+type NavClick = 'chat' | 'files' | 'changes' | 'tools' | 'config';
 
-const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType }[] = [
+const NAV_ITEMS: { id: NavClick; label: string; icon: React.ElementType }[] = [
   { id: 'chat', label: '对话', icon: MessageSquare },
-  { id: 'project', label: '项目', icon: FolderOpen },
+  { id: 'files', label: '文件', icon: FolderOpen },
+  { id: 'changes', label: '变更', icon: GitCommit },
   { id: 'tools', label: '工具', icon: Wrench },
   { id: 'config', label: '配置', icon: Settings },
 ];
 
 interface NavRailProps {
-  onNavClick: (id: NavSection) => void;
+  onNavClick: (id: NavClick) => void;
 }
 
 export function NavRail({ onNavClick }: NavRailProps) {
-  const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
+  const activeNavSection = useAppStore((s) => s.activeNavSection);
+  const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
+
+  // 判断导航项是否激活（files/changes 需要匹配 project 子面板状态）
+  const isActive = (id: NavClick): boolean => {
+    if (id === 'files') return activeNavSection === 'project' && activeAuxSubPanel === 'files';
+    if (id === 'changes') return activeNavSection === 'project' && activeAuxSubPanel === 'changes';
+    return activeNavSection === id;
+  };
 
   const handleThemeToggle = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -52,12 +63,12 @@ export function NavRail({ onNavClick }: NavRailProps) {
       {/* 主导航按钮 */}
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
-        const isActive = activeNavSection === item.id;
+        const active = isActive(item.id);
         return (
           <button
             key={item.id}
             onClick={() => onNavClick(item.id)}
-            className={`nav-button ${isActive ? 'active' : ''}`}
+            className={`nav-button ${active ? 'active' : ''}`}
             aria-label={item.label}
             data-tooltip={item.label}
           >
