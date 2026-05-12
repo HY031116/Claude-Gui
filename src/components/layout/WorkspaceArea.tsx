@@ -149,7 +149,12 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
                 )}
                 {tabs.length > 1 && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // 关闭时先停止该 tab 的 CLI 进程，释放资源
+                      window.electronAPI.cliStopMessage(tab.id).catch(() => {});
+                      closeTab(tab.id);
+                    }}
                     className="session-tab-close"
                     title="关闭标签"
                   >
