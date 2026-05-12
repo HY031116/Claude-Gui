@@ -124,7 +124,7 @@ export function WorktreePanel() {
   return (
     <div className="worktree-panel">
       {/* 顶部栏 */}
-      <div className="worktree-header">
+      <div className="worktree-header" style={{ flexWrap: 'wrap', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
           <GitFork size={14} color="var(--accent-color)" />
           <span style={{ fontWeight: 600, fontSize: 13 }}>Git Worktree</span>
@@ -132,7 +132,7 @@ export function WorktreePanel() {
             {cwd}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           <button className="btn" title="修剪悬空 worktree" onClick={handlePrune} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px' }}>
             <Scissors size={11} /> 修剪
           </button>

@@ -36,9 +36,9 @@ function App() {
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
 
-  // 可拖拽侧边栏宽度（180~480px，localStorage 持久化）
+  // 可拖拽侧边栏宽度（240~480px，localStorage 持久化）
   const [sidebarWidth, setSidebarWidth] = useState(() =>
-    Math.min(480, Math.max(180, parseInt(localStorage.getItem('claude-gui-sidebar-width') || '280', 10)))
+    Math.min(480, Math.max(240, parseInt(localStorage.getItem('claude-gui-sidebar-width') || '280', 10)))
   );
   const isResizing = useRef(false);
   const resizeStartX = useRef(0);
@@ -56,7 +56,7 @@ function App() {
     const onMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return;
       const delta = e.clientX - resizeStartX.current;
-      const next = Math.max(180, Math.min(480, resizeStartWidth.current + delta));
+      const next = Math.max(240, Math.min(480, resizeStartWidth.current + delta));
       setSidebarWidth(next);
       localStorage.setItem('claude-gui-sidebar-width', String(next));
     };
