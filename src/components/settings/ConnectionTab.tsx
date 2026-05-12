@@ -41,18 +41,31 @@ export function ConnectionTab({
   const isAuthenticated =
     authStatus?.loggedIn || (settings.authMode === 'api-key' && settings.apiKey);
 
-  /** 切换到选中的配置文件 */
-  const handleApplyProfile = (profileId: string) => {
+  const [applyingProfile, setApplyingProfile] = useState<string | null>(null);
+
+  /** 切换到选中的配置文件（立即保存生效） */
+  const handleApplyProfile = async (profileId: string) => {
     const p = profiles.find((x) => x.id === profileId);
-    if (!p) return;
-    setSettings((prev) => ({
-      ...prev,
-      authMode: p.authMode,
-      apiKey: p.apiKey ?? '',
-      apiBaseUrl: p.apiBaseUrl ?? '',
-      httpProxy: p.httpProxy ?? '',
-      provider: p.provider ?? 'anthropic',
-    }));
+    if (!p || applyingProfile) return;
+    setApplyingProfile(profileId);
+    try {
+      const merged = {
+        ...settings,
+        authMode: p.authMode,
+        apiKey: p.apiKey ?? '',
+        apiBaseUrl: p.apiBaseUrl ?? '',
+        httpProxy: p.httpProxy ?? '',
+        provider: p.provider ?? 'anthropic',
+      };
+      // 先更新表单状态
+      setSettings(merged);
+      // 立即持久化（只需 GUI settings，不涉及 native config）
+      await window.electronAPI.saveSettings(merged);
+    } catch (e) {
+      console.error('应用配置文件失败', e);
+    } finally {
+      setApplyingProfile(null);
+    }
   };
 
   /** 另存为新配置文件 */
@@ -95,19 +108,21 @@ export function ConnectionTab({
           {profiles.map((p) => (
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <button
-                onClick={() => handleApplyProfile(p.id)}
+                onClick={() => void handleApplyProfile(p.id)}
+                disabled={applyingProfile === p.id}
                 title={`切换到：${p.name}`}
                 style={{
                   flex: 1, textAlign: 'left', padding: '4px 8px',
-                  fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                  fontSize: 12, borderRadius: 4, cursor: applyingProfile === p.id ? 'not-allowed' : 'pointer',
                   border: '1px solid var(--border-color)',
                   background: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  opacity: applyingProfile === p.id ? 0.6 : 1,
                 }}
               >
                 <span style={{ marginRight: 6, fontSize: 10, color: 'var(--text-muted)' }}>
-                  {p.authMode === 'api-key' ? '🔑' : '🔐'}
+                  {applyingProfile === p.id ? '⏳' : p.authMode === 'api-key' ? '🔑' : '🔐'}
                 </span>
                 {p.name}
                 {p.apiBaseUrl && (
