@@ -4,23 +4,8 @@ import type { TerminalLine } from './types';
 import { NavRail } from './components/layout/NavRail';
 import { WorkspaceArea } from './components/layout/WorkspaceArea';
 import { AuxPanel } from './components/layout/AuxPanel';
-
-// NavSection：store 内使用的实际区域（维持不变）
-type NavSection = 'chat' | 'project' | 'tools' | 'config';
-// NavClick：NavRail 传出的点击 id（files/changes 作为 project 子面板的快捷入口）
-type NavClick = 'chat' | 'files' | 'changes' | 'tools' | 'config';
-
-// handleNavClick 需要的默认子标签（tools/config 展开时默认激活）
-const SECTION_DEFAULTS: Record<'tools' | 'config', string> = {
-  tools: 'mcp',
-  config: 'settings',
-};
-
-// handleNavClick 合法子标签验证（切换 section 时避免残留旧 sub 值）
-const SECTION_VALID_SUBS: Record<'tools' | 'config', string[]> = {
-  tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks'],
-  config: ['settings', 'rules', 'claude-md', 'mem', 'cost'],
-};
+import { computeNavTransition } from './utils/nav';
+import type { NavSection, NavClick } from './utils/nav';
 
 function App() {
   // 精确订阅：只订阅 App 层真正需要的字段（其余已移入各 layout 组件）
@@ -199,36 +184,10 @@ function App() {
 
   // 点击导航：files/changes 直达 project 子面板；再次点击同一入口则收起
   const handleNavClick = useCallback((id: NavClick) => {
-    if (id === 'files') {
-      // files：直达 project section + files 子标签（再次点击收起）
-      if (activeNavSection === 'project' && activeAuxSubPanel === 'files') {
-        setActiveNavSection('chat');
-      } else {
-        setActiveNavSection('project');
-        setActiveAuxSubPanel('files');
-      }
-    } else if (id === 'changes') {
-      // changes：直达 project section + changes 子标签（再次点击收起）
-      if (activeNavSection === 'project' && activeAuxSubPanel === 'changes') {
-        setActiveNavSection('chat');
-      } else {
-        setActiveNavSection('project');
-        setActiveAuxSubPanel('changes');
-      }
-    } else if (id === 'chat') {
-      setActiveNavSection('chat');
-    } else {
-      // tools / config
-      const navId = id as 'tools' | 'config';
-      if (activeNavSection === navId) {
-        setActiveNavSection('chat');
-      } else {
-        setActiveNavSection(navId);
-        const validSubs = SECTION_VALID_SUBS[navId];
-        if (!validSubs.includes(activeAuxSubPanel)) {
-          setActiveAuxSubPanel(SECTION_DEFAULTS[navId]);
-        }
-      }
+    const { section, subPanel } = computeNavTransition(activeNavSection, activeAuxSubPanel, id);
+    setActiveNavSection(section);
+    if (subPanel !== undefined) {
+      setActiveAuxSubPanel(subPanel);
     }
   }, [activeNavSection, activeAuxSubPanel, setActiveNavSection, setActiveAuxSubPanel]);
 
