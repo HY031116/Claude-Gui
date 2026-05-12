@@ -57,6 +57,19 @@ export interface AppSettings {
   permissionDeny?: string[];
   /** 权限精细规则：询问 */
   permissionAsk?: string[];
+  /** 自定义 API 配置文件列表（快速切换多套 API 配置） */
+  apiProfiles?: ApiProfile[];
+}
+
+/** 自定义 API 配置文件 */
+export interface ApiProfile {
+  id: string;
+  name: string;
+  authMode: 'api-key' | 'official';
+  apiKey?: string;
+  apiBaseUrl?: string;
+  httpProxy?: string;
+  provider?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {

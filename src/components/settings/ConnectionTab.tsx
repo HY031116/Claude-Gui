@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Check, X, ChevronDown, ChevronUp } from 'lucide-react';
-import type { AppSettings, AuthStatus } from '../../types';
+import { useState, useRef } from 'react';
+import { Check, X, ChevronDown, ChevronUp, BookmarkPlus, Trash2 } from 'lucide-react';
+import type { AppSettings, AuthStatus, ApiProfile } from '../../types';
 
 interface ConnectionTabProps {
   settings: AppSettings;
@@ -8,6 +8,17 @@ interface ConnectionTabProps {
   authStatus: AuthStatus | null;
   showAdvanced: boolean;
   setShowAdvanced: (v: boolean) => void;
+}
+
+/** 从 settings 中提取配置文件字段 */
+function extractProfileFields(s: AppSettings): Omit<ApiProfile, 'id' | 'name'> {
+  return {
+    authMode: s.authMode,
+    apiKey: s.apiKey,
+    apiBaseUrl: s.apiBaseUrl,
+    httpProxy: s.httpProxy,
+    provider: s.provider,
+  };
 }
 
 export function ConnectionTab({
@@ -21,12 +32,137 @@ export function ConnectionTab({
   const [doctorResult, setDoctorResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [updateRunning, setUpdateRunning] = useState(false);
   const [updateResult, setUpdateResult] = useState<{ ok: boolean; text: string } | null>(null);
+  // 配置文件管理状态
+  const [newProfileName, setNewProfileName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const profileNameRef = useRef<HTMLInputElement>(null);
 
+  const profiles = settings.apiProfiles ?? [];
   const isAuthenticated =
     authStatus?.loggedIn || (settings.authMode === 'api-key' && settings.apiKey);
 
+  /** 切换到选中的配置文件 */
+  const handleApplyProfile = (profileId: string) => {
+    const p = profiles.find((x) => x.id === profileId);
+    if (!p) return;
+    setSettings((prev) => ({
+      ...prev,
+      authMode: p.authMode,
+      apiKey: p.apiKey ?? '',
+      apiBaseUrl: p.apiBaseUrl ?? '',
+      httpProxy: p.httpProxy ?? '',
+      provider: p.provider ?? 'anthropic',
+    }));
+  };
+
+  /** 另存为新配置文件 */
+  const handleSaveProfile = () => {
+    const name = newProfileName.trim();
+    if (!name) return;
+    const newProfile: ApiProfile = {
+      id: `profile-${Date.now()}`,
+      name,
+      ...extractProfileFields(settings),
+    };
+    setSettings((prev) => ({
+      ...prev,
+      apiProfiles: [...(prev.apiProfiles ?? []), newProfile],
+    }));
+    setNewProfileName('');
+    setSavingProfile(false);
+  };
+
+  /** 删除配置文件 */
+  const handleDeleteProfile = (profileId: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      apiProfiles: (prev.apiProfiles ?? []).filter((p) => p.id !== profileId),
+    }));
+  };
+
   return (
     <>
+      {/* ── API 配置文件快速切换 ── */}
+      {(profiles.length > 0 || savingProfile) && (
+        <div style={{
+          marginBottom: 14, padding: '10px 12px',
+          background: 'var(--bg-tertiary)', borderRadius: 6,
+          border: '1px solid var(--border-color)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            API 配置文件
+          </div>
+          {profiles.map((p) => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <button
+                onClick={() => handleApplyProfile(p.id)}
+                title={`切换到：${p.name}`}
+                style={{
+                  flex: 1, textAlign: 'left', padding: '4px 8px',
+                  fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ marginRight: 6, fontSize: 10, color: 'var(--text-muted)' }}>
+                  {p.authMode === 'api-key' ? '🔑' : '🔐'}
+                </span>
+                {p.name}
+                {p.apiBaseUrl && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>
+                    {p.apiBaseUrl.replace(/^https?:\/\//, '').split('/')[0]}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => handleDeleteProfile(p.id)}
+                title="删除此配置"
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  padding: '4px 6px', borderRadius: 4, cursor: 'pointer',
+                  border: 'none', background: 'none',
+                  color: 'var(--text-muted)',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent-danger, #ef4444)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+          {savingProfile && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <input
+                ref={profileNameRef}
+                type="text"
+                className="input"
+                value={newProfileName}
+                onChange={(e) => setNewProfileName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveProfile(); if (e.key === 'Escape') setSavingProfile(false); }}
+                placeholder="配置文件名称…"
+                style={{ fontSize: 12, flex: 1, padding: '4px 8px' }}
+                autoFocus
+              />
+              <button className="btn" onClick={handleSaveProfile} style={{ fontSize: 11, padding: '4px 10px' }}>确认</button>
+              <button className="btn" onClick={() => { setSavingProfile(false); setNewProfileName(''); }} style={{ fontSize: 11, padding: '4px 10px' }}>取消</button>
+            </div>
+          )}
+        </div>
+      )}
+      {/* 另存为配置文件按钮（始终可见） */}
+      <div style={{ marginBottom: 14 }}>
+        <button
+          className="btn"
+          onClick={() => { setSavingProfile(true); setTimeout(() => profileNameRef.current?.focus(), 50); }}
+          style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <BookmarkPlus size={13} />
+          保存当前 API 配置
+        </button>
+      </div>
+
       {/* Auth Status */}
       <div
         style={{
