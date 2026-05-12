@@ -1150,6 +1150,18 @@ pre code {
   font-size: 13px;
 }
 
+/* 实时 thinking 内容预览（流式思维摘要） */
+.typing-thinking-preview {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
 /* typing-indicator 内停止按钮 */
 .typing-stop-btn {
   display: flex;

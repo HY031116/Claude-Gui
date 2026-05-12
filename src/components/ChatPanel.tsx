@@ -1330,18 +1330,32 @@ export function ChatPanel() {
           </span>
         ))}
 
-        {isProcessing && (
-          <div className="typing-indicator">
-            <div className="typing-dots">
-              <span /><span /><span />
+        {isProcessing && (() => {
+          // 获取最后一条 assistant 消息，用于显示实时 thinking 摘要
+          const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+          const liveThinking = (lastAssistant as { thinking?: string } | undefined)?.thinking ?? '';
+          const thinkingLine = liveThinking
+            ? (liveThinking.split('\n').filter((l) => l.trim()).slice(-1)[0] ?? '')
+            : '';
+          return (
+            <div className="typing-indicator">
+              <div className="typing-dots">
+                <span /><span /><span />
+              </div>
+              {thinkingLine ? (
+                <span className="typing-thinking-preview" title={thinkingLine}>
+                  {thinkingLine.length > 60 ? thinkingLine.slice(0, 60) + '…' : thinkingLine}
+                </span>
+              ) : (
+                <span>Claude 正在生成</span>
+              )}
+              <button className="typing-stop-btn" onClick={handleStop} title="停止生成">
+                <Square size={11} />
+                停止
+              </button>
             </div>
-            <span>Claude 正在生成</span>
-            <button className="typing-stop-btn" onClick={handleStop} title="停止生成">
-              <Square size={11} />
-              停止
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         <div ref={messagesEndRef} />
         </div>
