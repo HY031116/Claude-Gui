@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Check, X, ChevronDown, ChevronUp, BookmarkPlus, Trash2 } from 'lucide-react';
 import type { AppSettings, AuthStatus, ApiProfile } from '../../types';
+import { useAppStore } from '../../stores/useAppStore';
 
 interface ConnectionTabProps {
   settings: AppSettings;
@@ -42,8 +43,10 @@ export function ConnectionTab({
     authStatus?.loggedIn || (settings.authMode === 'api-key' && settings.apiKey);
 
   const [applyingProfile, setApplyingProfile] = useState<string | null>(null);
+  const session = useAppStore((s) => s.session);
+  const setSession = useAppStore((s) => s.setSession);
 
-  /** 切换到选中的配置文件（立即保存生效） */
+  /** 切换到选中的配置文件（立即保存，并在已连接时自动重启 CLI） */
   const handleApplyProfile = async (profileId: string) => {
     const p = profiles.find((x) => x.id === profileId);
     if (!p || applyingProfile) return;
@@ -57,10 +60,21 @@ export function ConnectionTab({
         httpProxy: p.httpProxy ?? '',
         provider: p.provider ?? 'anthropic',
       };
-      // 先更新表单状态
+      // 更新表单状态
       setSettings(merged);
-      // 立即持久化（只需 GUI settings，不涉及 native config）
+      // 立即持久化
       await window.electronAPI.saveSettings(merged);
+      // 若已有 CLI 连接，自动重启
+      if (session.isConnected) {
+        await window.electronAPI.cliStop();
+        setSession({ isConnected: false, pid: undefined });
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
+        const cwd = session.workingDirectory || '~';
+        const result = await window.electronAPI.cliStart({ cwd });
+        if (result.success) {
+          setSession({ isConnected: true, pid: result.pid });
+        }
+      }
     } catch (e) {
       console.error('应用配置文件失败', e);
     } finally {
