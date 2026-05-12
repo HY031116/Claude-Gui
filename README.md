@@ -2,7 +2,9 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.4.0**
+**版本：v1.7.0**
+
+> 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
 ---
 
@@ -21,9 +23,13 @@
 - 思维过程（Thinking）折叠展示
 - 工具调用实时进度追踪（文件读写、Bash 执行等）
 - 文件内联差异视图（InlineDiff / WritePreview / WriteDiff）
-- 消息一键复制、文件附件上传
+- 消息一键复制、文件附件上传（支持拖拽、Ctrl+V 粘贴图片）
+- `@` 文件提及：输入 `@文件名` 快速附加文件到上下文
+- `Slash` 命令补全：输入 `/` 快速选择内置命令
 - 会话结束后显示 Token 用量与 USD 费用
-- **继续上次会话**：工作目录栏右侧"继续上次会话"按钮，点击后下次发消息追加 `--continue`，自动接续上一次 CLI 会话
+- **继续上次会话**：工作目录栏右侧"继续上次会话"按钮，点击后下次发消息追加 `--continue`
+- **消息搜索**：`Ctrl+F` 搜索历史消息内容
+- **导出会话**：一键导出为 Markdown 文件
 
 #### 终端面板
 - 实时 RAF 批量写入，高频输出不卡顿
@@ -37,6 +43,12 @@
 #### 工具调用追踪
 - 实时展示 Claude 正在执行的工具（Bash、Edit、Read、WebFetch 等）
 - 输入参数、执行结果、时间戳可展开查看
+- Diff 卡片默认展开，变更一目了然
+
+#### Git 集成
+- 实时查看工作目录 Git 状态、diff
+- 支持 add / commit / push / pull 操作
+- Git Worktree 管理
 
 ---
 
@@ -66,7 +78,7 @@
 `low` | `medium`（默认）| `high` | `xhigh` | `max`
 
 #### 响应语言（Language）
-对应 `~/.claude/settings.json` 中的 `language` 字段，Claude 优先以指定语言回复。  
+对应 `~/.claude/settings.json` 中的 `language` 字段，Claude 优先以指定语言回复。
 留空 = 默认；可填写 `chinese`、`japanese`、`spanish`、`french` 等。
 
 #### 权限模式（Permission Mode）
@@ -112,6 +124,8 @@
 | AWS Bedrock | 填写 Region + Access Key + Secret + Session Token |
 | Vertex AI | 填写 Project ID + Region |
 | OpenRouter | 填写 API Key |
+| LLM Gateway | Bearer Token / 自定义请求头 / 模型发现 |
+| Microsoft Foundry | 填写 Resource + Base URL + API Key |
 
 #### 系统提示（System Prompt）
 - 支持追加（`--append-system-prompt`）和完全覆盖两种模式
@@ -123,12 +137,19 @@
 - 额外 CLI 参数（自由输入任意 `--flag value`）
 - Session 名称（`--session-name`）
 - 预算上限（`--max-budget-usd`）
+- API Key 动态脚本（`apiKeyHelper`）
 
-#### MCP 服务器管理（设置面板内联）
+#### MCP 服务器管理
 - 添加 stdio / SSE 类型 MCP 服务器
 - 启用/禁用单个 MCP 服务器
 - 删除服务器
 - 配置同步至 `~/.claude/settings.json`
+- **MCP 市场**：预设快装 + JSON 导入/导出
+
+#### 插件管理
+- 查看已安装插件列表
+- 启用/禁用插件
+- 安装/卸载插件
 
 #### claude doctor / claude update
 - 一键运行 `claude doctor` 诊断环境
@@ -138,30 +159,26 @@
 
 ### 侧边栏面板
 
-| 面板 | 功能 |
-|------|------|
-| **聊天** | 主对话界面 |
-| **文件** | 目录树与文件内容预览 |
-| **工具** | 本次会话所有工具调用历史 |
-| **历史** | 对话历史记录（localStorage 持久化，最多 50 条），支持搜索、排序、重新加载 |
-| **技能** | Claude Code 内置技能/斜杠命令参考 |
-| **任务** | TodoWrite 工具实时任务追踪 |
-| **Git** | 工作目录 Git 状态、diff |
-| **变更摘要** | 本次会话文件变更汇总 |
-| **记忆搜索** | 搜索 Claude 记忆文件 |
-| **CLAUDE.md** | 项目级 CLAUDE.md 文件编辑 |
-| **检查点** | 会话检查点管理 |
-| **MCP** | MCP 服务器状态与管理 |
-| **Agent** | Agent 列表与运行状态 |
+v1.7.0 已将导航精简为 **5 个主区域**，消除认知噪声：
+
+| 主区域 | 子功能 |
+|--------|--------|
+| **💬 对话** | 主聊天界面 + 终端面板 + 多标签管理 |
+| **📁 项目** | 文件浏览器、Git 状态、变更摘要、检查点 |
+| **🔧 工具** | 工具调用历史、任务追踪、Skills、记忆搜索、MCP、Agent、Hooks |
+| **⚙️ 设置** | 完整配置面板（模型/权限/连接/集成/关于） |
+| **📜 历史** | 对话历史记录（localStorage 持久化，最多 50 条），支持搜索、排序、重新加载 |
 
 ---
 
 ### UI / 体验
 
 - **明暗主题切换**：点击顶栏太阳/月亮图标切换（持久化至 localStorage）
+- **CSS 设计系统**：v1.7.0 建立完整 Token 体系（字号/间距/圆角/动效变量），新增 7 个主题感知语义变量
 - **可拖拽侧边栏**：鼠标拖动分隔线调整宽度（180–480px，持久化）
 - **状态栏**：始终显示当前模型、认证方式、Token 用量与 USD 费用
-- **交互式 CLI 提示处理**：首次启动时 CLI 要求选择终端主题，GUI 自动检测并弹出选择器，无需切换到终端
+- **交互式 CLI 提示处理**：首次启动时 CLI 要求选择终端主题，GUI 自动检测并弹出选择器
+- **代码分割**：v1.7.0 主 bundle 从 765KB 拆分为 4 个 chunk（最大 283KB）
 
 ---
 
@@ -173,29 +190,38 @@ Electron Main Process
   ├── cli-config-service.ts # ~/.claude/settings.json 读写
   ├── settings-service.ts   # userData/settings.json 读写（GUI 私有配置）
   ├── file-service.ts       # 文件系统操作
+  ├── git-service.ts        # Git 操作与 Worktree 管理
   └── preload.ts            # contextBridge IPC 暴露
 
 Renderer Process (React 19 + Vite)
-  ├── App.tsx               # 布局、主题、标签栏、侧边栏导航
-  ├── stores/useAppStore.ts # Zustand 全局状态（多标签、消息、会话等）
+  ├── App.tsx                  # 布局入口
+  ├── stores/useAppStore.ts    # Zustand 全局状态（多标签、消息、会话等）
+  ├── components/layout/
+  │   ├── NavRail.tsx          # 左侧导航栏（v1.7.0 从 App.tsx 拆分）
+  │   ├── WorkspaceArea.tsx    # 主工作区（v1.7.0 从 App.tsx 拆分）
+  │   └── AuxPanel.tsx         # 辅助面板（v1.7.0 从 App.tsx 拆分）
   └── components/
-      ├── ChatPanel.tsx         # 聊天主界面
-      ├── SettingsPanel.tsx     # 完整设置面板
-      ├── FileExplorer.tsx      # 文件浏览器
-      ├── TerminalPanel.tsx     # CLI 终端输出
-      ├── ToolCallView.tsx      # 工具调用详情
-      ├── HistoryPanel.tsx      # 对话历史
-      ├── GitPanel.tsx          # Git 集成
-      ├── DiffView.tsx          # 文件差异视图
-      ├── McpPanel.tsx          # MCP 管理
-      ├── AgentPanel.tsx        # Agent 管理
-      ├── MemoryEditPanel.tsx   # 记忆编辑
-      ├── MemSearchPanel.tsx    # 记忆搜索
-      ├── CheckpointPanel.tsx   # 检查点
-      ├── TaskPanel.tsx         # 任务追踪
-      ├── SkillsPanel.tsx       # 技能库
-      ├── ChangeSummaryPanel.tsx# 变更摘要
-      └── SessionList.tsx       # 会话列表
+      ├── ChatPanel.tsx          # 聊天主界面
+      ├── SettingsPanel.tsx      # 完整设置面板
+      ├── FileExplorer.tsx       # 文件浏览器
+      ├── TerminalPanel.tsx      # CLI 终端输出
+      ├── ToolCallView.tsx       # 工具调用详情
+      ├── HistoryPanel.tsx       # 对话历史
+      ├── GitPanel.tsx           # Git 集成
+      ├── DiffView.tsx           # 文件差异视图
+      ├── McpPanel.tsx           # MCP 管理
+      ├── AgentPanel.tsx         # Agent 管理
+      ├── PluginPanel.tsx        # 插件管理
+      ├── HooksPanel.tsx         # Hooks 配置
+      ├── RulesPanel.tsx         # 权限规则
+      ├── MemoryEditPanel.tsx    # 记忆编辑
+      ├── MemSearchPanel.tsx     # 记忆搜索
+      ├── CheckpointPanel.tsx    # 检查点
+      ├── TaskPanel.tsx          # 任务追踪
+      ├── SkillsPanel.tsx        # 技能库
+      ├── ChangeSummaryPanel.tsx # 变更摘要
+      ├── SessionList.tsx        # 会话列表
+      └── CostPanel.tsx          # 成本追踪
 ```
 
 **依赖**：Electron、React 19、TypeScript、Vite、Zustand、marked、highlight.js、node-pty、lucide-react、electron-builder
@@ -245,25 +271,42 @@ npm run dist
 
 ## Changelog
 
-### v1.4.0
-- **`--continue`**：聊天面板新增"继续上次会话"按钮，点击后下次发消息追加 `--continue`
-- **`--max-turns`**：设置面板新增最大 Agentic 轮次输入框，对应 CLI `--max-turns N`
-- **`showThinkingSummaries`**：设置面板新增思维摘要显示开关，写入 `~/.claude/settings.json`
-- **`alwaysThinkingEnabled`**：设置面板新增全局扩展思维开关，写入 `~/.claude/settings.json`
-- **`autoMemoryEnabled`**：设置面板新增自动记忆开关，控制 CLAUDE.md 读写
-- **`env`**：设置面板新增环境变量键值对编辑器，写入 `~/.claude/settings.json` `env` 字段
-- **`permissions.allow/deny/ask`**：设置面板新增精细权限规则动态列表，支持 Tool(pattern) 格式
-- 版本升级至 1.4.0
+### v1.7.0 — UI 重构
+- **导航精简**：18 项 → 5 项（chat/project/tools/config/history），消除导航噪声
+- **App.tsx 拆分**：拆分为 NavRail / WorkspaceArea / AuxPanel 三个 layout 组件
+- **CSS 设计系统重构**：建立完整 Token 体系，新增 7 个主题感知语义变量
+- **Diff 卡片优化**：文件修改工具 Diff 默认展开，操作按钮提升至卡片头部
+- **代码分割**：`vite.config.ts` 添加 `manualChunks`，主 bundle 从 765KB 拆分为 4 个 chunk
+- **视觉精修**：NavRail 左侧指示条 + CSS tooltip，消息气泡动画，输入框精修
 
-### v1.3.1
+### v1.6.0
+- **工具审批修复**：GUI 中工具审批按钮无法真正批准/拒绝的问题已修复
+- **非交互审批链路**：切换为 Claude Code 官方 `--permission-prompt-tool` + MCP 工具桥接
+- **Windows 安装包**：生成并验证 `Claude Code GUI Setup 1.6.0.exe`
+
+### v1.5.0
+- **成本追踪面板**：Token 历史、成本统计、7 天图表
+- **权限规则面板**：支持 allow/deny/ask 可视化编辑和预设模板
+- **Hooks 配置面板**：HTTP headers、allowedEnvVars、mcp_tool input JSON 编辑
+- **Git Worktree 管理面板**
+- **MCP 服务器市场**：预设快装 + JSON 导入/导出
+- **插件管理 GUI**：Plugin Panel（安装/卸载/启用/禁用）
+
+### v1.4.0
+- **`--continue`**：聊天面板新增"继续上次会话"按钮
+- **`--max-turns`**：设置面板新增最大 Agentic 轮次输入框
+- **`showThinkingSummaries`**：设置面板新增思维摘要显示开关
+- **`alwaysThinkingEnabled`**：设置面板新增全局扩展思维开关
+- **`autoMemoryEnabled`**：设置面板新增自动记忆开关
+- **`env`**：设置面板新增环境变量键值对编辑器
+- **`permissions.allow/deny/ask`**：设置面板新增精细权限规则动态列表
+
+### v1.3.x
+- 多标签 Tab 系统，每个 Tab 独立会话状态与 Token 统计
+- Tab 重命名支持
 - 修复设置面板 xhigh effort 级别缺失
 - 新增 `bypassPermissions` 权限模式选项
 - 新增响应语言（`language`）设置字段
-- 修复 package.json description 字段编码问题
-
-### v1.3.0
-- 多标签 Tab 系统，每个 Tab 独立会话状态与 Token 统计
-- Tab 重命名支持
 
 ### v1.2.x
 - 对话历史持久化（localStorage）
@@ -278,4 +321,3 @@ npm run dist
 
 ### v1.0.x
 - 初始版本：聊天、终端、文件浏览器、设置面板
-```

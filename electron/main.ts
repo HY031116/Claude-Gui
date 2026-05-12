@@ -44,6 +44,18 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // F12 / Ctrl+Shift+I 打开 DevTools（生产环境也支持，用于调试）
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (
+      input.type === 'keyDown' &&
+      (input.key === 'F12' ||
+        (input.control && input.shift && input.key === 'I') ||
+        (input.meta && input.alt && input.key === 'I'))
+    ) {
+      win.webContents.toggleDevTools();
+    }
+  });
 }
 
 app.whenReady().then(() => {

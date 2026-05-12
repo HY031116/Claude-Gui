@@ -233,6 +233,7 @@ export function ChatPanel() {
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
+  const appendRawJson = useAppStore((s) => s.appendRawJson);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // 工作目录编辑状态
@@ -397,6 +398,9 @@ export function ChatPanel() {
         let hasNewText = false;
 
         for (const line of lines) {
+          // 记录原始 JSON 行（调试用）
+          if (line.trim()) appendRawJson(line.trim());
+
           const parsed = parseStreamJsonLine(line);
           if (!parsed) continue;
 

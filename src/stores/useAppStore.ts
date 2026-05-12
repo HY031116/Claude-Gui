@@ -97,6 +97,11 @@ interface AppState {
   addTerminalLines: (lines: TerminalLine[]) => void;
   clearTerminal: () => void;
 
+  // 调试：CLI 原始 JSON 输出
+  rawJsonLog: string[];
+  appendRawJson: (line: string) => void;
+  clearRawJson: () => void;
+
   // 对话历史（持久化到 localStorage）
   conversationHistory: ConversationRecord[];
   addOrUpdateConversation: (record: ConversationRecord) => void;
@@ -263,6 +268,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     terminalLines: [...state.terminalLines, ...lines].slice(-500),
   })),
   clearTerminal: () => set({ terminalLines: [] }),
+
+  rawJsonLog: [],
+  appendRawJson: (line) => set((state) => ({
+    rawJsonLog: [...state.rawJsonLog, line].slice(-1000),
+  })),
+  clearRawJson: () => set({ rawJsonLog: [] }),
 
   conversationHistory: loadHistory(),
   addOrUpdateConversation: (record) => set((state) => {
