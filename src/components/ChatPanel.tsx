@@ -238,8 +238,13 @@ export function ChatPanel() {
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
   const appendRawJson = useAppStore((s) => s.appendRawJson);
+  const setTabProcessing = useAppStore((s) => s.setTabProcessing);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  // isProcessing 变化时同步到 store（供 TabBar 显示旋转指示器）
+  useEffect(() => {
+    setTabProcessing(activeTabId, isProcessing);
+  }, [isProcessing, activeTabId, setTabProcessing]);
   // 工作目录编辑状态
   const [wdEditing, setWdEditing] = useState(false);
   const [wdDraft, setWdDraft] = useState('');

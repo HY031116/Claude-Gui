@@ -3445,6 +3445,24 @@ pre code {
   line-height: 1;
 }
 
+/* Tab 处理中旋转指示器 */
+.session-tab-spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--accent-color);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: tab-spin 0.7s linear infinite;
+  flex-shrink: 0;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+@keyframes tab-spin {
+  to { transform: rotate(360deg); }
+}
+
 .session-tab:hover .session-tab-close,
 .session-tab.active .session-tab-close {
   opacity: 1;

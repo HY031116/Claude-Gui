@@ -143,6 +143,10 @@ interface AppState {
   addPlanStep: (step: PlanStep) => void;
   updatePlanStep: (id: string, status: 'done' | 'error') => void;
   clearPlanSteps: () => void;
+
+  /** 按 tabId 记录各 tab 的 isProcessing 状态，供 TabBar 显示旋转指示器 */
+  processingTabs: Record<string, boolean>;
+  setTabProcessing: (tabId: string, processing: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -348,4 +352,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     activePlanSteps: state.activePlanSteps.map((s) => s.id === id ? { ...s, status } : s),
   })),
   clearPlanSteps: () => set({ activePlanSteps: [] }),
+
+  processingTabs: {},
+  setTabProcessing: (tabId, processing) => set((state) => ({
+    processingTabs: { ...state.processingTabs, [tabId]: processing },
+  })),
 }));
+

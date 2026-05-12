@@ -23,6 +23,7 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const renameTab = useAppStore((s) => s.renameTab);
   const currentModel = useAppStore((s) => s.currentModel);
+  const processingTabs = useAppStore((s) => s.processingTabs);
 
   // 标签内联重命名本地状态（仅 WorkspaceArea 使用）
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -140,6 +141,9 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
                   />
                 ) : (
                   <span className="session-tab-label" title="双击重命名">
+                    {processingTabs[tab.id] && (
+                      <span className="session-tab-spinner" title="处理中…" />
+                    )}
                     {tab.label}
                   </span>
                 )}
