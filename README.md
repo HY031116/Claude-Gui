@@ -2,7 +2,7 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.9.2**
+**版本：v1.9.3**
 
 > 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
@@ -289,6 +289,12 @@ npm run dist
 ---
 
 ## Changelog
+
+### v1.9.3 — Thinking 实时流式展示
+- **MessageBubble 流式 thinking**：Claude 思考期间，thinking 块自动展开，左侧紫色脉动边框指示进行中，末尾光标闪烁
+- **底部 typing-indicator 优化**：等待回复时显示最后一行 thinking 内容摘要，替代纯"Claude 正在生成"文字
+- **自动滚动跟随**：thinking 内容区超出 240px 时，JS `scrollTop` 驱动自动跟随到最新行
+- **computeNavTransition 纯函数 + 测试**：NavRail 导航逻辑提取为可测函数，新增 15 个导航单元测试，总测试用例达 34 个
 
 ### v1.9.2 — Phase 4 首次启动引导 + Phase 5 工程稳态
 - **Onboarding 引导**：首次启动时在聊天空状态展示功能介绍卡片（5 大功能 + 直达设置按钮），完成后写入 localStorage 不再重复显示
