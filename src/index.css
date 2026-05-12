@@ -3570,3 +3570,139 @@ pre code {
     radial-gradient(circle at top center, rgba(124, 58, 237, 0.04), transparent 26%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.01), transparent 18%);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   亮色主题全面补充覆盖
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 补充 CSS 变量：玻璃态、阴影、悬停背景 */
+[data-theme="light"] {
+  --glass-active:        rgba(0, 0, 0, 0.08);
+  --glass-border:        rgba(0, 0, 0, 0.08);
+  --glass-border-bright: rgba(0, 0, 0, 0.16);
+  --glass-shadow:        0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(0, 0, 0, 0.04);
+  --bg-hover:            rgba(0, 0, 0, 0.05);
+}
+
+/* 滚动条亮色 */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.4);
+}
+[data-theme="light"] * {
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* ── 消息区域 ─────────────────────────────────────────────────── */
+[data-theme="light"] .message-content-assistant {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.025) 0%, rgba(0, 0, 0, 0.012) 100%);
+}
+[data-theme="light"] .message-bubble:hover .message-content-assistant {
+  border-color: rgba(0, 0, 0, 0.14);
+}
+[data-theme="light"] .message-content-user code {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+
+/* ── 空状态欢迎页 ────────────────────────────────────────────── */
+[data-theme="light"] .empty-state {
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  background:
+    radial-gradient(circle at top center, rgba(88, 166, 255, 0.07), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 245, 252, 0.8));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .empty-state-icon {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .suggestion-chip {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+[data-theme="light"] .suggestion-chip:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── 聊天输入区 ──────────────────────────────────────────────── */
+[data-theme="light"] .chat-input-area {
+  background:
+    linear-gradient(180deg, rgba(250, 250, 255, 0.45), rgba(245, 245, 252, 0.95) 22%, var(--bg-primary));
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .chat-input-area-inner {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.06), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(250, 250, 255, 0.85));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .chat-input-wrapper {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .chat-input {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+}
+[data-theme="light"] .chat-attach-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+[data-theme="light"] .chat-wd-bar {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .chat-wd-display {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .chat-mode-select-wrap {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+/* ── 终端面板 ────────────────────────────────────────────────── */
+[data-theme="light"] .terminal-panel {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.01), transparent 28%), var(--bg-primary);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .terminal-header-badge,
+[data-theme="light"] .terminal-header-status {
+  background: rgba(0, 0, 0, 0.03);
+}
+[data-theme="light"] .terminal-output {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* ── 工作区组件 ──────────────────────────────────────────────── */
+[data-theme="light"] .workspace-topbar-chip {
+  background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .workspace-inspector-hero {
+  background:
+    radial-gradient(circle at top right, rgba(139, 92, 246, 0.10), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.06), transparent 45%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(245, 245, 252, 0.7));
+}
+[data-theme="light"] .workspace-stat-tile {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+/* ── 会话标签 ────────────────────────────────────────────────── */
+[data-theme="light"] .session-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── Markdown 表格 ───────────────────────────────────────────── */
+[data-theme="light"] .markdown-body th {
+  background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .markdown-body tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
