@@ -412,9 +412,11 @@ export function ChatPanel() {
                 const filePath = (toolUse.input?.file_path || toolUse.input?.path) as string | undefined;
                 if (filePath) {
                   window.electronAPI.readFile(filePath.replace(/\\/g, '/')).then((res) => {
-                    if (res.success && res.content) {
+                    if (res.success) {
+                      // 即使文件为空（res.content === ''）也保存快照，表示文件原先存在且为空
+                      const originalContent = res.content ?? '';
                       pendingToolCallsRef.current = pendingToolCallsRef.current.map((tc) =>
-                        tc.id === toolUse.id ? { ...tc, originalContent: res.content } : tc,
+                        tc.id === toolUse.id ? { ...tc, originalContent } : tc,
                       );
                       if (assistantIdRef.current) {
                         updateMessage(assistantIdRef.current, { toolCalls: [...pendingToolCallsRef.current] });
@@ -1770,8 +1772,8 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
         {canReviewDiff && toolCall.diffReviewStatus === 'reverted' && (
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>↩ 已回滚</span>
         )}
-        {/* 编辑按钮：始终可用，用系统默认编辑器打开文件 */}
-        {isFileModifyTool && !!filePath && toolCall.status === 'success' && (
+        {/* 编辑按钮：有文件路径且工具成功时可用，用系统默认编辑器打开文件 */}
+        {!!filePath && !isBash && toolCall.status === 'success' && (
           <button
             className="btn"
             onClick={(e) => { e.stopPropagation(); handleOpenInEditor(); }}
