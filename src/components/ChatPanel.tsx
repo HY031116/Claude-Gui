@@ -237,6 +237,8 @@ export function ChatPanel() {
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const appendRawJson = useAppStore((s) => s.appendRawJson);
   const setTabProcessing = useAppStore((s) => s.setTabProcessing);
   const tabs = useAppStore((s) => s.tabs);
@@ -273,6 +275,20 @@ export function ChatPanel() {
   // 权限/执行模式快切（Claude Code 原生 permission-mode）
   const [localPermissionMode, setLocalPermissionMode] = useState('auto');
   const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
+  // 首次启动引导：读取 localStorage 标志，未设置则显示引导卡片
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => !!localStorage.getItem('claude-gui-onboarding-v1')
+  );
+  const handleOnboardingDone = useCallback(() => {
+    localStorage.setItem('claude-gui-onboarding-v1', '1');
+    setOnboardingDone(true);
+  }, []);
+  const handleGoToSettings = useCallback(() => {
+    localStorage.setItem('claude-gui-onboarding-v1', '1');
+    setOnboardingDone(true);
+    setActiveNavSection('config');
+    setActiveAuxSubPanel('settings');
+  }, [setActiveNavSection, setActiveAuxSubPanel]);
   // Agent 快切
   const [localAgent, setLocalAgent] = useState('');
   const [customAgentNames, setCustomAgentNames] = useState<string[]>([]);
@@ -1246,13 +1262,50 @@ export function ChatPanel() {
                   </>
                 ) : (
                   <>
-                    <p className="empty-state-desc">
-                      {autoConnectOnLaunch ? '请点击右上角「启动」按钮开始 Claude Code 会话' : '自动连接已关闭，请手动启动 Claude Code'}
-                    </p>
-                    {!autoConnectOnLaunch && (
-                      <p className="empty-state-desc" style={{ marginTop: 4, opacity: 0.76 }}>
-                        可在设置的“会话”标签里重新开启自动连接
-                      </p>
+                    {/* 首次启动引导：功能简介 + 快速操作 */}
+                    {!onboardingDone && (
+                      <div style={{ marginTop: 12, width: '100%', maxWidth: 400 }}>
+                        <p className="empty-state-desc" style={{ marginBottom: 12, opacity: 0.9 }}>
+                          欢迎使用 Claude Code GUI —— Claude Code CLI 的桌面客户端
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', marginBottom: 16 }}>
+                          {[
+                            { icon: '💬', label: '对话', desc: '与 Claude 实时聊天，支持代码审查、文件编写' },
+                            { icon: '📁', label: '文件', desc: '浏览项目文件，点击左侧文件图标一键直达' },
+                            { icon: '🔄', label: '变更', desc: '审查 Claude 的文件修改，支持应用全部/撤销全部' },
+                            { icon: '🔧', label: '工具', desc: '配置 MCP 服务器、Agents、Hooks 等扩展能力' },
+                            { icon: '⚙️', label: '配置', desc: '设置 API Key、模型选择、API 配置文件切换' },
+                          ].map((item) => (
+                            <div key={item.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 10px', borderRadius: 6, background: 'var(--bg-secondary)' }}>
+                              <span style={{ fontSize: 16, lineHeight: 1.4 }}>{item.icon}</span>
+                              <div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
+                                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 6 }}>{item.desc}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="suggestion-chip" style={{ flex: 1, justifyContent: 'center' }} onClick={handleGoToSettings}>
+                            ⚙️ 去配置 API Key
+                          </button>
+                          <button className="suggestion-chip" style={{ flex: 1, justifyContent: 'center' }} onClick={handleOnboardingDone}>
+                            ✓ 直接开始
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {onboardingDone && (
+                      <>
+                        <p className="empty-state-desc">
+                          {autoConnectOnLaunch ? '请点击右上角「启动」按钮开始 Claude Code 会话' : '自动连接已关闭，请手动启动 Claude Code'}
+                        </p>
+                        {!autoConnectOnLaunch && (
+                          <p className="empty-state-desc" style={{ marginTop: 4, opacity: 0.76 }}>
+                            可在设置的“会话”标签里重新开启自动连接
+                          </p>
+                        )}
+                      </>
                     )}
                   </>
                 )}
