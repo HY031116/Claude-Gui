@@ -239,6 +239,8 @@ export function ChatPanel() {
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
   const appendRawJson = useAppStore((s) => s.appendRawJson);
   const setTabProcessing = useAppStore((s) => s.setTabProcessing);
+  const tabs = useAppStore((s) => s.tabs);
+  const renameTab = useAppStore((s) => s.renameTab);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // isProcessing 变化时同步到 store（供 TabBar 显示旋转指示器）
@@ -676,6 +678,12 @@ export function ChatPanel() {
     if (!currentSessionId) {
       firstUserMessageRef.current = userMsg.slice(0, 100);
       conversationStartedAtRef.current = Date.now();
+      // 若当前 tab 仍是默认命名（"会话 N"），用消息前 20 字自动命名
+      const currentTab = tabs.find((t) => t.id === activeTabId);
+      if (currentTab && /^会话\s+\d+$/.test(currentTab.label)) {
+        const autoName = userMsg.trim().slice(0, 20) || currentTab.label;
+        renameTab(activeTabId, autoName);
+      }
     }
 
     try {
