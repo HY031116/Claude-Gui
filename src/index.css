@@ -1245,7 +1245,44 @@ pre code {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   background: transparent;
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+/* Context Window 使用量指示器 */
+.context-usage-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.context-usage-bar {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-color);
+  position: relative;
+  overflow: hidden;
+}
+.context-usage-bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: var(--pct, 0%);
+  background: var(--bar-color, var(--accent-color));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.context-usage-label {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
 
 .chat-wd-display {
   display: flex;

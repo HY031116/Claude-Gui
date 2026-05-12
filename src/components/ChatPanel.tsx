@@ -1418,6 +1418,18 @@ export function ChatPanel() {
               {continueMode ? '✓ --continue 已启用' : '继续上次会话'}
             </button>
           )}
+          {/* Context window 使用量指示器 */}
+          {tokenUsage && tokenUsage.inputTokens > 0 && (() => {
+            const CONTEXT_LIMIT = 200000;
+            const pct = Math.min(100, Math.round(tokenUsage.inputTokens / CONTEXT_LIMIT * 100));
+            const color = pct >= 90 ? 'var(--error-color, #f85149)' : pct >= 70 ? '#e3b341' : 'var(--accent-color)';
+            return (
+              <div className="context-usage-indicator" title={`Context 使用量：${tokenUsage.inputTokens.toLocaleString()} / ${CONTEXT_LIMIT.toLocaleString()} tokens`}>
+                <div className="context-usage-bar" style={{ '--pct': `${pct}%`, '--bar-color': color } as React.CSSProperties} />
+                <span className="context-usage-label" style={{ color }}>{pct}%</span>
+              </div>
+            );
+          })()}
         </div>
         {/* 附件文件 chips + 粘贴图片 chips */}
         {(contextFiles.length > 0 || pastedImages.length > 0) && (
