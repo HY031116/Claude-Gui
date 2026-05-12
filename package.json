@@ -1,7 +1,7 @@
 {
   "name": "claude-code-gui",
   "private": true,
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "Claude Code GUI - Electron desktop app for Claude Code CLI",
   "author": "Claude Code GUI Contributors",
   "type": "module",
