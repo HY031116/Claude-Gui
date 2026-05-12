@@ -24,6 +24,8 @@ export interface CliSessionRecord {
   lastMessageAt: number;
   /** 项目目录原始名（用于展示，如 d--My-Project-claude） */
   projectDirName: string;
+  /** 从 JSONL cwd 字段解析出的工作目录 */
+  workingDirectory?: string;
 }
 
 export class FileService {
@@ -150,16 +152,23 @@ export class FileService {
 
             let preview = '';
             let startedAt = stat.mtime.getTime();
+            let workingDirectory: string | undefined;
 
             for (const line of head.split('\n')) {
               if (!line.trim()) continue;
               try {
                 const obj = JSON.parse(line);
+                // 提取第一条用户消息作为预览
                 if (obj.type === 'queue-operation' && obj.operation === 'enqueue' && typeof obj.content === 'string') {
                   preview = obj.content.slice(0, 100);
                   if (obj.timestamp) startedAt = new Date(obj.timestamp).getTime();
-                  break;
                 }
+                // 从任意行提取 cwd（attachment 行最早包含）
+                if (!workingDirectory && typeof obj.cwd === 'string' && obj.cwd) {
+                  workingDirectory = obj.cwd;
+                }
+                // 已获取所有需要的信息则提前退出
+                if (preview && workingDirectory) break;
               } catch {
                 // 忽略解析失败的行
               }
@@ -171,6 +180,7 @@ export class FileService {
               startedAt,
               lastMessageAt: stat.mtime.getTime(),
               projectDirName: dirName,
+              workingDirectory,
             });
           } catch {
             // 忽略单个文件读取错误

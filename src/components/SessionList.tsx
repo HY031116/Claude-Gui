@@ -92,11 +92,14 @@ export function SessionList() {
 
     for (const cli of cliSessions) {
       if (localIds.has(cli.sessionId)) continue;
-      let matchedDir = '';
-      for (const rec of conversationHistory) {
-        if (rec.workingDirectory && encodePathLikeCli(rec.workingDirectory).toLowerCase() === cli.projectDirName.toLowerCase()) {
-          matchedDir = rec.workingDirectory;
-          break;
+      // 优先使用从 JSONL cwd 字段解析的目录，否则从本地历史中反向匹配
+      let matchedDir = cli.workingDirectory || '';
+      if (!matchedDir) {
+        for (const rec of conversationHistory) {
+          if (rec.workingDirectory && encodePathLikeCli(rec.workingDirectory).toLowerCase() === cli.projectDirName.toLowerCase()) {
+            matchedDir = rec.workingDirectory;
+            break;
+          }
         }
       }
       all.push({

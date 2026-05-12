@@ -73,6 +73,8 @@ export interface CliSessionRecord {
   startedAt: number;
   lastMessageAt: number;
   projectDirName: string;
+  /** 从 JSONL 文件的 cwd 字段解析出的工作目录 */
+  workingDirectory?: string;
 }
 
 /** Token 使用量历史记录（持久化到 localStorage） */
