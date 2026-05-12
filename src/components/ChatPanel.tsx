@@ -2221,6 +2221,13 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
     streamingRef.current = isStreaming;
   }, [isStreaming]);
   const contentRef = useRef<HTMLDivElement>(null);
+  // thinking 内容自动滚动到底部
+  const thinkingContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isStreaming && thinkingContentRef.current) {
+      thinkingContentRef.current.scrollTop = thinkingContentRef.current.scrollHeight;
+    }
+  }, [msg.thinking, isStreaming]);
   const isUser = msg.role === 'user';
   const isSystem = msg.role === 'system';
 
@@ -2334,7 +2341,10 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
               </div>
             )}
             {thinkingExpanded && (
-              <div className={`thinking-content${isStreaming ? ' thinking-content-streaming' : ''}`}>
+              <div
+                ref={thinkingContentRef}
+                className={`thinking-content${isStreaming ? ' thinking-content-streaming' : ''}`}
+              >
                 {msg.thinking}
                 {isStreaming && <span className="thinking-cursor" />}
               </div>

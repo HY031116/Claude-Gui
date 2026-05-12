@@ -993,11 +993,9 @@ pre code {
   border-top: 1px solid var(--border-color);
   font-family: var(--font-mono), monospace;
 }
-/* streaming 时思考内容区域自动滚到底部效果（通过 flex 反向排列） */
+/* streaming 时思考内容区域：限制高度 + JS scrollTop 驱动自动跟随 */
 .thinking-content-streaming {
   max-height: 240px;
-  display: flex;
-  flex-direction: column-reverse;
 }
 /* 光标闪烁 */
 .thinking-cursor {
