@@ -66,6 +66,7 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
       return { type: 'assistant', text: textParts.join(''), thinking: thinkingParts.join('\n\n'), toolUses };
     }
 
+    // 旧格式：type = "tool"（向后兼容）
     if (obj.type === 'tool' && Array.isArray(obj.content)) {
       const results: { tool_use_id: string; content: string }[] = [];
       for (const block of obj.content) {
@@ -79,7 +80,25 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
           results.push({ tool_use_id: block.tool_use_id as string, content });
         }
       }
-      return { type: 'tool_result', results };
+      if (results.length > 0) return { type: 'tool_result', results };
+    }
+
+    // 新格式（CLI 2.x）：type = "user"，工具结果在 message.content 中
+    if (obj.type === 'user' && obj.message?.role === 'user' && Array.isArray(obj.message?.content)) {
+      const results: { tool_use_id: string; content: string }[] = [];
+      for (const block of obj.message.content as Array<Record<string, unknown>>) {
+        if (block['type'] === 'tool_result' && block['tool_use_id']) {
+          const rawContent = block['content'];
+          const content = Array.isArray(rawContent)
+            ? (rawContent as Array<{ type: string; text: string }>)
+                .filter((b) => b.type === 'text')
+                .map((b) => b.text)
+                .join('')
+            : String(rawContent ?? '');
+          results.push({ tool_use_id: block['tool_use_id'] as string, content });
+        }
+      }
+      if (results.length > 0) return { type: 'tool_result', results };
     }
 
     if (obj.type === 'result' && obj.session_id) {

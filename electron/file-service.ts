@@ -158,10 +158,27 @@ export class FileService {
               if (!line.trim()) continue;
               try {
                 const obj = JSON.parse(line);
-                // 提取第一条用户消息作为预览
-                if (obj.type === 'queue-operation' && obj.operation === 'enqueue' && typeof obj.content === 'string') {
+                // 旧格式：queue-operation/enqueue
+                if (!preview && obj.type === 'queue-operation' && obj.operation === 'enqueue' && typeof obj.content === 'string') {
                   preview = obj.content.slice(0, 100);
                   if (obj.timestamp) startedAt = new Date(obj.timestamp).getTime();
+                }
+                // 新格式（CLI 2.x）：type=user 纯文本消息
+                if (!preview && obj.type === 'user' &&
+                    obj.message?.role === 'user' && Array.isArray(obj.message?.content)) {
+                  const hasToolResult = obj.message.content.some(
+                    (b: Record<string, unknown>) => b['type'] === 'tool_result',
+                  );
+                  if (!hasToolResult) {
+                    const text = (obj.message.content as Array<{ type: string; text?: string }>)
+                      .filter((b) => b.type === 'text')
+                      .map((b) => b.text ?? '')
+                      .join('');
+                    if (text.trim()) {
+                      preview = text.slice(0, 100);
+                      if (obj.timestamp) startedAt = new Date(obj.timestamp).getTime();
+                    }
+                  }
                 }
                 // 从任意行提取 cwd（attachment 行最早包含）
                 if (!workingDirectory && typeof obj.cwd === 'string' && obj.cwd) {
@@ -271,7 +288,7 @@ export class FileService {
         try {
           const obj = JSON.parse(line) as Record<string, unknown>;
 
-          // 用户消息：queue-operation/enqueue
+          // 用户消息：旧格式 queue-operation/enqueue（向后兼容）
           if (obj['type'] === 'queue-operation' && obj['operation'] === 'enqueue') {
             const rawContent = obj['content'];
             const content =
@@ -286,6 +303,28 @@ export class FileService {
             if (!content.trim()) continue;
             const ts = obj['timestamp'] ? new Date(obj['timestamp'] as string).getTime() : Date.now();
             messages.push({ id: `hist-u-${messages.length}`, role: 'user', content, timestamp: ts });
+          }
+
+          // 用户消息：新格式（CLI 2.x）type=user，内容在 message.content 中（纯文本块，非工具结果）
+          if (obj['type'] === 'user' &&
+              typeof obj['message'] === 'object' && obj['message'] !== null) {
+            const msgObj = obj['message'] as { role?: string; content?: unknown[] };
+            if (msgObj.role === 'user' && Array.isArray(msgObj.content)) {
+              // 只处理纯文本用户消息（工具结果行在后面单独处理）
+              const hasToolResult = msgObj.content.some(
+                (b) => (b as Record<string, unknown>)['type'] === 'tool_result',
+              );
+              if (!hasToolResult) {
+                const textParts = (msgObj.content as Array<{ type: string; text?: string }>)
+                  .filter((b) => b.type === 'text')
+                  .map((b) => b.text ?? '');
+                const content = textParts.join('');
+                if (content.trim()) {
+                  const ts = obj['timestamp'] ? new Date(obj['timestamp'] as string).getTime() : Date.now();
+                  messages.push({ id: `hist-u-${messages.length}`, role: 'user', content, timestamp: ts });
+                }
+              }
+            }
           }
 
           // AI 回复：assistant（stream-json 格式）
@@ -317,7 +356,7 @@ export class FileService {
             for (const tc of toolCalls) toolUseToMsg.set(tc.id, msgIdx);
           }
 
-          // 工具结果：tool（stream-json 格式）
+          // 工具结果：旧格式 type=tool（向后兼容）
           if (obj['type'] === 'tool' && Array.isArray(obj['content'])) {
             for (const block of obj['content'] as Array<{ type: string; tool_use_id?: string; content?: unknown }>) {
               if (block.type !== 'tool_result' || !block.tool_use_id) continue;
@@ -333,6 +372,31 @@ export class FileService {
                         .join('')
                     : '';
               const tc = messages[msgIdx].toolCalls!.find((t) => t.id === block.tool_use_id);
+              if (tc) { tc.result = result; tc.status = 'success'; }
+            }
+          }
+
+          // 工具结果：新格式（CLI 2.x）type=user，工具结果在 message.content 中
+          if (obj['type'] === 'user' &&
+              typeof obj['message'] === 'object' && obj['message'] !== null &&
+              Array.isArray((obj['message'] as Record<string, unknown>)['content'])) {
+            const msgContent = (obj['message'] as Record<string, unknown>)['content'] as Array<Record<string, unknown>>;
+            for (const block of msgContent) {
+              if (block['type'] !== 'tool_result' || !block['tool_use_id']) continue;
+              const toolUseId = block['tool_use_id'] as string;
+              const msgIdx = toolUseToMsg.get(toolUseId);
+              if (msgIdx === undefined || !messages[msgIdx]?.toolCalls) continue;
+              const rawContent = block['content'];
+              const result =
+                typeof rawContent === 'string'
+                  ? rawContent
+                  : Array.isArray(rawContent)
+                    ? (rawContent as Array<{ type: string; text?: string }>)
+                        .filter((b) => b.type === 'text')
+                        .map((b) => b.text ?? '')
+                        .join('')
+                    : '';
+              const tc = messages[msgIdx].toolCalls!.find((t) => t.id === toolUseId);
               if (tc) { tc.result = result; tc.status = 'success'; }
             }
           }
