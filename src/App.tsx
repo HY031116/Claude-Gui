@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { useAppStore } from './stores/useAppStore';
+import { useAppStore, persistTabState } from './stores/useAppStore';
 import type { TerminalLine } from './types';
 import { NavRail } from './components/layout/NavRail';
 import { WorkspaceArea } from './components/layout/WorkspaceArea';
@@ -77,6 +77,13 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // 应用关闭前将所有 tab 状态持久化到 localStorage（下次启动时恢复）
+  useEffect(() => {
+    const handleBeforeUnload = () => persistTabState();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   // 启动时加载设置到 store，供状态栏展示
   useEffect(() => {

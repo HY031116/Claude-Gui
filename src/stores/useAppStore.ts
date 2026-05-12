@@ -4,6 +4,7 @@ import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord,
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
 const TOKEN_HISTORY_KEY = 'claude-gui-token-history';
+const TAB_PERSISTENCE_KEY = 'claude-gui-tab-persistence';
 
 /** 从 localStorage 读取历史（最多 50 条） */
 function loadHistory(): ConversationRecord[] {
@@ -54,7 +55,22 @@ const DEFAULT_SNAPSHOT: TabSnapshot = {
   activePlanSteps: [],
 };
 
+/** 从 localStorage 读取上次关闭时的多标签状态 */
+function loadTabPersistence(): { tabs: ChatTab[]; activeTabId: string; tabSnapshots: Record<string, TabSnapshot> } | null {
+  try {
+    const raw = localStorage.getItem(TAB_PERSISTENCE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+const _persisted = loadTabPersistence();
 let tabCounter = 1;
+// 恢复 tabCounter 为上次 tabs 中最大的序号，避免 id 重复
+if (_persisted?.tabs) {
+  const maxN = Math.max(0, ..._persisted.tabs.map((t) => parseInt(t.id.split('-')[1] ?? '0', 10)));
+  if (maxN > 0) tabCounter = maxN;
+}
 
 interface AppState {
   // ─── 多标签 ───────────────────────────────────────────────
@@ -149,11 +165,14 @@ interface AppState {
   setTabProcessing: (tabId: string, processing: boolean) => void;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set, get) => {
+  // 恢复活跃 tab 的状态（如有持久化数据）
+  const _activeSnap = _persisted ? (_persisted.tabSnapshots[_persisted.activeTabId] ?? DEFAULT_SNAPSHOT) : DEFAULT_SNAPSHOT;
+  return {
   // ─── 多标签 ───────────────────────────────────────────────
-  tabs: [{ id: 'tab-1', label: '会话 1' }],
-  activeTabId: 'tab-1',
-  tabSnapshots: {},
+  tabs: _persisted?.tabs ?? [{ id: 'tab-1', label: '会话 1' }],
+  activeTabId: _persisted?.activeTabId ?? 'tab-1',
+  tabSnapshots: _persisted?.tabSnapshots ?? {},
 
   addTab: () => {
     tabCounter++;
@@ -239,13 +258,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ tabs: s.tabs.map((t) => t.id === tabId ? { ...t, label } : t) }));
   },
 
-  session: {
-    isConnected: false,
-    workingDirectory: '',
-  },
+  session: { ..._activeSnap.session, isConnected: false }, // 恢复工作目录，但连接状态重置
   setSession: (session) => set((state) => ({ session: { ...state.session, ...session } })),
 
-  messages: [],
+  messages: _activeSnap.messages,
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateMessage: (id, updates) => set((state) => ({
     messages: state.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
@@ -343,10 +359,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     try { localStorage.removeItem(TOKEN_HISTORY_KEY); } catch { /* 忽略 */ }
     set({ tokenHistory: [] });
   },
-  todoItems: [],
+  todoItems: _activeSnap.todoItems,
   setTodoItems: (items) => set({ todoItems: items }),
 
-  activePlanSteps: [],
+  activePlanSteps: _activeSnap.activePlanSteps,
   addPlanStep: (step) => set((state) => ({ activePlanSteps: [...state.activePlanSteps, step] })),
   updatePlanStep: (id, status) => set((state) => ({
     activePlanSteps: state.activePlanSteps.map((s) => s.id === id ? { ...s, status } : s),
@@ -357,5 +373,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTabProcessing: (tabId, processing) => set((state) => ({
     processingTabs: { ...state.processingTabs, [tabId]: processing },
   })),
-}));
+}; // return 结束
+}); // create 结束
+
+/** 将当前所有 tab 状态持久化到 localStorage（应在 beforeunload 时调用） */
+export function persistTabState(): void {
+  try {
+    const s = useAppStore.getState();
+    // 将当前活跃 tab 状态写入快照（setActiveTab 只在切换时保存，当前 tab 未保存）
+    const activeSnap: TabSnapshot = {
+      messages: s.messages.slice(-50),
+      session: s.session,
+      tokenUsage: s.tokenUsage,
+      todoItems: s.todoItems,
+      activePlanSteps: s.activePlanSteps,
+    };
+    const snapshots: Record<string, TabSnapshot> = {};
+    for (const [k, v] of Object.entries(s.tabSnapshots)) {
+      snapshots[k] = { ...v, messages: v.messages.slice(-50) };
+    }
+    snapshots[s.activeTabId] = activeSnap;
+    const data = { tabs: s.tabs, activeTabId: s.activeTabId, tabSnapshots: snapshots };
+    localStorage.setItem(TAB_PERSISTENCE_KEY, JSON.stringify(data));
+  } catch { /* 忽略存储失败 */ }
+}
 
