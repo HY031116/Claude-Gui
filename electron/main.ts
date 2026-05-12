@@ -362,7 +362,25 @@ ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
 // ── 用系统默认编辑器打开文件 ───────────────────────────────────────────────────
 ipcMain.handle('fs:openInEditor', async (_event, filePath: string) => {
   try {
-    // shell.openPath 成功返回空字符串，失败返回错误描述
+    // 优先用 VS Code 打开（code 命令通常在 PATH 中）
+    const openWithVSCode = () => new Promise<boolean>((resolve) => {
+      const proc = require('child_process').spawn('code', [filePath], {
+        shell: true, detached: true, stdio: 'ignore',
+      });
+      proc.on('error', () => resolve(false));
+      proc.on('spawn', () => { (proc as any).unref(); resolve(true); });
+    });
+    const vsOk = await openWithVSCode();
+    if (vsOk) return { success: true };
+
+    // 回退：Windows 用 notepad，其他系统用 shell.openPath
+    if (process.platform === 'win32') {
+      const np = require('child_process').spawn('notepad.exe', [filePath], {
+        detached: true, stdio: 'ignore',
+      });
+      (np as any).unref();
+      return { success: true };
+    }
     const errMsg = await shell.openPath(filePath);
     if (errMsg) return { success: false, error: errMsg };
     return { success: true };
