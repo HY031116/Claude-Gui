@@ -1314,7 +1314,7 @@ export function ChatPanel() {
           </div>
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, idx) => (
           <span key={msg.id} style={{ display: 'contents' }}>
             {msg.role === 'assistant' && msg.planSteps && msg.planSteps.length > 0 && (
               <TurnCard planSteps={msg.planSteps} toolCallsCount={msg.toolCalls?.length ?? 0} />
@@ -1326,6 +1326,7 @@ export function ChatPanel() {
               msg={msg}
               searchQuery={searchQuery}
               isMatch={matchingMsgIds.has(msg.id)}
+              isStreaming={isProcessing && idx === messages.length - 1 && msg.role === 'assistant'}
             />
           </span>
         ))}
@@ -2206,9 +2207,19 @@ const TurnCard = memo(function TurnCard({ planSteps, toolCallsCount }: { planSte
 });
 
 /** 消息气泡 — memo 防止流式输出时历史消息无效重渲 */
-const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStreaming = false }: { msg: Message; searchQuery?: string; isMatch?: boolean; isStreaming?: boolean }) {
   const [copied, setCopied] = useState(false);
+  // isStreaming 期间自动展开 thinking；结束后恢复用户控制状态（默认折叠）
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  // 当 isStreaming 变为 false（完成），不自动折叠（保持用户最后展开状态）
+  const streamingRef = useRef(isStreaming);
+  useEffect(() => {
+    if (isStreaming && !streamingRef.current) {
+      // 刚开始 streaming → 展开
+      setThinkingExpanded(true);
+    }
+    streamingRef.current = isStreaming;
+  }, [isStreaming]);
   const contentRef = useRef<HTMLDivElement>(null);
   const isUser = msg.role === 'user';
   const isSystem = msg.role === 'system';
@@ -2302,13 +2313,13 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
 
         {/* 推理思考链（extended thinking 模式） */}
         {!isUser && msg.thinking && (
-          <div className="thinking-block">
+          <div className={`thinking-block${isStreaming ? ' thinking-block-streaming' : ''}`}>
             <button
               className="thinking-toggle"
               onClick={() => setThinkingExpanded((v) => !v)}
             >
               <span className="thinking-icon">🤔</span>
-              <span>推理过程</span>
+              <span>{isStreaming ? '正在思考…' : '推理过程'}</span>
               <span style={{ marginLeft: 4, opacity: 0.45, fontSize: 10 }}>
                 {msg.thinking.length} 字
               </span>
@@ -2323,8 +2334,9 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
               </div>
             )}
             {thinkingExpanded && (
-              <div className="thinking-content">
+              <div className={`thinking-content${isStreaming ? ' thinking-content-streaming' : ''}`}>
                 {msg.thinking}
+                {isStreaming && <span className="thinking-cursor" />}
               </div>
             )}
           </div>

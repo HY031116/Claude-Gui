@@ -951,6 +951,15 @@ pre code {
   border-radius: var(--radius);
   overflow: hidden;
 }
+/* streaming 状态：左侧紫色进度边 + 微弱脉动 */
+.thinking-block-streaming {
+  border-left: 2px solid rgba(139, 91, 234, 0.7);
+  animation: thinkingPulse 2s ease-in-out infinite;
+}
+@keyframes thinkingPulse {
+  0%, 100% { border-left-color: rgba(139, 91, 234, 0.4); }
+  50% { border-left-color: rgba(139, 91, 234, 0.9); }
+}
 .thinking-toggle {
   width: 100%;
   display: flex;
@@ -983,6 +992,26 @@ pre code {
   overflow: auto;
   border-top: 1px solid var(--border-color);
   font-family: var(--font-mono), monospace;
+}
+/* streaming 时思考内容区域自动滚到底部效果（通过 flex 反向排列） */
+.thinking-content-streaming {
+  max-height: 240px;
+  display: flex;
+  flex-direction: column-reverse;
+}
+/* 光标闪烁 */
+.thinking-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  background: rgba(139, 91, 234, 0.8);
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: cursorBlink 1s step-end infinite;
+}
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 /* 思考摘要预览（折叠时显示） */
 .thinking-preview {
