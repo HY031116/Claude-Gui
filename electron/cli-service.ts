@@ -273,7 +273,7 @@ export class CliService {
         rows: 40,
         cwd: resolvedCwd,
         env: env,
-        useConpty: true,
+        useConpty: false, // ConPTY 在 Electron 中 kill() 时会触发子进程 AttachConsole 失败；改用 WinPTY 后端
       });
 
       this.process = ptyProcess;
