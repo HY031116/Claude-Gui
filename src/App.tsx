@@ -267,7 +267,7 @@ function App() {
                 { key: 'Ctrl+T', desc: '新建会话标签' },
                 { key: 'Ctrl+W', desc: '关闭当前标签' },
                 { key: 'Ctrl+V', desc: '粘贴截图为附件' },
-                { key: 'Ctrl+Enter', desc: '发送消息' },
+                { key: 'Enter', desc: '发送消息（Shift+Enter 换行）' },
                 { key: 'Esc', desc: '关闭搜索/弹窗' },
                 { key: '?', desc: '显示此快捷键面板' },
               ].map(({ key, desc }) => (

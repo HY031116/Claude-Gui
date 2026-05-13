@@ -31,6 +31,22 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   // 右侧历史侧边栏折叠状态
   const [showHistory, setShowHistory] = useState(false);
 
+  // 全局快捷键：Ctrl+T 新建标签、Ctrl+W 关闭当前标签
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key === 't') {
+        e.preventDefault();
+        addTab();
+      } else if (e.key === 'w' && activeTabId && tabs.length > 1) {
+        e.preventDefault();
+        closeTab(activeTabId);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [addTab, closeTab, activeTabId, tabs.length]);
+
   // 全局进度条：当前活跃 tab 是否处理中
   const isProcessing = !!(activeTabId && processingTabs[activeTabId]);
   const [progress, setProgress] = useState(0);
