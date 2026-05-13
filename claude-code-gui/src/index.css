@@ -3731,6 +3731,53 @@ pre code {
   color: var(--text-secondary);
 }
 
+/* 拖拽排序：拖拽目标指示 */
+.session-tab.drag-over {
+  border-left: 2px solid var(--accent-color) !important;
+  margin-left: -2px;
+}
+
+/* 右键菜单 */
+.tab-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 140px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  padding: 4px 0;
+}
+
+.tab-context-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+
+.tab-context-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.tab-context-item.danger {
+  color: var(--error-text, #f85149);
+}
+
+.tab-context-item.danger:hover {
+  background: rgba(248, 81, 73, 0.1);
+}
+
 /* ========== 工具调用卡片视觉升级 ========== */
 /* 左侧彩色状态条 */
 .tool-call-card {
