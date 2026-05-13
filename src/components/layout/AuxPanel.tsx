@@ -20,6 +20,7 @@ import {
   FileText,
   Brain,
   DollarSign,
+  Info,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { FileExplorer } from '../FileExplorer';
@@ -37,7 +38,7 @@ import { SettingsPanel } from '../SettingsPanel';
 import { RulesPanel } from '../RulesPanel';
 import { MemoryEditPanel } from '../MemoryEditPanel';
 import { MemSearchPanel } from '../MemSearchPanel';
-import { CostPanel } from '../CostPanel';
+import { ContextPanel } from '../ContextPanel';
 
 type NavSection = 'chat' | 'project' | 'tools' | 'config';
 
@@ -49,6 +50,7 @@ const AUX_TABS: Record<
     { id: 'files', label: '文件', icon: FolderOpen },
     { id: 'git', label: 'Git', icon: GitBranch },
     { id: 'changes', label: '变更', icon: GitCommit },
+    { id: 'context', label: '上下文', icon: Info },
     { id: 'worktrees', label: 'Worktree', icon: Layers },
     { id: 'checkpoints', label: '快照', icon: Camera },
   ],
@@ -128,6 +130,7 @@ export function AuxPanel({
           {activeNavSection === 'project' && activeAuxSubPanel === 'files' && <FileExplorer />}
           {activeNavSection === 'project' && activeAuxSubPanel === 'git' && <GitPanel />}
           {activeNavSection === 'project' && activeAuxSubPanel === 'changes' && <ChangeSummaryPanel />}
+          {activeNavSection === 'project' && activeAuxSubPanel === 'context' && <ContextPanel />}
           {activeNavSection === 'project' && activeAuxSubPanel === 'worktrees' && <WorktreePanel />}
           {activeNavSection === 'project' && activeAuxSubPanel === 'checkpoints' && <CheckpointPanel />}
           {/* tools section */}

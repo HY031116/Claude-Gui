@@ -3,11 +3,11 @@
  * 从当前会话的所有消息中扫描 Write/Edit/MultiEdit 工具调用，
  * 展示每个文件的变更次数、操作类型及可展开的 Diff 预览
  */
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers, CheckCheck, RotateCcw } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { ToolCall } from '../types';
-import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
+import { DiffViewer, WritePreview, WriteDiff } from './DiffView';
 
 const FILE_MODIFY_TOOLS = [
   'Write', 'write_file', 'Edit', 'edit_file',
@@ -101,7 +101,7 @@ function ChangeDetail({ change }: { change: FileChange }) {
   if (change.changeType === 'edit') {
     const oldStr = (args.old_string ?? args.old_content ?? '') as string;
     const newStr = (args.new_string ?? args.new_content ?? '') as string;
-    return <InlineDiff oldStr={oldStr} newStr={newStr} />;
+    return <DiffViewer oldStr={oldStr} newStr={newStr} />;
   }
   if (change.changeType === 'multi_edit') {
     const edits = (args.edits ?? []) as Array<{ old_string: string; new_string: string }>;
@@ -114,7 +114,7 @@ function ChangeDetail({ change }: { change: FileChange }) {
                 段落 {i + 1}
               </div>
             )}
-            <InlineDiff oldStr={e.old_string ?? ''} newStr={e.new_string ?? ''} />
+            <DiffViewer oldStr={e.old_string ?? ''} newStr={e.new_string ?? ''} />
           </div>
         ))}
       </div>
@@ -126,9 +126,14 @@ function ChangeDetail({ change }: { change: FileChange }) {
 export function ChangeSummaryPanel() {
   const messages = useAppStore((s) => s.messages);
   const updateMessage = useAppStore((s) => s.updateMessage);
+  const activeChangeId = useAppStore((s) => s.activeChangeId);
+  const setActiveChangeId = useAppStore((s) => s.setActiveChangeId);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [expandedChanges, setExpandedChanges] = useState<Set<string>>(new Set());
   const [revertBusy, setRevertBusy] = useState(false);
+  /** 高亮中的变更卡片 ID（fadeout 动画用） */
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   /** 从所有消息中收集文件修改工具调用（含消息 ID） */
   const trackedChanges = useMemo((): TrackedChange[] => {
@@ -230,6 +235,43 @@ export function ChangeSummaryPanel() {
   const totalChanges = fileSummaries.reduce((s, f) => s + f.changes.length, 0);
   const canRevertAll = trackedChanges.some((c) => c.originalContent !== undefined && c.diffReviewStatus !== 'reverted');
 
+  /**
+   * 对话 ↔ Diff 联动：当 activeChangeId 变化时，
+   * 展开对应文件和变更卡片，并滚动到该卡片高亮显示
+   */
+  useEffect(() => {
+    if (!activeChangeId) return;
+    // 找到该工具调用所属的文件 + 在 fileSummaries 中的位置
+    let targetFilePath: string | null = null;
+    let targetChangeKey: string | null = null;
+    outer: for (const fs of fileSummaries) {
+      for (let idx = 0; idx < fs.changes.length; idx++) {
+        if (fs.changes[idx].toolCall.id === activeChangeId) {
+          targetFilePath = fs.filePath;
+          targetChangeKey = `${fs.filePath}-${idx}`;
+          break outer;
+        }
+      }
+    }
+    if (!targetFilePath || !targetChangeKey) return;
+
+    // 展开文件行 + 变更卡片
+    setExpandedFiles((prev) => new Set([...prev, targetFilePath!]));
+    setExpandedChanges((prev) => new Set([...prev, targetChangeKey!]));
+    setHighlightedId(activeChangeId);
+    setActiveChangeId(null); // 消费掉，避免重复触发
+
+    // 等待 DOM 更新后再滚动
+    setTimeout(() => {
+      const el = containerRef.current?.querySelector(`[data-toolcall-id="${CSS.escape(activeChangeId)}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      // 1.5s 后取消高亮
+      setTimeout(() => setHighlightedId(null), 1500);
+    }, 80);
+  }, [activeChangeId, fileSummaries, setActiveChangeId]);
+
   if (totalFiles === 0) {
     return (
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
@@ -317,7 +359,7 @@ export function ChangeSummaryPanel() {
       </div>
 
       {/* 文件列表 */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div ref={containerRef} style={{ flex: 1, overflowY: 'auto' }}>
         {fileSummaries.map((fs) => {
           const isExpanded = expandedFiles.has(fs.filePath);
           // 主要操作类型（最后一次）
@@ -370,11 +412,17 @@ export function ChangeSummaryPanel() {
                     return (
                       <div key={key} style={{ margin: '4px 0' }}>
                         <div
+                          data-toolcall-id={change.toolCall.id}
                           onClick={() => toggleChange(key)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6,
                             padding: '4px 14px', cursor: 'pointer',
                             fontSize: 12, color: 'var(--text-secondary)',
+                            background: highlightedId === change.toolCall.id
+                              ? 'rgba(139,92,246,0.18)'
+                              : 'transparent',
+                            transition: 'background 0.5s',
+                            borderRadius: 4,
                           }}
                         >
                           {isDiffExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}

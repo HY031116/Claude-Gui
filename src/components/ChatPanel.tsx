@@ -6,7 +6,7 @@ import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import type { Message, PlanStep, ToolCall } from '../types';
 import type { PermissionRequestEvent } from '../types/electron';
-import { InlineDiff, WritePreview, WriteDiff, computeLineDiff } from './DiffView';
+import { DiffViewer, WritePreview, WriteDiff, computeLineDiff } from './DiffView';
 
 // 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
 const renderer = new marked.Renderer();
@@ -1718,6 +1718,8 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   const [reviewBusy, setReviewBusy] = useState(false);
   const messages = useAppStore((s) => s.messages);
   const updateMessage = useAppStore((s) => s.updateMessage);
+  const setActiveChangeId = useAppStore((s) => s.setActiveChangeId);
+  const setActivePanel = useAppStore((s) => s.setActivePanel);
 
   const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
   const bashCommand = isBash
@@ -1929,6 +1931,21 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
             <Pencil size={10} /> 编辑
           </button>
         )}
+        {/* 联动按钮：跳转到变更面板并高亮当前工具调用 */}
+        {isFileModifyTool && toolCall.status === 'success' && (
+          <button
+            className="btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveChangeId(toolCall.id);
+              setActivePanel('changes');
+            }}
+            title="在变更面板中查看"
+            style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, marginRight: 2, color: 'var(--accent-color)' }}
+          >
+            <FileDiff size={10} /> 查看变更
+          </button>
+        )}
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </div>
       {expanded && (
@@ -1941,7 +1958,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <FileDiff size={11} /> 文件变更
               </div>
-              <InlineDiff
+              <DiffViewer
                 oldStr={String(toolCall.arguments.old_string)}
                 newStr={String(toolCall.arguments.new_string)}
               />
@@ -1956,7 +1973,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               {(toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => (
                 <div key={idx} style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
-                  <InlineDiff oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
+                  <DiffViewer oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
                 </div>
               ))}
             </div>

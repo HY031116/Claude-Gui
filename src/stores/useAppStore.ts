@@ -163,6 +163,13 @@ interface AppState {
   /** 按 tabId 记录各 tab 的 isProcessing 状态，供 TabBar 显示旋转指示器 */
   processingTabs: Record<string, boolean>;
   setTabProcessing: (tabId: string, processing: boolean) => void;
+
+  /**
+   * 对话 ↔ Diff 联动：当前高亮的工具调用 ID
+   * ChatPanel 中点击文件变更徽章时设置，ChangeSummaryPanel 订阅并滚动到对应卡片
+   */
+  activeChangeId: string | null;
+  setActiveChangeId: (id: string | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -373,6 +380,10 @@ export const useAppStore = create<AppState>((set, get) => {
   setTabProcessing: (tabId, processing) => set((state) => ({
     processingTabs: { ...state.processingTabs, [tabId]: processing },
   })),
+
+  // 对话 ↔ Diff 联动
+  activeChangeId: null,
+  setActiveChangeId: (id) => set({ activeChangeId: id }),
 }; // return 结束
 }); // create 结束
 

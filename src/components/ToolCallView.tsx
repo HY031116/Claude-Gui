@@ -1,7 +1,7 @@
 import { useAppStore } from '../stores/useAppStore';
 import { Wrench, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, FileDiff, Bot, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
-import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
+import { DiffViewer, WritePreview, WriteDiff } from './DiffView';
 
 export function ToolCallView() {
   const { messages } = useAppStore();
@@ -211,7 +211,7 @@ export function ToolCallView() {
                       <FileDiff size={12} />
                       <span>文件变更 — <code style={{ fontSize: 10 }}>{String(call.arguments.file_path || call.arguments.path || '')}</code></span>
                     </div>
-                    <InlineDiff oldStr={String(call.arguments.old_string)} newStr={String(call.arguments.new_string)} />
+                    <DiffViewer oldStr={String(call.arguments.old_string)} newStr={String(call.arguments.new_string)} />
                   </div>
                 )}
                 {call.name === 'MultiEdit' && Array.isArray(call.arguments?.edits) && (
@@ -223,7 +223,7 @@ export function ToolCallView() {
                     {(call.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => (
                       <div key={idx} style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
-                        <InlineDiff oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
+                        <DiffViewer oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
                       </div>
                     ))}
                   </div>
