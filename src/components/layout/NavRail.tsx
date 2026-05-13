@@ -54,7 +54,7 @@ export function NavRail({ onNavClick }: NavRailProps) {
     <div className="nav-rail">
       {/* 顶部 Logo 区域 */}
       <div className="nav-rail-logo" title="Claude Code GUI">
-        <Bot size={22} />
+        <Bot size={20} />
       </div>
 
       {/* 分割线 */}
@@ -72,7 +72,7 @@ export function NavRail({ onNavClick }: NavRailProps) {
             aria-label={item.label}
             data-tooltip={item.label}
           >
-            <Icon size={20} />
+            <Icon size={18} />
           </button>
         );
       })}
