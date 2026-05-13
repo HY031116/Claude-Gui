@@ -706,6 +706,8 @@ export function ChatPanel() {
 
     addMessage({ id: `msg-${Date.now()}`, role: 'user', content: userMsg, timestamp: Date.now() });
     setInput('');
+    // 发送后重置 textarea 高度到最小值
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setContextFiles([]); // 发送后清空附件
     setPastedImages([]); // 发送后清空图片
     setAtMenuOpen(false); // 发送后关闭 @ 菜单
@@ -1583,7 +1585,7 @@ export function ChatPanel() {
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
-              target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+              target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
             }}
           />
           <button

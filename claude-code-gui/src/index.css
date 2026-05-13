@@ -794,8 +794,8 @@ pre code {
 
 .chat-input {
   resize: none;
-  min-height: 38px;
-  max-height: 160px;
+  min-height: 48px;
+  max-height: 200px;
   padding: 9px 12px;
   flex: 1;
   border: 1px solid rgba(255, 255, 255, 0.04);
