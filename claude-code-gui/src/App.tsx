@@ -125,6 +125,7 @@ function App() {
 
   // 快捷键面板
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const handleCloseShortcuts = useCallback(() => setShowShortcuts(false), []);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -163,7 +164,7 @@ function App() {
     </div>
 
       {/* 快捷键一览 Modal（fixed 浮层，挂在 body 级别） */}
-      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showShortcuts && <ShortcutsModal onClose={handleCloseShortcuts} />}
     </>
   );
 }
