@@ -100,6 +100,11 @@ export interface ElectronAPI {
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   /** 用系统默认编辑器打开文件 */
   openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+  // 应用自动更新
+  checkUpdate: () => Promise<{ success: boolean; error?: string }>;
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+  installUpdate: () => void;
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }
 
 export interface GitFile {
@@ -133,6 +138,15 @@ export interface InstalledPlugin {
   enabled: boolean;
   pluginDir: string;
 }
+
+/** 应用自动更新状态 */
+export type UpdateStatus =
+  | { type: 'checking' }
+  | { type: 'available'; version: string; releaseDate?: string }
+  | { type: 'not-available' }
+  | { type: 'downloading'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string };
 
 declare global {
   interface Window {

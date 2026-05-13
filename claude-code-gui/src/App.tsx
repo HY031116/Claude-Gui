@@ -5,6 +5,7 @@ import { WorkspaceArea } from './components/layout/WorkspaceArea';
 import { AuxPanel } from './components/layout/AuxPanel';
 import { StatusBar } from './components/layout/StatusBar';
 import { ShortcutsModal } from './components/layout/ShortcutsModal';
+import { UpdateBanner } from './components/UpdateBanner';
 import { useResizableSidebar } from './hooks/useResizableSidebar';
 import { useCliOutput } from './hooks/useCliOutput';
 import { computeNavTransition } from './utils/nav';
@@ -141,6 +142,7 @@ function App() {
 
   return (
     <>
+    <UpdateBanner />
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} data-aux-panel={auxPanelOpen ? 'open' : 'closed'}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* 左侧导航栏 */}

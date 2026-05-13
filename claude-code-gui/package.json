@@ -22,6 +22,7 @@
   "dependencies": {
     "@types/marked": "^5.0.2",
     "ansi-to-html": "^0.7.2",
+    "electron-updater": "^6.8.3",
     "highlight.js": "^11.11.1",
     "lucide-react": "^1.14.0",
     "marked": "^18.0.3",
@@ -60,7 +61,14 @@
   "build": {
     "appId": "com.claude.code-gui",
     "productName": "Claude Code GUI",
-    "copyright": "Copyright 漏 2025 Claude Code GUI Contributors",
+    "copyright": "Copyright © 2025 Claude Code GUI Contributors",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_GITHUB_USERNAME",
+        "repo": "claude-code-gui"
+      }
+    ],
     "directories": {
       "output": "release"
     },
