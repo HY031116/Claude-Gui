@@ -3849,3 +3849,131 @@ pre code {
   background: rgba(0, 0, 0, 0.02);
 }
 
+/* ── Markdown 整体亮色适配 ───────────────────────────────────── */
+[data-theme="light"] .markdown-body h1,
+[data-theme="light"] .markdown-body h2 {
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .markdown-body code {
+  background: rgba(175, 184, 193, 0.2);
+  color: #0550ae;
+  border-color: rgba(175, 184, 193, 0.3);
+}
+
+[data-theme="light"] .markdown-body pre {
+  background: var(--code-bg);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .markdown-body blockquote {
+  background: rgba(124, 58, 237, 0.04);
+  color: #5a6080;
+}
+
+[data-theme="light"] .markdown-body ul li::marker,
+[data-theme="light"] .markdown-body ol li::marker {
+  color: #6d28d9;
+}
+
+/* ── highlight.js 亮色主题 token 颜色（来自 github.css）─────── */
+[data-theme="light"] .hljs {
+  color: #24292e;
+}
+
+[data-theme="light"] .hljs-doctag,
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-meta .hljs-keyword,
+[data-theme="light"] .hljs-template-tag,
+[data-theme="light"] .hljs-template-variable,
+[data-theme="light"] .hljs-type,
+[data-theme="light"] .hljs-variable.language_ {
+  color: #d73a49;
+}
+
+[data-theme="light"] .hljs-title,
+[data-theme="light"] .hljs-title.class_,
+[data-theme="light"] .hljs-title.class_.inherited__,
+[data-theme="light"] .hljs-title.function_ {
+  color: #6f42c1;
+}
+
+[data-theme="light"] .hljs-attr,
+[data-theme="light"] .hljs-attribute,
+[data-theme="light"] .hljs-literal,
+[data-theme="light"] .hljs-meta,
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-operator,
+[data-theme="light"] .hljs-variable,
+[data-theme="light"] .hljs-selector-attr,
+[data-theme="light"] .hljs-selector-class,
+[data-theme="light"] .hljs-selector-id {
+  color: #005cc5;
+}
+
+[data-theme="light"] .hljs-regexp,
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-meta .hljs-string {
+  color: #032f62;
+}
+
+[data-theme="light"] .hljs-built_in,
+[data-theme="light"] .hljs-symbol {
+  color: #e36209;
+}
+
+[data-theme="light"] .hljs-comment,
+[data-theme="light"] .hljs-code,
+[data-theme="light"] .hljs-formula {
+  color: #6a737d;
+}
+
+[data-theme="light"] .hljs-name,
+[data-theme="light"] .hljs-quote,
+[data-theme="light"] .hljs-selector-tag,
+[data-theme="light"] .hljs-selector-pseudo {
+  color: #22863a;
+}
+
+[data-theme="light"] .hljs-subst {
+  color: #24292e;
+}
+
+[data-theme="light"] .hljs-section {
+  color: #005cc5;
+  font-weight: bold;
+}
+
+[data-theme="light"] .hljs-bullet {
+  color: #735c0f;
+}
+
+[data-theme="light"] .hljs-emphasis {
+  color: #24292e;
+  font-style: italic;
+}
+
+[data-theme="light"] .hljs-strong {
+  color: #24292e;
+  font-weight: bold;
+}
+
+[data-theme="light"] .hljs-addition {
+  color: #22863a;
+  background-color: #f0fff4;
+}
+
+[data-theme="light"] .hljs-deletion {
+  color: #b31d28;
+  background-color: #ffeef0;
+}
+
+/* ── 代码块头部亮色 ─────────────────────────────────────────── */
+[data-theme="light"] .code-block-wrapper {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .code-block-header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}

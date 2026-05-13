@@ -290,6 +290,12 @@ npm run dist
 
 ## Changelog
 
+### v1.9.8 — Light Theme 全面适配（Markdown + 语法高亮）
+- **hljs 亮色 token 颜色**：`[data-theme="light"]` 下覆盖 github.css 的全部 token 颜色（关键字红 `#d73a49`、函数紫 `#6f42c1`、字符串深蓝 `#032f62`、注释灰等），从暗色 GitHub Dark 平滑切换
+- **Markdown 行内代码亮色**：亮色模式下行内代码改为 `#0550ae` 蓝色 + 浅灰背景，与正文区分明显
+- **blockquote / 标题分割线亮色**：降低透明度，在浅色背景下保持适当对比度
+- **代码块头部亮色**：`.code-block-header` 改用 `rgba(0,0,0,0.03)` 亮色背景，与代码内容区自然分隔
+
 ### v1.9.7 — Markdown 渲染质量全面提升
 - **语法高亮颜色修复**：`highlight.js` 主题（`github-dark`）已正确引入，代码块关键字、字符串、注释颜色均正常显示
 - **标题层级拉大**：`h1` 带下划线（1.4em）、`h2` 带浅分割线（1.2em）、`h3/h4` 逐级收窄，信息层次更清晰
