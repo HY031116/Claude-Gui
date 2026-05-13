@@ -2,7 +2,7 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.9.3**
+**版本：v1.9.4**
 
 > 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
@@ -289,6 +289,11 @@ npm run dist
 ---
 
 ## Changelog
+
+### v1.9.4 — 会话列表标题优化 + Context 指示器
+- **会话列表智能标题**：`SessionList` 对会话第一条消息自动格式化——去掉 `@文件引用` 和代码块，取第一行非空内容（≤40 字），会话可读性大幅提升
+- **Context Window 使用量指示器**：输入栏右端显示当前上下文占用百分比（绿 / 黄 / 红三色进度条，基于 200k limit），直观感知会话剩余容量
+- **`content-visibility: auto` 性能优化**：消息气泡使用 CSS 原生延迟渲染，长对话滚动帧率显著改善，零侵入无需虚拟列表
 
 ### v1.9.3 — Thinking 实时流式展示
 - **MessageBubble 流式 thinking**：Claude 思考期间，thinking 块自动展开，左侧紫色脉动边框指示进行中，末尾光标闪烁
