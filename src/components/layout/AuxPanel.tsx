@@ -38,6 +38,7 @@ import { SettingsPanel } from '../SettingsPanel';
 import { RulesPanel } from '../RulesPanel';
 import { MemoryEditPanel } from '../MemoryEditPanel';
 import { MemSearchPanel } from '../MemSearchPanel';
+import { CostPanel } from '../CostPanel';
 import { ContextPanel } from '../ContextPanel';
 
 type NavSection = 'chat' | 'project' | 'tools' | 'config';
