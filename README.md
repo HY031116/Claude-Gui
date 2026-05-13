@@ -2,7 +2,7 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.9.5**
+**版本：v1.9.6**
 
 > 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
@@ -289,6 +289,11 @@ npm run dist
 ---
 
 ## Changelog
+
+### v1.9.6 — Ctrl+O 全局 Thinking 展开/折叠
+- **Ctrl+O 快捷键**：一键展开或折叠当前聊天中所有 thinking 块，无需逐条操作
+- **`thinkingOverride` prop**：全局 override 优先于各消息的独立展开状态；用户手动点击单条 thinking 按钮时，仍维持该消息的独立控制
+- 逻辑：第一次 Ctrl+O → 全部展开；再次 → 全部折叠；反复切换
 
 ### v1.9.5 — TurnCard 执行进度可视化增强
 - **实时进度条**：TurnCard 头部下方增加薄进度条，随已完成步骤数动态推进（带 transition 动画），颜色按绿/黄/红三态跟随执行状态
