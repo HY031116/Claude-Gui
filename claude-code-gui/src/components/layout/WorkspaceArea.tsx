@@ -307,7 +307,6 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
                 <button
                   className="tab-context-item"
                   onClick={() => {
-                    const wd = tabs.find((t) => t.id === tab.id)?.label ?? tab.label;
                     // 从 store 的 snapshot 中读取工作目录
                     const snap = useAppStore.getState().tabSnapshots[tab.id];
                     const path = snap?.session?.workingDirectory ?? '';
