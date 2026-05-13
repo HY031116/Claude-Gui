@@ -266,6 +266,8 @@ export function ChatPanel() {
   const [atMenuIndex, setAtMenuIndex] = useState(0);
   // 消息搜索
   const [showSearch, setShowSearch] = useState(false);
+  // null = 各自独立控制；true = 全局展开；false = 全局折叠
+  const [allThinkingExpanded, setAllThinkingExpanded] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   // 导出会话加载中
@@ -1005,7 +1007,7 @@ export function ChatPanel() {
 
   const pendingApproval = permissionRequests[0] ?? null;
 
-  // Ctrl+F 打开搜索
+  // Ctrl+F 打开搜索 / Ctrl+O 全局展开折叠 thinking
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -1016,6 +1018,11 @@ export function ChatPanel() {
       if (e.key === 'Escape' && showSearch) {
         setShowSearch(false);
         setSearchQuery('');
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+        e.preventDefault();
+        // null → true（展开）→ false（折叠）→ true 循环
+        setAllThinkingExpanded((prev) => (prev === null || prev === false) ? true : false);
       }
     };
     window.addEventListener('keydown', handler);
@@ -1327,6 +1334,7 @@ export function ChatPanel() {
               searchQuery={searchQuery}
               isMatch={matchingMsgIds.has(msg.id)}
               isStreaming={isProcessing && idx === messages.length - 1 && msg.role === 'assistant'}
+              thinkingOverride={allThinkingExpanded}
             />
           </span>
         ))}
@@ -2276,10 +2284,12 @@ const TurnCard = memo(function TurnCard({ planSteps, toolCallsCount }: { planSte
 });
 
 /** 消息气泡 — memo 防止流式输出时历史消息无效重渲 */
-const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStreaming = false }: { msg: Message; searchQuery?: string; isMatch?: boolean; isStreaming?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStreaming = false, thinkingOverride = null }: { msg: Message; searchQuery?: string; isMatch?: boolean; isStreaming?: boolean; thinkingOverride?: boolean | null }) {
   const [copied, setCopied] = useState(false);
   // isStreaming 期间自动展开 thinking；结束后恢复用户控制状态（默认折叠）
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  // 全局 override 优先；null 时使用各自内部状态
+  const effectiveExpanded = thinkingOverride ?? thinkingExpanded;
   // 当 isStreaming 变为 false（完成），不自动折叠（保持用户最后展开状态）
   const streamingRef = useRef(isStreaming);
   useEffect(() => {
@@ -2400,16 +2410,16 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
                 {msg.thinking.length} 字
               </span>
               <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 10 }}>
-                {thinkingExpanded ? '收起' : '展开'}
+                {effectiveExpanded ? '收起' : '展开'}
               </span>
-              {thinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              {effectiveExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
-            {!thinkingExpanded && thinkingPreview && (
+            {!effectiveExpanded && thinkingPreview && (
               <div className="thinking-preview">
                 {thinkingPreview}
               </div>
             )}
-            {thinkingExpanded && (
+            {effectiveExpanded && (
               <div
                 ref={thinkingContentRef}
                 className={`thinking-content${isStreaming ? ' thinking-content-streaming' : ''}`}
