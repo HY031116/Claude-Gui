@@ -59,6 +59,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // node-pty Windows 清理时 AttachConsole() 可能失败（已知 bug）：进程退出后控制台已卸载
+  // 精准拦截该错误，避免污染日志；其他未捕获异常仍正常抛出
+  process.on('uncaughtException', (err) => {
+    if (err.message === 'AttachConsole failed') return;
+    throw err;
+  });
+
   // 初始化为暗色主题，让 Windows 原生菜单栏/标题栏随应用主题显示
   nativeTheme.themeSource = 'dark';
 
