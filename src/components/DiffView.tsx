@@ -3,60 +3,109 @@
  * 供 ToolCallCard（ChatPanel）和 ToolCallView 共用
  *
  * 导出：
- *   computeLineDiff      — 行级 diff 计算
- *   InlineDiff           — Unified diff 展示
- *   SideBySideDiff       — Side-by-Side diff 展示
- *   DiffViewer           — 带 Unified/Side-by-Side 模式切换的组合组件
+ *   computeLineDiff      — 行级 diff 计算（LCS 多 hunk，sep 折叠上下文）
+ *   InlineDiff           — Unified diff 展示（带 hunk 标记）
+ *   SideBySideDiff       — Side-by-Side diff 展示（带 hunk 标记）
+ *   DiffViewer           — 带 Unified/Side-by-Side 模式切换 + Chunk 导航
  *   WritePreview         — Write 工具新内容预览
  *   WriteDiff            — Write 工具 diff（使用 DiffViewer）
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
+
+/** Diff 行类型（sep 表示被折叠的上下文行，text 为跳过的行数） */
+export type DiffLineType = 'del' | 'add' | 'ctx' | 'sep';
+export interface DiffLine { type: DiffLineType; text: string; }
 
 /** Side-by-side 对齐行类型 */
 interface SideBySideRow {
-  type: 'ctx' | 'change' | 'del' | 'add';
+  type: 'ctx' | 'change' | 'del' | 'add' | 'sep';
   leftLine?: number;
   leftText?: string;
   rightLine?: number;
   rightText?: string;
 }
 
-/** 简单行级 diff：返回带标记的行数组 */
-export function computeLineDiff(
-  oldText: string,
-  newText: string
-): Array<{ type: 'del' | 'add' | 'ctx'; text: string }> {
-  const oldLines = oldText.split('\n');
-  const newLines = newText.split('\n');
-  const result: Array<{ type: 'del' | 'add' | 'ctx'; text: string }> = [];
+// ─── LCS 多 Hunk diff 实现 ─────────────────────────────────────────────────────
+const CTX = 3; // 每个 hunk 保留上下文行数
 
-  // 找公共前缀
+/** 属于进阶文件时降级为单块算法（避免 O(n*m) 内存） */
+function computeSimple(oldLines: string[], newLines: string[]): DiffLine[] {
   let start = 0;
-  while (start < oldLines.length && start < newLines.length && oldLines[start] === newLines[start]) {
-    start++;
-  }
-  // 找公共后缀
+  while (start < oldLines.length && start < newLines.length && oldLines[start] === newLines[start]) start++;
   let endOld = oldLines.length - 1;
   let endNew = newLines.length - 1;
-  while (endOld >= start && endNew >= start && oldLines[endOld] === newLines[endNew]) {
-    endOld--;
-    endNew--;
-  }
+  while (endOld >= start && endNew >= start && oldLines[endOld] === newLines[endNew]) { endOld--; endNew--; }
 
-  const CTX = 2; // 上下文行数
+  const result: DiffLine[] = [];
   const ctxStart = Math.max(0, start - CTX);
+  if (ctxStart > 0) result.push({ type: 'sep', text: String(ctxStart) });
   for (let i = ctxStart; i < start; i++) result.push({ type: 'ctx', text: oldLines[i] });
-
   for (let i = start; i <= endOld; i++) result.push({ type: 'del', text: oldLines[i] });
   for (let i = start; i <= endNew; i++) result.push({ type: 'add', text: newLines[i] });
-
   const ctxEnd = Math.min(endOld + CTX + 1, oldLines.length);
   for (let i = endOld + 1; i < ctxEnd; i++) result.push({ type: 'ctx', text: oldLines[i] });
-
+  if (ctxEnd < oldLines.length) result.push({ type: 'sep', text: String(oldLines.length - ctxEnd) });
   return result;
 }
 
-/** 行级 Diff 展示（红删 / 绿增 / 灰上下文） */
+/** LCS 追踪表 DP */
+function computeLCS(a: string[], b: string[]): DiffLine[] {
+  const n = a.length, m = b.length;
+  const W = m + 1;
+  const dp = new Int32Array((n + 1) * W);
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i * W + j] = a[i - 1] === b[j - 1]
+        ? dp[(i - 1) * W + (j - 1)] + 1
+        : Math.max(dp[(i - 1) * W + j], dp[i * W + (j - 1)]);
+    }
+  }
+  // 迭代回溯
+  const raw: Array<{ type: 'del' | 'add' | 'ctx'; text: string }> = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      raw.unshift({ type: 'ctx', text: a[i - 1] }); i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i * W + (j - 1)] >= dp[(i - 1) * W + j])) {
+      raw.unshift({ type: 'add', text: b[j - 1] }); j--;
+    } else {
+      raw.unshift({ type: 'del', text: a[i - 1] }); i--;
+    }
+  }
+  // 收缩远程上下文为 sep
+  const keep = new Uint8Array(raw.length);
+  for (let k = 0; k < raw.length; k++) {
+    if (raw[k].type !== 'ctx') {
+      for (let c = Math.max(0, k - CTX); c <= Math.min(raw.length - 1, k + CTX); c++) keep[c] = 1;
+    }
+  }
+  const result: DiffLine[] = [];
+  let skipCount = 0;
+  for (let k = 0; k < raw.length; k++) {
+    if (keep[k]) {
+      if (skipCount > 0) { result.push({ type: 'sep', text: String(skipCount) }); skipCount = 0; }
+      result.push(raw[k] as DiffLine);
+    } else { skipCount++; }
+  }
+  if (skipCount > 0) result.push({ type: 'sep', text: String(skipCount) });
+  return result;
+}
+
+/**
+ * 行级 diff：返回带标记的行数组（支持多 hunk）
+ * 小文件（n*m≪250k）用 LCS，大文件降级为单块算法
+ */
+export function computeLineDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  if (oldLines.length * newLines.length > 250_000) {
+    return computeSimple(oldLines, newLines);
+  }
+  return computeLCS(oldLines, newLines);
+}
+
+/** 行级 Diff 展示（红删 / 绿增 / 灰上下文，sep 行显示为折叠分隔符） */
 export function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string }) {
   const lines = computeLineDiff(oldStr, newStr);
   if (lines.length === 0) {
@@ -74,29 +123,48 @@ export function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string 
       background: 'var(--bg-primary)',
       border: '1px solid var(--border-color)',
     }}>
-      {lines.map((l, i) => (
-        <div
-          key={i}
-          style={{
-            padding: '0 8px',
-            background:
-              l.type === 'del' ? 'rgba(218,54,51,0.15)' :
-              l.type === 'add' ? 'rgba(35,134,54,0.15)' :
-              'transparent',
-            color:
-              l.type === 'del' ? 'var(--error-text)' :
-              l.type === 'add' ? 'var(--success-text)' :
-              'var(--text-secondary)',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-          }}
-        >
-          <span style={{ userSelect: 'none', opacity: 0.5, marginRight: 8 }}>
-            {l.type === 'del' ? '-' : l.type === 'add' ? '+' : ' '}
-          </span>
-          {l.text}
-        </div>
-      ))}
+      {lines.map((l, i) => {
+        if (l.type === 'sep') {
+          return (
+            <div key={i} style={{
+              padding: '2px 8px',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-muted)',
+              fontSize: 10,
+              borderTop: '1px dashed var(--border-color)',
+              borderBottom: '1px dashed var(--border-color)',
+              userSelect: 'none',
+            }}>... {l.text} 行未显示 ...</div>
+          );
+        }
+        // hunk 起始标记：这行是 del/add，且上一行是 ctx/sep 或是第一行
+        const isHunkStart = (l.type === 'del' || l.type === 'add') &&
+          (i === 0 || lines[i - 1].type === 'ctx' || lines[i - 1].type === 'sep');
+        return (
+          <div
+            key={i}
+            data-hunk-start={isHunkStart ? 'true' : undefined}
+            style={{
+              padding: '0 8px',
+              background:
+                l.type === 'del' ? 'rgba(218,54,51,0.15)' :
+                l.type === 'add' ? 'rgba(35,134,54,0.15)' :
+                'transparent',
+              color:
+                l.type === 'del' ? 'var(--error-text)' :
+                l.type === 'add' ? 'var(--success-text)' :
+                'var(--text-secondary)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}
+          >
+            <span style={{ userSelect: 'none', opacity: 0.5, marginRight: 8 }}>
+              {l.type === 'del' ? '-' : l.type === 'add' ? '+' : ' '}
+            </span>
+            {l.text}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -148,7 +216,10 @@ function buildSideBySideRows(oldText: string, newText: string): SideBySideRow[] 
 
   while (i < lines.length) {
     const l = lines[i];
-    if (l.type === 'ctx') {
+    if (l.type === 'sep') {
+      rows.push({ type: 'sep', leftText: l.text });
+      i++;
+    } else if (l.type === 'ctx') {
       rows.push({ type: 'ctx', leftLine, leftText: l.text, rightLine, rightText: l.text });
       leftLine++;
       rightLine++;
@@ -157,7 +228,7 @@ function buildSideBySideRows(oldText: string, newText: string): SideBySideRow[] 
       // 收集连续的 del / add 块
       const dels: string[] = [];
       const adds: string[] = [];
-      while (i < lines.length && lines[i].type !== 'ctx') {
+      while (i < lines.length && lines[i].type !== 'ctx' && lines[i].type !== 'sep') {
         if (lines[i].type === 'del') dels.push(lines[i].text);
         else if (lines[i].type === 'add') adds.push(lines[i].text);
         i++;
@@ -240,6 +311,33 @@ export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: str
       </div>
 
       {rows.map((row, idx) => {
+        // sep 折叠行
+        if (row.type === 'sep') {
+          return (
+            <div key={idx} style={{
+              display: 'flex',
+              background: 'var(--bg-secondary)',
+              borderTop: '1px dashed var(--border-color)',
+              borderBottom: '1px dashed var(--border-color)',
+            }}>
+              <div style={{ ...cellStyle('transparent'), padding: '2px 8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 10, userSelect: 'none' }}>
+                  ... {row.leftText} 行未显示 ...
+                </span>
+              </div>
+              <div style={{ ...cellStyle('transparent'), borderLeft: '1px solid var(--border-color)', padding: '2px 8px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 10, userSelect: 'none' }}>
+                  ... {row.leftText} 行未显示 ...
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        // hunk 起始行：这是 del/add/change，且上一行是 ctx/sep 或是第一行
+        const isHunkStart = (row.type === 'del' || row.type === 'add' || row.type === 'change') &&
+          (idx === 0 || rows[idx - 1].type === 'ctx' || rows[idx - 1].type === 'sep');
+
         // 左侧背景色
         const leftBg =
           row.type === 'del' ? 'rgba(218,54,51,0.12)' :
@@ -262,7 +360,7 @@ export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: str
         const rightSym = row.type === 'add' ? '+' : row.type === 'change' ? '+' : ' ';
 
         return (
-          <div key={idx} style={{ display: 'flex' }}>
+          <div key={idx} style={{ display: 'flex' }} data-hunk-start={isHunkStart ? 'true' : undefined}>
             {/* 左列 */}
             <div style={cellStyle(leftBg)}>
               <span style={{ ...lineNumStyle, color: leftColor }}>
@@ -290,29 +388,46 @@ export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: str
   );
 }
 
-// ─── DiffViewer：带模式切换的组合组件 ────────────────────────────
+// ─── DiffViewer：带模式切换 + Chunk 导航的组合组件 ──────────────
 
 type DiffMode = 'unified' | 'split';
 
-/** Diff 可视化组合组件，支持 Unified / Side-by-Side 切换 */
+/** Diff 可视化组合组件，支持 Unified / Side-by-Side 切换，以及 Chunk 导航 */
 export function DiffViewer({ oldStr, newStr, defaultMode = 'unified' }: {
   oldStr: string;
   newStr: string;
-  /** 默认展示模式，可选 'unified' 或 'split' */
   defaultMode?: DiffMode;
 }) {
   const [mode, setMode] = useState<DiffMode>(() => {
-    try {
-      return (localStorage.getItem('diffViewerMode') as DiffMode) ?? defaultMode;
-    } catch {
-      return defaultMode;
-    }
+    try { return (localStorage.getItem('diffViewerMode') as DiffMode) ?? defaultMode; }
+    catch { return defaultMode; }
   });
+  const [hunkIndex, setHunkIndex] = useState(0);
+  const [hunkCount, setHunkCount] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   function handleSetMode(m: DiffMode) {
     setMode(m);
+    setHunkIndex(0);
     try { localStorage.setItem('diffViewerMode', m); } catch { /* ignore */ }
   }
+
+  // 在每次 oldStr/newStr/mode 变化后重新计算 hunk 数量
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const count = containerRef.current.querySelectorAll('[data-hunk-start="true"]').length;
+    setHunkCount(count);
+    setHunkIndex(0);
+  }, [oldStr, newStr, mode]);
+
+  const navigateHunk = useCallback((dir: 1 | -1) => {
+    if (!containerRef.current) return;
+    const hunks = containerRef.current.querySelectorAll<HTMLElement>('[data-hunk-start="true"]');
+    if (hunks.length === 0) return;
+    const next = Math.max(0, Math.min(hunks.length - 1, hunkIndex + dir));
+    setHunkIndex(next);
+    hunks[next].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [hunkIndex]);
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
     padding: '1px 8px',
@@ -326,10 +441,40 @@ export function DiffViewer({ oldStr, newStr, defaultMode = 'unified' }: {
     transition: 'all 0.15s',
   });
 
+  const navBtnStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '1px 5px',
+    fontSize: 10,
+    border: '1px solid var(--border-color)',
+    borderRadius: 4,
+    cursor: hunkCount > 1 ? 'pointer' : 'default',
+    background: 'transparent',
+    color: hunkCount > 1 ? 'var(--text-secondary)' : 'var(--text-muted)',
+    lineHeight: '18px',
+    opacity: hunkCount > 1 ? 1 : 0.4,
+  };
+
   return (
-    <div>
-      {/* 模式切换 */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4, justifyContent: 'flex-end' }}>
+    <div ref={containerRef}>
+      {/* 工具栏：Chunk 导航 + 模式切换 */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+        {/* Chunk 导航（有多个 hunk 时显示） */}
+        {hunkCount > 0 && (
+          <>
+            <button style={navBtnStyle} onClick={() => navigateHunk(-1)} disabled={hunkCount <= 1 || hunkIndex === 0} title="上一处变更">
+              <ChevronUp size={10} />
+            </button>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', userSelect: 'none' }}>
+              {hunkCount > 1 ? `${hunkIndex + 1} / ${hunkCount}` : `${hunkCount} 处`}
+            </span>
+            <button style={navBtnStyle} onClick={() => navigateHunk(1)} disabled={hunkCount <= 1 || hunkIndex >= hunkCount - 1} title="下一处变更">
+              <ChevronDown size={10} />
+            </button>
+            <span style={{ width: 4 }} />
+          </>
+        )}
+        {/* 模式切换 */}
         <button style={btnStyle(mode === 'unified')} onClick={() => handleSetMode('unified')}>Unified</button>
         <button style={btnStyle(mode === 'split')} onClick={() => handleSetMode('split')}>Side-by-Side</button>
       </div>

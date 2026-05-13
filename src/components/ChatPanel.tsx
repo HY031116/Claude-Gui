@@ -879,7 +879,8 @@ export function ChatPanel() {
         return;
       }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // isComposing: 中文/日文等 IME 组字过程中 Enter 不应触发发送
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
