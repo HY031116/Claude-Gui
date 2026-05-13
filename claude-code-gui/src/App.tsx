@@ -96,19 +96,6 @@ function App() {
 
 
 
-  useEffect(() => {
-    if (!window.electronAPI) return;
-
-    const unsubscribe = window.electronAPI.onCliOutput((event) => {
-      // PTY 进程退出事件（终端行写入已由 useCliOutput 处理）
-      if (event.type === 'exit') {
-        setSession({ pid: undefined });
-      }
-    });
-
-    return () => { unsubscribe(); };
-  }, [setSession]);
-
   const handleStartSession = useCallback(async () => {
     await startCliSession();
   }, [startCliSession]);
