@@ -336,6 +336,8 @@ export function ChatPanel() {
   const firstUserMessageRef = useRef<string>('');
   // 当前对话开始时间戳
   const conversationStartedAtRef = useRef<number>(Date.now());
+  // 当前 Turn 开始时间戳（用于计算每轮耗时）
+  const turnStartedAtRef = useRef<number>(Date.now());
   // 工作目录 ref（避免加入 useEffect 依赖）
   const workingDirectoryRef = useRef<string>(session.workingDirectory);
   workingDirectoryRef.current = session.workingDirectory;
@@ -573,6 +575,19 @@ export function ChatPanel() {
                 workingDirectory: workingDirectoryRef.current,
               });
             }
+            // 写入本轮 Turn 摘要到最后一条 assistant 消息
+            if (assistantIdRef.current) {
+              const durationMs = Date.now() - turnStartedAtRef.current;
+              updateMessage(assistantIdRef.current, {
+                turnSummary: {
+                  toolCallCount: pendingToolCallsRef.current.length,
+                  inputTokens: parsed.usage?.input_tokens,
+                  outputTokens: parsed.usage?.output_tokens,
+                  costUsd: parsed.costUsd,
+                  durationMs,
+                },
+              });
+            }
             // 将此次会话保存到历史记录
             addOrUpdateConversation({
               sessionId: parsed.sessionId,
@@ -698,6 +713,7 @@ export function ChatPanel() {
     if (continueMode) setContinueMode(false); // 发送后清除 continue 模式
     setTokenUsage(null); // 新对话开始时重置 token 用量
     clearPlanSteps();    // 新消息时清空上一轮步骤
+    turnStartedAtRef.current = Date.now(); // 记录本轮 turn 开始时间
     setIsProcessing(true);
     assistantIdRef.current = null;
     targetContentRef.current = '';
@@ -1711,6 +1727,49 @@ export function ChatPanel() {
   );
 }
 
+/** Turn 汇总卡片 — 每轮 Claude 执行完成后展示步骤数/token/耗时 */
+const TurnSummaryCard = memo(function TurnSummaryCard({
+  summary,
+}: {
+  summary: NonNullable<Message['turnSummary']>;
+}) {
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+  };
+  const formatTokens = (n: number) => {
+    if (n < 1000) return String(n);
+    return `${(n / 1000).toFixed(1)}k`;
+  };
+  const totalTokens = (summary.inputTokens ?? 0) + (summary.outputTokens ?? 0);
+  return (
+    <div className="turn-summary-card">
+      {summary.toolCallCount > 0 && (
+        <span className="turn-summary-item">
+          <span className="turn-summary-icon">⚡</span>
+          {summary.toolCallCount} 步
+        </span>
+      )}
+      {totalTokens > 0 && (
+        <span className="turn-summary-item">
+          <span className="turn-summary-icon">🪙</span>
+          {formatTokens(totalTokens)} tokens
+          {summary.costUsd !== undefined && (
+            <span className="turn-summary-cost"> (${summary.costUsd.toFixed(4)})</span>
+          )}
+        </span>
+      )}
+      {summary.durationMs !== undefined && (
+        <span className="turn-summary-item">
+          <span className="turn-summary-icon">⏱</span>
+          {formatDuration(summary.durationMs)}
+        </span>
+      )}
+    </div>
+  );
+});
+
 /** 工具调用折叠卡片 — memo 防止父消息文本更新时未变工具卡片重渲 */
 const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   // 文件修改类工具默认展开（Diff 直接可见，无需用户主动点击）
@@ -2481,6 +2540,10 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
             className="message-content message-content-assistant markdown-body"
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
+        )}
+        {/* Turn 汇总卡片（仅 assistant 消息，turn 完成后显示） */}
+        {!isUser && msg.turnSummary && (
+          <TurnSummaryCard summary={msg.turnSummary} />
         )}
       </div>
 

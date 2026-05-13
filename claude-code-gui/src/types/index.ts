@@ -8,6 +8,14 @@ export interface Message {
   planSteps?: PlanStep[];
   /** Claude 的扩展思考链内容（extended thinking 模式下可用） */
   thinking?: string;
+  /** Turn 执行结束摘要（步骤数/token/耗时），仅 assistant 消息携带 */
+  turnSummary?: {
+    toolCallCount: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    costUsd?: number;
+    durationMs?: number;
+  };
 }
 
 export interface ToolCall {

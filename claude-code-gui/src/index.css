@@ -2313,6 +2313,33 @@ pre code {
   border-color: var(--accent-color);
 }
 
+/* ========== Turn 汇总卡片 ========== */
+.turn-summary-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  background: var(--glass);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.turn-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.turn-summary-cost {
+  opacity: 0.75;
+}
+
 /* ========== 工具调用卡片 ========== */
 .tool-calls-list {
   display: flex;
