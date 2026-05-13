@@ -8,6 +8,7 @@ import { useAppStore } from '../../stores/useAppStore';
 import { TerminalPanel } from '../TerminalPanel';
 import { SessionList } from '../SessionList';
 import { TaskView } from '../task/TaskView';
+import { HomeView } from '../task/HomeView';
 
 interface WorkspaceAreaProps {
   onStartSession: () => void;
@@ -15,6 +16,7 @@ interface WorkspaceAreaProps {
 
 export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   const session = useAppStore((s) => s.session);
+  const messages = useAppStore((s) => s.messages);
   const setSession = useAppStore((s) => s.setSession);
   const tabs = useAppStore((s) => s.tabs);
   const activeTabId = useAppStore((s) => s.activeTabId);
@@ -332,7 +334,12 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
             );
           })()}
 
-          <TaskView activeTabId={activeTabId} />
+          {/* 无连接 + 无消息：显示首屏欢迎页 */}
+          {!session.isConnected && messages.length === 0 ? (
+            <HomeView onStartSession={onStartSession} />
+          ) : (
+            <TaskView activeTabId={activeTabId} />
+          )}
           <TerminalPanel />
         </div>
 
