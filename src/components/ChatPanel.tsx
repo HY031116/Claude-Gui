@@ -259,6 +259,8 @@ export function ChatPanel() {
   useEffect(() => {
     setTabProcessing(activeTabId, isProcessing);
   }, [isProcessing, activeTabId, setTabProcessing]);
+  // 历史会话恢复：有 conversationSessionId 时即使 PTY 未连接也可发消息（sendMessage 是独立子进程）
+  const canSend = session.isConnected || !!session.conversationSessionId;
   // 工作目录编辑状态
   const [wdEditing, setWdEditing] = useState(false);
   const [wdDraft, setWdDraft] = useState('');
@@ -671,7 +673,7 @@ export function ChatPanel() {
   }, []);
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || !session.isConnected || isProcessing) return;
+    if (!input.trim() || !canSend || isProcessing) return;
 
     const userMsg = input.trim();
     const currentSessionId = session.conversationSessionId;
@@ -1544,7 +1546,7 @@ export function ChatPanel() {
           <button
             className="chat-attach-btn"
             onClick={handleAttachFile}
-            disabled={!session.isConnected}
+            disabled={!canSend}
             title="附加文件到上下文"
           >
             <Paperclip size={16} />
@@ -1575,8 +1577,8 @@ export function ChatPanel() {
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={session.isConnected ? '输入消息... (Enter 发送，Shift+Enter 换行)' : '请先启动会话'}
-            disabled={!session.isConnected}
+            placeholder={canSend ? (session.conversationSessionId && !session.isConnected ? '继续此会话... (Enter 发送)' : '输入消息... (Enter 发送，Shift+Enter 换行)') : '请先启动会话'}
+            disabled={!canSend}
             rows={1}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
@@ -1587,7 +1589,7 @@ export function ChatPanel() {
           <button
             className={`chat-send-btn ${isProcessing ? 'stop' : ''}`}
             onClick={isProcessing ? handleStop : handleSend}
-            disabled={!session.isConnected || (!isProcessing && !input.trim())}
+            disabled={!canSend || (!isProcessing && !input.trim())}
             title={isProcessing ? '停止生成' : '发送'}
           >
             {isProcessing ? <Square size={16} /> : <Send size={16} />}
