@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff, Search, Download, Activity, ListChecks, CircleDollarSign, Shield, RotateCcw } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, CheckCircle2, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, AlertCircle, Paperclip, FileCode, FileDiff, Search, Download, Activity, ListChecks, CircleDollarSign, Shield, RotateCcw } from 'lucide-react';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
@@ -2174,39 +2174,96 @@ const TurnCard = memo(function TurnCard({ planSteps, toolCallsCount }: { planSte
   const doneCount = planSteps.filter((s) => s.status === 'done').length;
   const errorCount = planSteps.filter((s) => s.status === 'error').length;
   const runningCount = planSteps.filter((s) => s.status === 'running').length;
+  const totalCount = planSteps.length;
+  const completedCount = doneCount + errorCount;
+  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const isComplete = runningCount === 0;
   const statusColor = !isComplete ? 'var(--accent-color)' : errorCount > 0 ? 'var(--error-text, #f85149)' : 'var(--success-text)';
-  const statusLabel = !isComplete ? '执行中…' : errorCount > 0 ? `已完成（含 ${errorCount} 个错误）` : '已完成';
+  const progressColor = errorCount > 0 && isComplete ? 'var(--error-text, #f85149)' : isComplete ? 'var(--success-text)' : 'var(--accent-color)';
+  const statusLabel = !isComplete ? '执行中' : errorCount > 0 ? `完成（含 ${errorCount} 错误）` : '已完成';
 
   return (
     <div style={{ margin: '2px 16px 2px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+      {/* 头部：状态 + 进度计数 + 折叠按钮 */}
       <button
         onClick={() => setCollapsed((v) => !v)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: statusColor, letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'left' }}
       >
-        <Activity size={12} />
+        {!isComplete
+          ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+          : errorCount > 0
+            ? <AlertCircle size={12} style={{ flexShrink: 0 }} />
+            : <CheckCircle2 size={12} style={{ flexShrink: 0 }} />
+        }
         <span style={{ flex: 1 }}>
-          {statusLabel} · {planSteps.length} 个步骤{toolCallsCount > 0 ? ` · ${toolCallsCount} 个工具` : ''}
+          {statusLabel}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', letterSpacing: 0, textTransform: 'none', fontVariantNumeric: 'tabular-nums' }}>
+          {completedCount}/{totalCount}{toolCallsCount > 0 ? ` · ${toolCallsCount} 工具` : ''}
         </span>
         {collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
       </button>
+
+      {/* 进度条 */}
+      <div style={{ height: 2, background: 'var(--border-color)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: `${progressPct}%`,
+          background: progressColor,
+          transition: 'width 0.3s ease, background 0.3s ease',
+        }} />
+      </div>
+
+      {/* 步骤时间线列表 */}
       {!collapsed && (
-        <div style={{ padding: '4px 12px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {planSteps.map((step) => (
-            <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, opacity: step.status === 'done' ? 0.7 : 1 }}>
-              <div style={{ flexShrink: 0, marginTop: 1, color: step.status === 'done' ? 'var(--success-text)' : step.status === 'error' ? 'var(--error-text, #f85149)' : 'var(--accent-color)' }}>
-                {step.status === 'running' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : step.status === 'done' ? <Check size={13} /> : <X size={13} />}
+        <div style={{ padding: '6px 12px 10px 12px' }}>
+          {planSteps.map((step, idx) => {
+            const isLast = idx === planSteps.length - 1;
+            const nodeColor = step.status === 'done'
+              ? 'var(--success-text)'
+              : step.status === 'error'
+                ? 'var(--error-text, #f85149)'
+                : 'var(--accent-color)';
+            return (
+              <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 0 }}>
+                {/* 时间线：竖线 + 圆点 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 20 }}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: step.status === 'running' ? 'transparent' : nodeColor,
+                    border: `2px solid ${nodeColor}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 3,
+                  }}>
+                    {step.status === 'running' && (
+                      <div style={{ width: 4, height: 4, borderRadius: '50%', background: nodeColor, animation: 'turnNodePulse 1.2s ease-in-out infinite' }} />
+                    )}
+                  </div>
+                  {!isLast && (
+                    <div style={{ width: 2, flex: 1, minHeight: 10, background: 'var(--border-color)', marginTop: 2 }} />
+                  )}
+                </div>
+                {/* 步骤内容 */}
+                <div style={{
+                  flex: 1, minWidth: 0, paddingLeft: 8, paddingBottom: isLast ? 0 : 8,
+                  opacity: step.status === 'done' ? 0.65 : 1,
+                  background: step.status === 'running' ? 'rgba(124,58,237,0.05)' : 'transparent',
+                  borderRadius: 4, padding: '2px 8px 2px 8px', marginLeft: 0,
+                  transition: 'opacity 0.2s',
+                }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: step.status === 'running' ? 600 : 400, lineHeight: 1.5 }}>
+                    {step.label}
+                  </div>
+                  {step.description && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, wordBreak: 'break-word', lineHeight: 1.4 }}>{step.description}</div>
+                  )}
+                </div>
               </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{step.label}</div>
-                {step.description && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-word' }}>{step.description}</div>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
+          {/* 完成摘要标签 */}
           {isComplete && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8, paddingLeft: 20 }}>
               {([`${doneCount} 完成`, errorCount > 0 ? `${errorCount} 失败` : null, toolCallsCount > 0 ? `${toolCallsCount} 工具调用` : null] as (string | null)[]).filter(Boolean).map((m) => (
                 <span key={m!} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 999, background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>{m}</span>
               ))}
