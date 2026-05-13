@@ -1998,7 +1998,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               onClick={() => void handleRejectDiff()}
               disabled={reviewBusy || !isLatestFileChange}
               title={isLatestFileChange ? '回滚到修改前' : '仅允许回滚最新一次修改'}
-              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3 }}
+              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, color: 'var(--error-text)' }}
             >
               <RotateCcw size={10} /> 拒绝
             </button>
@@ -2080,44 +2080,64 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               }
             </div>
           )}
-          {canReviewDiff && (
+          {/* str_replace_editor / str_replace_based_edit_tool：行级 Diff（使用 old_str/new_str 字段） */}
+          {['str_replace_editor', 'str_replace_based_edit_tool'].includes(toolCall.name) &&
+           (toolCall.arguments?.old_str !== undefined || toolCall.arguments?.old_string !== undefined) &&
+           (toolCall.arguments?.new_str !== undefined || toolCall.arguments?.new_string !== undefined) && (
             <div className="tool-call-section">
-              <div className="tool-call-section-label">变更确认</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  className="btn"
-                  onClick={handleAcceptDiff}
-                  disabled={reviewBusy || toolCall.diffReviewStatus === 'accepted'}
-                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-                >
-                  <Check size={11} />
-                  {toolCall.diffReviewStatus === 'accepted' ? '已接受' : '接受'}
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => void handleRejectDiff()}
-                  disabled={reviewBusy || !isLatestFileChange || toolCall.diffReviewStatus === 'reverted'}
-                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-                  title={isLatestFileChange ? '将文件回滚到本次修改前的内容' : '仅允许回滚该文件最新一次修改，避免覆盖后续变更'}
-                >
-                  <RotateCcw size={11} />
-                  {toolCall.diffReviewStatus === 'reverted' ? '已拒绝并回滚' : '拒绝'}
-                </button>
-                {reviewBusy && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>处理中…</span>
-                )}
-                {!isLatestFileChange && toolCall.diffReviewStatus !== 'reverted' && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>仅最新一次文件修改可直接回滚</span>
-                )}
-                <button
-                  className="btn"
-                  onClick={handleOpenInEditor}
-                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}
-                  title="用系统默认编辑器打开文件进行手动编辑"
-                >
-                  <Pencil size={11} /> 编辑
-                </button>
+              <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <FileDiff size={11} /> 文件变更
               </div>
+              <DiffViewer
+                oldStr={String(toolCall.arguments.old_str ?? toolCall.arguments.old_string)}
+                newStr={String(toolCall.arguments.new_str ?? toolCall.arguments.new_string)}
+              />
+            </div>
+          )}
+          {/* 变更确认：操作后按钮消失，显示状态标记 */}
+          {canReviewDiff && (
+            <div className="tool-call-section diff-action-bar">
+              {toolCall.diffReviewStatus === 'accepted' ? (
+                <div className="diff-review-status diff-review-accepted">
+                  <Check size={12} /> 已接受变更
+                </div>
+              ) : toolCall.diffReviewStatus === 'reverted' ? (
+                <div className="diff-review-status diff-review-reverted">
+                  <RotateCcw size={12} /> 已回滚至原版本
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    className="btn diff-action-accept"
+                    onClick={handleAcceptDiff}
+                    disabled={reviewBusy}
+                  >
+                    <Check size={11} /> 接受变更
+                  </button>
+                  <button
+                    className="btn diff-action-reject"
+                    onClick={() => void handleRejectDiff()}
+                    disabled={reviewBusy || !isLatestFileChange}
+                    title={isLatestFileChange ? '将文件回滚到本次修改前的内容' : '仅允许回滚该文件最新一次修改，避免覆盖后续变更'}
+                  >
+                    <RotateCcw size={11} /> 拒绝并回滚
+                  </button>
+                  {reviewBusy && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>处理中…</span>
+                  )}
+                  {!isLatestFileChange && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>（仅最新文件改动可回滚）</span>
+                  )}
+                  <button
+                    className="btn"
+                    onClick={handleOpenInEditor}
+                    style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}
+                    title="用系统默认编辑器打开文件进行手动编辑"
+                  >
+                    <Pencil size={11} /> 编辑
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {/* Read 工具结果：显示文件内容而非 JSON */}

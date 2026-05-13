@@ -2534,6 +2534,58 @@ body.is-resizing .resize-handle::after {
   border-top: 1px solid var(--border-color);
 }
 
+/* Diff 接受/拒绝操作区 */
+.diff-action-bar {
+  background: var(--bg-tertiary);
+}
+
+.diff-action-accept {
+  font-size: 11px !important;
+  padding: 3px 10px !important;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success-text) !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
+  background: rgba(34, 197, 94, 0.08) !important;
+}
+
+.diff-action-accept:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.16) !important;
+}
+
+.diff-action-reject {
+  font-size: 11px !important;
+  padding: 3px 10px !important;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--error-text) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+}
+
+.diff-action-reject:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.16) !important;
+}
+
+.diff-review-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 2px 0;
+  font-weight: 500;
+}
+
+.diff-review-accepted {
+  color: var(--success-text);
+}
+
+.diff-review-reverted {
+  color: var(--text-muted);
+}
+
 .tool-call-section-label {
   font-size: 11px;
   color: var(--text-muted);
