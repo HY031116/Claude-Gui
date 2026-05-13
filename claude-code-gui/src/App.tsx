@@ -214,7 +214,7 @@ function App() {
 
   return (
     <>
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} data-aux-panel={auxPanelOpen ? 'open' : 'closed'}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* 左侧导航栏 */}
       <NavRail onNavClick={handleNavClick as (id: NavClick) => void} />
