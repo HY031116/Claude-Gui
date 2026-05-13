@@ -1727,6 +1727,16 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
     ? (toolCall.arguments?.command as string | undefined) ?? ''
     : '';
 
+  // 工具类型 → CSS 类名（对应 index.css §tool-call-type-* 颜色规范）
+  const toolTypeClass = useMemo(() => {
+    const name = toolCall.name;
+    if (name === 'Bash' || name === 'bash') return 'tool-call-type-bash';
+    if (['Write', 'write_file'].includes(name)) return 'tool-call-type-write';
+    if (['Read', 'read_file', 'LS', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'computer_use_browser'].includes(name)) return 'tool-call-type-read';
+    if (['Edit', 'edit_file', 'str_replace_editor', 'str_replace_based_edit_tool', 'MultiEdit', 'multiedit'].includes(name)) return 'tool-call-type-edit';
+    return '';
+  }, [toolCall.name]);
+
   const filePath = useMemo(() => {
     return String(toolCall.arguments?.file_path ?? toolCall.arguments?.path ?? toolCall.arguments?.filename ?? '');
   }, [toolCall.arguments]);
@@ -1804,7 +1814,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   // Bash 工具的专属卡片
   if (isBash) {
     return (
-      <div className={`tool-call-card tool-call-${toolCall.status} tool-call-bash`}>
+      <div className={`tool-call-card tool-call-${toolCall.status} tool-call-type-bash ${toolTypeClass}`}>
         <div className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
           <span style={{ fontSize: 13 }}>⚙️</span>
           <span className="tool-call-name">Shell 命令</span>
@@ -1868,7 +1878,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   }
 
   return (
-    <div className={`tool-call-card tool-call-${toolCall.status}`}>
+    <div className={`tool-call-card tool-call-${toolCall.status} ${toolTypeClass}`}>
       <div className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
         <Wrench size={11} className="tool-call-icon-svg" />
         <span className="tool-call-name">{toolIcon} {toolCall.name}</span>

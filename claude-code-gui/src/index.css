@@ -2321,34 +2321,35 @@ pre code {
   margin-bottom: 8px;
 }
 
-/* 工具调用卡片——降噪: 仅保留左側色条，底色更轻 */
+/* 工具调用卡片——左侧色条由工具类型决定，边框色由状态决定 */
 .tool-call-card {
   border-radius: var(--radius);
   border: 1px solid transparent;
-  border-left-width: 0;
   overflow: hidden;
   font-size: 12px;
-}
-
-.tool-call-pending {
-  border-color: rgba(248, 148, 6, 0.25);
-  border-left: 3px solid #f89406;
+  /* 默认左侧色条（无类型归类的工具） */
+  border-left: 3px solid var(--text-muted);
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+}
+
+/* ── 工具类型 → 左侧色条（设计文档 §6.1 --tool-* 变量） ── */
+.tool-call-type-bash  { border-left-color: var(--tool-bash); }   /* 琥珀色 */
+.tool-call-type-write { border-left-color: var(--tool-write); }  /* 绿色 */
+.tool-call-type-read  { border-left-color: var(--tool-read); }   /* 蓝色 */
+.tool-call-type-edit  { border-left-color: var(--tool-edit); }   /* 紫色 */
+
+/* ── 执行状态 → 外边框色（整体卡片氛围） ── */
+.tool-call-pending {
+  border-color: rgba(245, 158, 11, 0.25);
 }
 
 .tool-call-success {
-  border-color: rgba(46, 164, 79, 0.25);
-  border-left: 3px solid #2ea44f;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  border-color: rgba(34, 197, 94, 0.2);
 }
 
 .tool-call-error {
-  border-color: rgba(248, 81, 73, 0.25);
-  border-left: 3px solid #f85149;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  border-color: rgba(239, 68, 68, 0.25);
 }
 
 .tool-call-header {
@@ -2362,16 +2363,17 @@ pre code {
   transition: background 0.15s;
 }
 
+/* ── 状态对应头部背景色调 ── */
 .tool-call-pending .tool-call-header {
-  background: rgba(248, 148, 6, 0.06);
+  background: rgba(245, 158, 11, 0.07);
 }
 
 .tool-call-success .tool-call-header {
-  background: rgba(46, 164, 79, 0.06);
+  background: rgba(34, 197, 94, 0.06);
 }
 
 .tool-call-error .tool-call-header {
-  background: rgba(248, 81, 73, 0.06);
+  background: rgba(239, 68, 68, 0.07);
 }
 
 .tool-call-header:hover {
