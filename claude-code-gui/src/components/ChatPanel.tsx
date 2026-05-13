@@ -254,6 +254,12 @@ export function ChatPanel() {
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
   const [input, setInput] = useState('');
+  // 输入历史（发送成功后追加）
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  // 当前历史浏览索引，-1 = 未浏览历史（当前草稿）
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  // 浏览历史前的草稿备份
+  const historyDraftRef = useRef('');
   const [isProcessing, setIsProcessing] = useState(false);
   // isProcessing 变化时同步到 store（供 TabBar 显示旋转指示器）
   useEffect(() => {
@@ -705,6 +711,9 @@ export function ChatPanel() {
     }
 
     addMessage({ id: `msg-${Date.now()}`, role: 'user', content: userMsg, timestamp: Date.now() });
+    // 发送成功后将消息追加到输入历史，重置历史浏览索引
+    setInputHistory((prev) => [...prev, userMsg]);
+    setHistoryIndex(-1);
     setInput('');
     // 发送后重置 textarea 高度到最小值
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -894,6 +903,54 @@ export function ChatPanel() {
       }
       if (e.key === 'Escape') {
         setSlashMenuIndex(-1);
+        return;
+      }
+    }
+    // Ctrl+K: 清空输入框并重置历史浏览
+    if (e.ctrlKey && e.key === 'k') {
+      e.preventDefault();
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      setHistoryIndex(-1);
+      historyDraftRef.current = '';
+      return;
+    }
+    // Arrow Up: 历史回填（@ 菜单和 slash 菜单均关闭、光标在第一行时）
+    if (e.key === 'ArrowUp' && !atMenuOpen && slashSuggestions.length === 0) {
+      const ta = e.currentTarget as HTMLTextAreaElement;
+      const textBeforeCursor = input.slice(0, ta.selectionStart);
+      if (!textBeforeCursor.includes('\n')) {
+        if (inputHistory.length === 0) return;
+        e.preventDefault();
+        const nextIdx = historyIndex === -1 ? inputHistory.length - 1 : Math.max(0, historyIndex - 1);
+        if (historyIndex === -1) historyDraftRef.current = input; // 保存当前草稿
+        setHistoryIndex(nextIdx);
+        const historyVal = inputHistory[nextIdx];
+        setInput(historyVal);
+        // 下一帧将光标移到末尾
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = historyVal.length;
+          }
+        });
+        return;
+      }
+    }
+    // Arrow Down: 历史向前（当前处于历史浏览模式时）
+    if (e.key === 'ArrowDown' && historyIndex >= 0 && !atMenuOpen && slashSuggestions.length === 0) {
+      const ta = e.currentTarget as HTMLTextAreaElement;
+      const textAfterCursor = input.slice(ta.selectionStart);
+      if (!textAfterCursor.includes('\n')) {
+        e.preventDefault();
+        if (historyIndex >= inputHistory.length - 1) {
+          // 回到发送前的草稿
+          setHistoryIndex(-1);
+          setInput(historyDraftRef.current);
+        } else {
+          const nextIdx = historyIndex + 1;
+          setHistoryIndex(nextIdx);
+          setInput(inputHistory[nextIdx]);
+        }
         return;
       }
     }
