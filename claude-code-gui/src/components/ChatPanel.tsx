@@ -1750,10 +1750,14 @@ const PermissionBannerCard = memo(function PermissionBannerCard({
 });
 
 /** Turn 汇总卡片 — 每轮 Claude 执行完成后展示步骤数/token/耗时 */
+const FILE_MODIFY_NAMES_SUMMARY = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
+
 const TurnSummaryCard = memo(function TurnSummaryCard({
   summary,
+  toolCalls,
 }: {
   summary: NonNullable<Message['turnSummary']>;
+  toolCalls?: ToolCall[];
 }) {
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
@@ -1765,6 +1769,41 @@ const TurnSummaryCard = memo(function TurnSummaryCard({
     return `${(n / 1000).toFixed(1)}k`;
   };
   const totalTokens = (summary.inputTokens ?? 0) + (summary.outputTokens ?? 0);
+
+  // 找出本轮可回滚目标：成功且有快照的文件修改（按文件路径去重，取第一次快照作为原始状态）
+  const rollbackTargets = useMemo(() => {
+    if (!toolCalls) return [];
+    const seen = new Set<string>();
+    const targets: { filePath: string; originalContent: string }[] = [];
+    for (const call of toolCalls) {
+      if (!FILE_MODIFY_NAMES_SUMMARY.includes(call.name)) continue;
+      if (call.status !== 'success') continue;
+      if (call.originalContent === undefined) continue;
+      if (call.diffReviewStatus === 'reverted') continue; // 已单独回滚，跳过
+      const fp = String(call.arguments?.file_path ?? call.arguments?.path ?? '');
+      if (!fp || seen.has(fp)) continue;
+      seen.add(fp);
+      targets.push({ filePath: fp, originalContent: call.originalContent });
+    }
+    return targets;
+  }, [toolCalls]);
+
+  const [rolling, setRolling] = useState(false);
+  const [rolled, setRolled] = useState(false);
+
+  const handleRollbackTurn = useCallback(async () => {
+    if (rolling || rolled || rollbackTargets.length === 0) return;
+    setRolling(true);
+    try {
+      for (const target of rollbackTargets) {
+        await window.electronAPI.writeFile(target.filePath, target.originalContent);
+      }
+      setRolled(true);
+    } finally {
+      setRolling(false);
+    }
+  }, [rolling, rolled, rollbackTargets]);
+
   return (
     <div className="turn-summary-card">
       {summary.toolCallCount > 0 && (
@@ -1786,6 +1825,23 @@ const TurnSummaryCard = memo(function TurnSummaryCard({
         <span className="turn-summary-item">
           <span className="turn-summary-icon">⏱</span>
           {formatDuration(summary.durationMs)}
+        </span>
+      )}
+      {/* 一键回滚：仅当本轮有可回滚的文件快照时显示 */}
+      {rollbackTargets.length > 0 && !rolled && (
+        <button
+          className="turn-summary-rollback-btn"
+          onClick={() => void handleRollbackTurn()}
+          disabled={rolling}
+          title={`回滚本轮 ${rollbackTargets.length} 个文件的修改`}
+        >
+          <RotateCcw size={10} />
+          {rolling ? '回滚中…' : `回滚本轮 (${rollbackTargets.length})`}
+        </button>
+      )}
+      {rolled && (
+        <span className="turn-summary-rolled">
+          <RotateCcw size={10} /> 已回滚
         </span>
       )}
     </div>
@@ -2585,7 +2641,7 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
         )}
         {/* Turn 汇总卡片（仅 assistant 消息，turn 完成后显示） */}
         {!isUser && msg.turnSummary && (
-          <TurnSummaryCard summary={msg.turnSummary} />
+          <TurnSummaryCard summary={msg.turnSummary} toolCalls={msg.toolCalls} />
         )}
       </div>
 
