@@ -1,6 +1,6 @@
 # Claude Code GUI — 可视化审查面板设计文档
 
-> 版本：v2.2 规划草案  
+> 版本：v2.2（已完成，对应应用版本 2.4.0）  
 > 目标：在对话流范式基础上，强化代码变更的可视化审查能力，提升人机协作可信度。
 
 ---
@@ -58,7 +58,7 @@
 └──────────────────────┴──────────────────────┘
 ```
 
-**状态**：待实现
+**状态**：✅ 已实现（`DiffViewer` 组件，Unified/Side-by-Side 切换，状态存 localStorage，Chunk 导航）
 
 ---
 
@@ -76,7 +76,7 @@
 - `src/components/ChatPanel.tsx` — 在工具调用气泡下方显示文件徽章，点击时 `setActiveChangeId(id)`
 - `src/components/ChangeSummaryPanel.tsx` — 监听 `activeChangeId`，`scrollIntoView` + 高亮
 
-**状态**：待实现
+**状态**：✅ 已实现（`setActiveChangeId` + `scrollIntoView` + 1.5s 高亮动画；ChatPanel 文件变更徽章点击联动）
 
 ---
 
@@ -91,7 +91,7 @@
 
 **实现位置**：新建 `src/components/ContextPanel.tsx`，注册为 AuxPanel 的一个子标签
 
-**状态**：待实现
+**状态**：✅ 已实现（`ContextPanel.tsx`：已读文件列表、CLAUDE.md 摘要、Token 进度条）
 
 ---
 
