@@ -2320,11 +2320,12 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
   const isUser = msg.role === 'user';
   const isSystem = msg.role === 'system';
 
-  // assistant 消息用 marked 渲染 Markdown
+  // assistant 消息用 marked 渲染 Markdown；streaming 时末尾追加闪烁光标
   const htmlContent = useMemo(() => {
     if (isUser || isSystem) return msg.content;
-    return renderMarkdown(msg.content);
-  }, [msg.content, isUser, isSystem]);
+    const base = renderMarkdown(msg.content);
+    return isStreaming ? base + '<span class="streaming-cursor" aria-hidden="true"></span>' : base;
+  }, [msg.content, isUser, isSystem, isStreaming]);
 
   // 代码块自动插入语言标签 + 复制按钮
   useEffect(() => {

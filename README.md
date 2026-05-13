@@ -290,6 +290,13 @@ npm run dist
 
 ## Changelog
 
+### v1.9.9 — 视效与动效全面升级
+- **Streaming 闪烁光标**：assistant 消息流式输出时，正文末尾出现闪烁竖线光标（`streamCursor` / `cursorBlink` 动画），与 thinking 块光标风格一致，生成状态一目了然
+- **Tab 面板淡入**：切换会话 Tab 时，ChatPanel 整体通过 `msgFadeIn` 动画（200ms ease-out）平滑淡入，消除突兀切换感
+- **按钮点击微缩**：所有带 `-btn` / `-button` class 的按钮在 `:active` 时轻微缩放 0.93x（80ms ease），提供即时触感反馈；NavRail 按钮保持自有变换
+- **工具调用状态颜色过渡**：`.tool-call-status` 新增 `color transition 0.3s ease`，pending→running→done 状态颜色渐变而非突变
+- **消息入场动画确认**：`msgFadeIn`（translateY 10px→0 + opacity）已全面覆盖消息气泡与 ChatPanel 容器，切换/新消息均有入场动效
+
 ### v1.9.8 — Light Theme 全面适配（Markdown + 语法高亮）
 - **hljs 亮色 token 颜色**：`[data-theme="light"]` 下覆盖 github.css 的全部 token 颜色（关键字红 `#d73a49`、函数紫 `#6f42c1`、字符串深蓝 `#032f62`、注释灰等），从暗色 GitHub Dark 平滑切换
 - **Markdown 行内代码亮色**：亮色模式下行内代码改为 `#0550ae` 蓝色 + 浅灰背景，与正文区分明显

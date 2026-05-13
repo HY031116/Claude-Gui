@@ -455,6 +455,7 @@ pre code {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  animation: msgFadeIn var(--duration-normal) var(--ease-out);
 }
 
 /* 消息列表：居中 + 最大宽度（超宽屏阅读友好） */
@@ -1010,6 +1011,18 @@ pre code {
   margin-left: 2px;
   vertical-align: middle;
   animation: cursorBlink 1s step-end infinite;
+}
+
+/* 主消息区 streaming 光标（assistant 流式输出末尾） */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent-color);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: cursorBlink 0.9s step-end infinite;
 }
 @keyframes cursorBlink {
   0%, 100% { opacity: 1; }
@@ -2351,6 +2364,7 @@ pre code {
 .tool-call-status {
   font-size: 11px;
   flex-shrink: 0;
+  transition: color 0.3s ease;
 }
 
 .tool-call-status-pending { color: #f89406; }
@@ -3977,3 +3991,22 @@ pre code {
   background: rgba(0, 0, 0, 0.03);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
+
+/* ── 通用按钮点击微缩反馈 ─────────────────────────────────────────────── */
+/* 使用属性选择器保持低特异性，避免覆盖导航按钮等组件样式 */
+[class*="-btn"]:active:not(:disabled),
+[class*="-button"]:active:not(:disabled) {
+  transform: scale(0.93);
+  transition: transform 0.08s ease;
+}
+
+/* NavRail 的 nav-button 保持自己的 translateY + scale 效果 */
+.nav-button:active {
+  transform: translateY(0) scale(0.94);
+}
+
+/* AuxPanel 导航按钮点击反馈 */
+.aux-nav-btn:active {
+  transform: scale(0.94);
+}
+
