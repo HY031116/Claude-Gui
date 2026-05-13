@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { Send, User, Bot, Loader2, Copy, Check, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, Paperclip, FileCode, FileDiff, Search, Download, Activity, ListChecks, CircleDollarSign, Shield, RotateCcw } from 'lucide-react';
+import { Send, User, Bot, Loader2, Copy, Check, CheckCircle2, ChevronDown, ChevronUp, Wrench, Square, FolderOpen, Pencil, X, AlertCircle, Paperclip, FileCode, FileDiff, Search, Download, Activity, ListChecks, CircleDollarSign, Shield, RotateCcw } from 'lucide-react';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import type { Message, PlanStep, ToolCall } from '../types';
 import type { PermissionRequestEvent } from '../types/electron';
-import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
+import { DiffViewer, WritePreview, WriteDiff, computeLineDiff } from './DiffView';
 
 // 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
 const renderer = new marked.Renderer();
@@ -14,6 +14,16 @@ renderer.code = function({ text, lang }: { text: string; lang?: string }) {
   const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
   const highlighted = hljs.highlight(text, { language }).value;
   return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+};
+// 表格加外层滚动容器，防止内容溢出
+renderer.table = function(token: { header: unknown[]; rows: unknown[]; }) {
+  const thead = (token.header as Array<{ tokens: unknown[]; align: string | null }>)
+    .map((cell) => `<th${cell.align ? ` style="text-align:${cell.align}"` : ''}>${(cell.tokens as Array<{text?: string; raw?: string}>).map(t => t.text ?? t.raw ?? '').join('')}</th>`)
+    .join('');
+  const tbody = (token.rows as Array<Array<{ tokens: unknown[]; align: string | null }>>)
+    .map((row) => `<tr>${row.map((cell) => `<td${cell.align ? ` style="text-align:${cell.align}"` : ''}>${(cell.tokens as Array<{text?: string; raw?: string}>).map(t => t.text ?? t.raw ?? '').join('')}</td>`).join('')}</tr>`)
+    .join('');
+  return `<div class="table-wrapper"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
 };
 marked.use({ gfm: true, breaks: true, renderer });
 
@@ -66,6 +76,7 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
       return { type: 'assistant', text: textParts.join(''), thinking: thinkingParts.join('\n\n'), toolUses };
     }
 
+    // 旧格式：type = "tool"（向后兼容）
     if (obj.type === 'tool' && Array.isArray(obj.content)) {
       const results: { tool_use_id: string; content: string }[] = [];
       for (const block of obj.content) {
@@ -79,7 +90,25 @@ function parseStreamJsonLine(line: string): ParsedStreamEvent | null {
           results.push({ tool_use_id: block.tool_use_id as string, content });
         }
       }
-      return { type: 'tool_result', results };
+      if (results.length > 0) return { type: 'tool_result', results };
+    }
+
+    // 新格式（CLI 2.x）：type = "user"，工具结果在 message.content 中
+    if (obj.type === 'user' && obj.message?.role === 'user' && Array.isArray(obj.message?.content)) {
+      const results: { tool_use_id: string; content: string }[] = [];
+      for (const block of obj.message.content as Array<Record<string, unknown>>) {
+        if (block['type'] === 'tool_result' && block['tool_use_id']) {
+          const rawContent = block['content'];
+          const content = Array.isArray(rawContent)
+            ? (rawContent as Array<{ type: string; text: string }>)
+                .filter((b) => b.type === 'text')
+                .map((b) => b.text)
+                .join('')
+            : String(rawContent ?? '');
+          results.push({ tool_use_id: block['tool_use_id'] as string, content });
+        }
+      }
+      if (results.length > 0) return { type: 'tool_result', results };
     }
 
     if (obj.type === 'result' && obj.session_id) {
@@ -209,13 +238,29 @@ export function ChatPanel() {
   const addTokenRecord = useAppStore((s) => s.addTokenRecord);
   const currentModel = useAppStore((s) => s.currentModel);
   const todoItems = useAppStore((s) => s.todoItems);
+  // 当前活跃 tab ID，用于事件路由过滤
+  const activeTabId = useAppStore((s) => s.activeTabId);
+  const activeTabIdRef = useRef<string>(activeTabId);
+  useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
   const activePlanSteps = useAppStore((s) => s.activePlanSteps);
   const setActivePanel = useAppStore((s) => s.setActivePanel);
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
+  const appendRawJson = useAppStore((s) => s.appendRawJson);
+  const setTabProcessing = useAppStore((s) => s.setTabProcessing);
+  const tabs = useAppStore((s) => s.tabs);
+  const renameTab = useAppStore((s) => s.renameTab);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  // isProcessing 变化时同步到 store（供 TabBar 显示旋转指示器）
+  useEffect(() => {
+    setTabProcessing(activeTabId, isProcessing);
+  }, [isProcessing, activeTabId, setTabProcessing]);
+  // 历史会话恢复：有 conversationSessionId 时即使 PTY 未连接也可发消息（sendMessage 是独立子进程）
+  const canSend = session.isConnected || !!session.conversationSessionId;
   // 工作目录编辑状态
   const [wdEditing, setWdEditing] = useState(false);
   const [wdDraft, setWdDraft] = useState('');
@@ -233,6 +278,8 @@ export function ChatPanel() {
   const [atMenuIndex, setAtMenuIndex] = useState(0);
   // 消息搜索
   const [showSearch, setShowSearch] = useState(false);
+  // null = 各自独立控制；true = 全局展开；false = 全局折叠
+  const [allThinkingExpanded, setAllThinkingExpanded] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   // 导出会话加载中
@@ -241,6 +288,21 @@ export function ChatPanel() {
   const [localModel, setLocalModel] = useState('');
   // 权限/执行模式快切（Claude Code 原生 permission-mode）
   const [localPermissionMode, setLocalPermissionMode] = useState('auto');
+  const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
+  // 首次启动引导：读取 localStorage 标志，未设置则显示引导卡片
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => !!localStorage.getItem('claude-gui-onboarding-v1')
+  );
+  const handleOnboardingDone = useCallback(() => {
+    localStorage.setItem('claude-gui-onboarding-v1', '1');
+    setOnboardingDone(true);
+  }, []);
+  const handleGoToSettings = useCallback(() => {
+    localStorage.setItem('claude-gui-onboarding-v1', '1');
+    setOnboardingDone(true);
+    setActiveNavSection('config');
+    setActiveAuxSubPanel('settings');
+  }, [setActiveNavSection, setActiveAuxSubPanel]);
   // Agent 快切
   const [localAgent, setLocalAgent] = useState('');
   const [customAgentNames, setCustomAgentNames] = useState<string[]>([]);
@@ -349,6 +411,11 @@ export function ChatPanel() {
   // 监听 cli:output 事件，完整处理 stream-json 所有类型
   useEffect(() => {
     const unsubscribe = window.electronAPI.onCliOutput((event) => {
+      // message-* 事件按 tabId 路由，只处理当前 tab 的输出
+      if (event.type === 'message-chunk' || event.type === 'message-done' ||
+          event.type === 'message-stderr' || event.type === 'message-error') {
+        if (event.tabId && event.tabId !== activeTabIdRef.current) return;
+      }
       if (event.type === 'permission-request') {
         try {
           const request = JSON.parse(event.data) as PermissionRequestEvent;
@@ -377,6 +444,9 @@ export function ChatPanel() {
         let hasNewText = false;
 
         for (const line of lines) {
+          // 记录原始 JSON 行（调试用）
+          if (line.trim()) appendRawJson(line.trim());
+
           const parsed = parseStreamJsonLine(line);
           if (!parsed) continue;
 
@@ -411,9 +481,11 @@ export function ChatPanel() {
                 const filePath = (toolUse.input?.file_path || toolUse.input?.path) as string | undefined;
                 if (filePath) {
                   window.electronAPI.readFile(filePath.replace(/\\/g, '/')).then((res) => {
-                    if (res.success && res.content) {
+                    if (res.success) {
+                      // 即使文件为空（res.content === ''）也保存快照，表示文件原先存在且为空
+                      const originalContent = res.content ?? '';
                       pendingToolCallsRef.current = pendingToolCallsRef.current.map((tc) =>
-                        tc.id === toolUse.id ? { ...tc, originalContent: res.content } : tc,
+                        tc.id === toolUse.id ? { ...tc, originalContent } : tc,
                       );
                       if (assistantIdRef.current) {
                         updateMessage(assistantIdRef.current, { toolCalls: [...pendingToolCallsRef.current] });
@@ -601,7 +673,7 @@ export function ChatPanel() {
   }, []);
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || !session.isConnected || isProcessing) return;
+    if (!input.trim() || !canSend || isProcessing) return;
 
     const userMsg = input.trim();
     const currentSessionId = session.conversationSessionId;
@@ -636,6 +708,12 @@ export function ChatPanel() {
     if (!currentSessionId) {
       firstUserMessageRef.current = userMsg.slice(0, 100);
       conversationStartedAtRef.current = Date.now();
+      // 若当前 tab 仍是默认命名（"会话 N"），用消息前 20 字自动命名
+      const currentTab = tabs.find((t) => t.id === activeTabId);
+      if (currentTab && /^会话\s+\d+$/.test(currentTab.label)) {
+        const autoName = userMsg.trim().slice(0, 20) || currentTab.label;
+        renameTab(activeTabId, autoName);
+      }
     }
 
     try {
@@ -645,6 +723,7 @@ export function ChatPanel() {
         effectiveSessionId,
         pastedImages.length > 0 ? pastedImages.map((img) => img.path) : undefined,
         localAgent && localAgent !== 'default' ? localAgent : undefined,
+        activeTabId,
       );
       if (!result.success) {
         addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: result.error || '消息发送失败。', timestamp: Date.now() });
@@ -800,7 +879,8 @@ export function ChatPanel() {
         return;
       }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // isComposing: 中文/日文等 IME 组字过程中 Enter 不应触发发送
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -940,7 +1020,7 @@ export function ChatPanel() {
 
   const pendingApproval = permissionRequests[0] ?? null;
 
-  // Ctrl+F 打开搜索
+  // Ctrl+F 打开搜索 / Ctrl+O 全局展开折叠 thinking
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -951,6 +1031,11 @@ export function ChatPanel() {
       if (e.key === 'Escape' && showSearch) {
         setShowSearch(false);
         setSearchQuery('');
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+        e.preventDefault();
+        // null → true（展开）→ false（折叠）→ true 循环
+        setAllThinkingExpanded((prev) => (prev === null || prev === false) ? true : false);
       }
     };
     window.addEventListener('keydown', handler);
@@ -965,6 +1050,9 @@ export function ChatPanel() {
       }
       if (res.success && res.settings?.permissionMode) {
         setLocalPermissionMode(res.settings.permissionMode);
+      }
+      if (res.success && typeof res.settings?.autoConnectOnLaunch === 'boolean') {
+        setAutoConnectOnLaunch(res.settings.autoConnectOnLaunch);
       }
     });
     window.electronAPI.loadCliConfig().then((res) => {
@@ -1176,51 +1264,120 @@ export function ChatPanel() {
                     <p className="empty-state-desc">有什么可以帮你的？</p>
                     <div className="empty-state-suggestions">
                       {[
-                        { emoji: '📋', text: '审查当前项目代码' },
-                        { emoji: '🔧', text: '帮我修复 Bug' },
-                        { emoji: '📝', text: '创建一个新文件' },
-                        { emoji: '🔍', text: '解释这段代码' },
+                        { icon: <Search size={14} />, text: '审查当前项目代码' },
+                        { icon: <Wrench size={14} />, text: '帮我修复 Bug' },
+                        { icon: <FileCode size={14} />, text: '创建一个新文件' },
+                        { icon: <Activity size={14} />, text: '分析性能瓶颈' },
                       ].map((s) => (
                         <button
                           key={s.text}
                           className="suggestion-chip"
                           onClick={() => setInput(s.text)}
                         >
-                          <span>{s.emoji}</span>
+                          {s.icon}
                           {s.text}
                         </button>
                       ))}
                     </div>
                   </>
                 ) : (
-                  <p className="empty-state-desc">请先在左侧侧边栏启动 Claude Code 会话</p>
+                  <>
+                    {/* 首次启动引导：功能简介 + 快速操作 */}
+                    {!onboardingDone && (
+                      <div style={{ marginTop: 12, width: '100%', maxWidth: 400 }}>
+                        <p className="empty-state-desc" style={{ marginBottom: 12, opacity: 0.9 }}>
+                          欢迎使用 Claude Code GUI —— Claude Code CLI 的桌面客户端
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', marginBottom: 16 }}>
+                          {[
+                            { icon: '💬', label: '对话', desc: '与 Claude 实时聊天，支持代码审查、文件编写' },
+                            { icon: '📁', label: '文件', desc: '浏览项目文件，点击左侧文件图标一键直达' },
+                            { icon: '🔄', label: '变更', desc: '审查 Claude 的文件修改，支持应用全部/撤销全部' },
+                            { icon: '🔧', label: '工具', desc: '配置 MCP 服务器、Agents、Hooks 等扩展能力' },
+                            { icon: '⚙️', label: '配置', desc: '设置 API Key、模型选择、API 配置文件切换' },
+                          ].map((item) => (
+                            <div key={item.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 10px', borderRadius: 6, background: 'var(--bg-secondary)' }}>
+                              <span style={{ fontSize: 16, lineHeight: 1.4 }}>{item.icon}</span>
+                              <div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
+                                <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 6 }}>{item.desc}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="suggestion-chip" style={{ flex: 1, justifyContent: 'center' }} onClick={handleGoToSettings}>
+                            ⚙️ 去配置 API Key
+                          </button>
+                          <button className="suggestion-chip" style={{ flex: 1, justifyContent: 'center' }} onClick={handleOnboardingDone}>
+                            ✓ 直接开始
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {onboardingDone && (
+                      <>
+                        <p className="empty-state-desc">
+                          {autoConnectOnLaunch ? '请点击右上角「启动」按钮开始 Claude Code 会话' : '自动连接已关闭，请手动启动 Claude Code'}
+                        </p>
+                        {!autoConnectOnLaunch && (
+                          <p className="empty-state-desc" style={{ marginTop: 4, opacity: 0.76 }}>
+                            可在设置的“会话”标签里重新开启自动连接
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </>
             )}
           </div>
         )}
 
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            msg={msg}
-            searchQuery={searchQuery}
-            isMatch={matchingMsgIds.has(msg.id)}
-          />
+        {messages.map((msg, idx) => (
+          <span key={msg.id} style={{ display: 'contents' }}>
+            {msg.role === 'assistant' && msg.planSteps && msg.planSteps.length > 0 && (
+              <TurnCard planSteps={msg.planSteps} toolCallsCount={msg.toolCalls?.length ?? 0} />
+            )}
+            {msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && (
+              <ChangeSummaryCard toolCalls={msg.toolCalls} msgId={msg.id} />
+            )}
+            <MessageBubble
+              msg={msg}
+              searchQuery={searchQuery}
+              isMatch={matchingMsgIds.has(msg.id)}
+              isStreaming={isProcessing && idx === messages.length - 1 && msg.role === 'assistant'}
+              thinkingOverride={allThinkingExpanded}
+            />
+          </span>
         ))}
 
-        {isProcessing && (
-          <div className="typing-indicator">
-            <div className="typing-dots">
-              <span /><span /><span />
+        {isProcessing && (() => {
+          // 获取最后一条 assistant 消息，用于显示实时 thinking 摘要
+          const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+          const liveThinking = (lastAssistant as { thinking?: string } | undefined)?.thinking ?? '';
+          const thinkingLine = liveThinking
+            ? (liveThinking.split('\n').filter((l) => l.trim()).slice(-1)[0] ?? '')
+            : '';
+          return (
+            <div className="typing-indicator">
+              <div className="typing-dots">
+                <span /><span /><span />
+              </div>
+              {thinkingLine ? (
+                <span className="typing-thinking-preview" title={thinkingLine}>
+                  {thinkingLine.length > 60 ? thinkingLine.slice(0, 60) + '…' : thinkingLine}
+                </span>
+              ) : (
+                <span>Claude 正在生成</span>
+              )}
+              <button className="typing-stop-btn" onClick={handleStop} title="停止生成">
+                <Square size={11} />
+                停止
+              </button>
             </div>
-            <span>Claude 正在生成</span>
-            <button className="typing-stop-btn" onClick={handleStop} title="停止生成">
-              <Square size={11} />
-              停止
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         <div ref={messagesEndRef} />
         </div>
@@ -1282,6 +1439,18 @@ export function ChatPanel() {
               {continueMode ? '✓ --continue 已启用' : '继续上次会话'}
             </button>
           )}
+          {/* Context window 使用量指示器 */}
+          {tokenUsage && tokenUsage.inputTokens > 0 && (() => {
+            const CONTEXT_LIMIT = 200000;
+            const pct = Math.min(100, Math.round(tokenUsage.inputTokens / CONTEXT_LIMIT * 100));
+            const color = pct >= 90 ? 'var(--error-color, #f85149)' : pct >= 70 ? '#e3b341' : 'var(--accent-color)';
+            return (
+              <div className="context-usage-indicator" title={`Context 使用量：${tokenUsage.inputTokens.toLocaleString()} / ${CONTEXT_LIMIT.toLocaleString()} tokens`}>
+                <div className="context-usage-bar" style={{ '--pct': `${pct}%`, '--bar-color': color } as React.CSSProperties} />
+                <span className="context-usage-label" style={{ color }}>{pct}%</span>
+              </div>
+            );
+          })()}
         </div>
         {/* 附件文件 chips + 粘贴图片 chips */}
         {(contextFiles.length > 0 || pastedImages.length > 0) && (
@@ -1378,7 +1547,7 @@ export function ChatPanel() {
           <button
             className="chat-attach-btn"
             onClick={handleAttachFile}
-            disabled={!session.isConnected}
+            disabled={!canSend}
             title="附加文件到上下文"
           >
             <Paperclip size={16} />
@@ -1409,8 +1578,8 @@ export function ChatPanel() {
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={session.isConnected ? '输入消息... (Enter 发送，Shift+Enter 换行)' : '请先启动会话'}
-            disabled={!session.isConnected}
+            placeholder={canSend ? (session.conversationSessionId && !session.isConnected ? '继续此会话... (Enter 发送)' : '输入消息... (Enter 发送，Shift+Enter 换行)') : '请先启动会话'}
+            disabled={!canSend}
             rows={1}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
@@ -1421,7 +1590,7 @@ export function ChatPanel() {
           <button
             className={`chat-send-btn ${isProcessing ? 'stop' : ''}`}
             onClick={isProcessing ? handleStop : handleSend}
-            disabled={!session.isConnected || (!isProcessing && !input.trim())}
+            disabled={!canSend || (!isProcessing && !input.trim())}
             title={isProcessing ? '停止生成' : '发送'}
           >
             {isProcessing ? <Square size={16} /> : <Send size={16} />}
@@ -1544,10 +1713,14 @@ export function ChatPanel() {
 
 /** 工具调用折叠卡片 — memo 防止父消息文本更新时未变工具卡片重渲 */
 const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
-  const [expanded, setExpanded] = useState(false);
+  // 文件修改类工具默认展开（Diff 直接可见，无需用户主动点击）
+  const isFileModifyToolName = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'].includes(toolCall.name);
+  const [expanded, setExpanded] = useState(isFileModifyToolName);
   const [reviewBusy, setReviewBusy] = useState(false);
   const messages = useAppStore((s) => s.messages);
   const updateMessage = useAppStore((s) => s.updateMessage);
+  const setActiveChangeId = useAppStore((s) => s.setActiveChangeId);
+  const setActivePanel = useAppStore((s) => s.setActivePanel);
 
   const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
   const bashCommand = isBash
@@ -1594,6 +1767,11 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   const handleAcceptDiff = useCallback(() => {
     patchToolCall({ diffReviewStatus: 'accepted' });
   }, [patchToolCall]);
+
+  const handleOpenInEditor = useCallback(() => {
+    if (!filePath) return;
+    void window.electronAPI.openInEditor(filePath);
+  }, [filePath]);
 
   const handleRejectDiff = useCallback(async () => {
     if (!canReviewDiff || !isLatestFileChange || reviewBusy) return;
@@ -1715,6 +1893,60 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
         <span className={`tool-call-status tool-call-status-${toolCall.status}`}>
           {toolCall.status === 'pending' ? '执行中…' : toolCall.status === 'success' ? '✓ 完成' : '✗ 失败'}
         </span>
+        {/* 变更确认按钮：始终在头部可见，无需展开 */}
+        {canReviewDiff && toolCall.diffReviewStatus !== 'accepted' && toolCall.diffReviewStatus !== 'reverted' && (
+          <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              className="btn"
+              onClick={handleAcceptDiff}
+              disabled={reviewBusy}
+              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, color: 'var(--success-text)' }}
+            >
+              <Check size={10} /> 接受
+            </button>
+            <button
+              className="btn"
+              onClick={() => void handleRejectDiff()}
+              disabled={reviewBusy || !isLatestFileChange}
+              title={isLatestFileChange ? '回滚到修改前' : '仅允许回滚最新一次修改'}
+              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3 }}
+            >
+              <RotateCcw size={10} /> 拒绝
+            </button>
+          </div>
+        )}
+        {canReviewDiff && toolCall.diffReviewStatus === 'accepted' && (
+          <span style={{ fontSize: 10, color: 'var(--success-text)', marginRight: 4 }}>✓ 已接受</span>
+        )}
+        {canReviewDiff && toolCall.diffReviewStatus === 'reverted' && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>↩ 已回滚</span>
+        )}
+        {/* 编辑按钮：有文件路径且工具成功时可用，用系统默认编辑器打开文件 */}
+        {!!filePath && !isBash && toolCall.status === 'success' && (
+          <button
+            className="btn"
+            onClick={(e) => { e.stopPropagation(); handleOpenInEditor(); }}
+            title={`用系统编辑器打开 ${filePath}`}
+            style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, marginRight: 2 }}
+          >
+            <Pencil size={10} /> 编辑
+          </button>
+        )}
+        {/* 联动按钮：跳转到变更面板并高亮当前工具调用 */}
+        {isFileModifyTool && toolCall.status === 'success' && (
+          <button
+            className="btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveChangeId(toolCall.id);
+              setActivePanel('changes');
+            }}
+            title="在变更面板中查看"
+            style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, marginRight: 2, color: 'var(--accent-color)' }}
+          >
+            <FileDiff size={10} /> 查看变更
+          </button>
+        )}
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </div>
       {expanded && (
@@ -1727,7 +1959,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <FileDiff size={11} /> 文件变更
               </div>
-              <InlineDiff
+              <DiffViewer
                 oldStr={String(toolCall.arguments.old_string)}
                 newStr={String(toolCall.arguments.new_string)}
               />
@@ -1742,7 +1974,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               {(toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => (
                 <div key={idx} style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
-                  <InlineDiff oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
+                  <DiffViewer oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
                 </div>
               ))}
             </div>
@@ -1788,6 +2020,14 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
                 {!isLatestFileChange && toolCall.diffReviewStatus !== 'reverted' && (
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>仅最新一次文件修改可直接回滚</span>
                 )}
+                <button
+                  className="btn"
+                  onClick={handleOpenInEditor}
+                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}
+                  title="用系统默认编辑器打开文件进行手动编辑"
+                >
+                  <Pencil size={11} /> 编辑
+                </button>
               </div>
             </div>
           )}
@@ -1827,19 +2067,285 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   );
 });
 
+/** ChangeSummaryCard — 本轮变更总览卡片（Phase 3：统一变更确认）*/
+const FILE_MODIFY_NAMES = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
+
+const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: { toolCalls: ToolCall[]; msgId: string }) {
+  const messages = useAppStore((s) => s.messages);
+  const updateMessage = useAppStore((s) => s.updateMessage);
+  const [busy, setBusy] = useState(false);
+
+  // 已成功且有 originalContent 的文件修改工具调用（可回滚）
+  const reviewable = useMemo(() =>
+    toolCalls.filter(c =>
+      FILE_MODIFY_NAMES.includes(c.name) &&
+      c.status === 'success' &&
+      c.originalContent !== undefined,
+    ), [toolCalls]);
+
+  // Turn 完成前（仍有 pending）不展示
+  const isComplete = toolCalls.every(c => c.status !== 'pending');
+  if (!isComplete || reviewable.length === 0) return null;
+
+  const allReviewed = reviewable.every(c => c.diffReviewStatus === 'accepted' || c.diffReviewStatus === 'reverted');
+
+  // 用 computeLineDiff 统计每个文件的行增删
+  const fileStats = useMemo(() => {
+    const map = new Map<string, { added: number; removed: number }>();
+    for (const c of reviewable) {
+      const path = String(c.arguments?.file_path ?? c.arguments?.path ?? '');
+      if (!path) continue;
+      let added = 0, removed = 0;
+      if ((c.name === 'Write' || c.name === 'write_file') && c.arguments?.content !== undefined) {
+        const diff = computeLineDiff(c.originalContent ?? '', String(c.arguments.content));
+        added += diff.filter(l => l.type === 'add').length;
+        removed += diff.filter(l => l.type === 'del').length;
+      } else if (['Edit', 'edit_file', 'str_replace_editor', 'str_replace_based_edit_tool'].includes(c.name) &&
+                 c.arguments?.old_string !== undefined && c.arguments?.new_string !== undefined) {
+        const diff = computeLineDiff(String(c.arguments.old_string), String(c.arguments.new_string));
+        added += diff.filter(l => l.type === 'add').length;
+        removed += diff.filter(l => l.type === 'del').length;
+      } else if ((c.name === 'MultiEdit' || c.name === 'multiedit') && Array.isArray(c.arguments?.edits)) {
+        for (const edit of c.arguments.edits as Array<{ old_string: string; new_string: string }>) {
+          const diff = computeLineDiff(edit.old_string ?? '', edit.new_string ?? '');
+          added += diff.filter(l => l.type === 'add').length;
+          removed += diff.filter(l => l.type === 'del').length;
+        }
+      }
+      const prev = map.get(path) ?? { added: 0, removed: 0 };
+      map.set(path, { added: prev.added + added, removed: prev.removed + removed });
+    }
+    return map;
+  }, [reviewable]);
+
+  const totalAdded = useMemo(() => Array.from(fileStats.values()).reduce((s, v) => s + v.added, 0), [fileStats]);
+  const totalRemoved = useMemo(() => Array.from(fileStats.values()).reduce((s, v) => s + v.removed, 0), [fileStats]);
+
+  // 将所有 reviewable 工具调用标记为指定状态
+  const patchAll = useCallback((status: 'accepted' | 'reverted') => {
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg) return;
+    const reviewableIds = new Set(reviewable.map(r => r.id));
+    const nextToolCalls = msg.toolCalls?.map(c =>
+      reviewableIds.has(c.id) ? { ...c, diffReviewStatus: status } : c,
+    ) ?? [];
+    updateMessage(msgId, { toolCalls: nextToolCalls });
+  }, [messages, msgId, reviewable, updateMessage]);
+
+  const handleAcceptAll = useCallback(() => patchAll('accepted'), [patchAll]);
+
+  const handleRevertAll = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // 每个文件路径只用最早一次修改的 originalContent（保证回滚到本 Turn 开始前状态）
+      const earliestByPath = new Map<string, ToolCall>();
+      for (const c of reviewable) {
+        const path = String(c.arguments?.file_path ?? c.arguments?.path ?? '');
+        if (path && !earliestByPath.has(path)) earliestByPath.set(path, c);
+      }
+      await Promise.allSettled(
+        Array.from(earliestByPath.values()).map(c =>
+          window.electronAPI.writeFile(
+            String(c.arguments?.file_path ?? c.arguments?.path ?? ''),
+            c.originalContent ?? '',
+          ),
+        ),
+      );
+      patchAll('reverted');
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, patchAll, reviewable]);
+
+  return (
+    <div style={{ margin: '2px 16px 6px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+      {/* 卡片头部 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: fileStats.size > 0 ? '1px solid var(--border-color)' : 'none' }}>
+        <FileDiff size={13} color="var(--accent-color)" />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+          本轮变更 — {fileStats.size} 个文件
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--success-text)', marginRight: 2 }}>+{totalAdded}</span>
+        <span style={{ fontSize: 11, color: 'var(--error-text, #f85149)', marginRight: 8 }}>-{totalRemoved}</span>
+        {allReviewed ? (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>已完成审阅</span>
+        ) : (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              className="btn"
+              onClick={handleAcceptAll}
+              disabled={busy}
+              style={{ fontSize: 11, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 3, color: 'var(--success-text)' }}
+            >
+              <Check size={11} /> 全部接受
+            </button>
+            <button
+              className="btn"
+              onClick={() => void handleRevertAll()}
+              disabled={busy}
+              style={{ fontSize: 11, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 3 }}
+              title="将所有文件回滚到本轮任务开始前的状态"
+            >
+              <RotateCcw size={11} /> 全部撤销
+            </button>
+          </div>
+        )}
+      </div>
+      {/* 文件列表 */}
+      <div style={{ padding: '6px 12px 8px' }}>
+        {Array.from(fileStats.entries()).map(([path, stats]) => (
+          <div key={path} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0', fontSize: 11 }}>
+            <code style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</code>
+            <span style={{ color: 'var(--success-text)', flexShrink: 0 }}>+{stats.added}</span>
+            <span style={{ color: 'var(--error-text, #f85149)', flexShrink: 0 }}>-{stats.removed}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+/** TurnCard — 独立 Turn 执行步骤卡片（Phase 1：从消息气泡中抽离）*/
+const TurnCard = memo(function TurnCard({ planSteps, toolCallsCount }: { planSteps: PlanStep[]; toolCallsCount: number }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const doneCount = planSteps.filter((s) => s.status === 'done').length;
+  const errorCount = planSteps.filter((s) => s.status === 'error').length;
+  const runningCount = planSteps.filter((s) => s.status === 'running').length;
+  const totalCount = planSteps.length;
+  const completedCount = doneCount + errorCount;
+  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const isComplete = runningCount === 0;
+  const statusColor = !isComplete ? 'var(--accent-color)' : errorCount > 0 ? 'var(--error-text, #f85149)' : 'var(--success-text)';
+  const progressColor = errorCount > 0 && isComplete ? 'var(--error-text, #f85149)' : isComplete ? 'var(--success-text)' : 'var(--accent-color)';
+  const statusLabel = !isComplete ? '执行中' : errorCount > 0 ? `完成（含 ${errorCount} 错误）` : '已完成';
+
+  return (
+    <div style={{ margin: '2px 16px 2px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+      {/* 头部：状态 + 进度计数 + 折叠按钮 */}
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: statusColor, letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'left' }}
+      >
+        {!isComplete
+          ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+          : errorCount > 0
+            ? <AlertCircle size={12} style={{ flexShrink: 0 }} />
+            : <CheckCircle2 size={12} style={{ flexShrink: 0 }} />
+        }
+        <span style={{ flex: 1 }}>
+          {statusLabel}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', letterSpacing: 0, textTransform: 'none', fontVariantNumeric: 'tabular-nums' }}>
+          {completedCount}/{totalCount}{toolCallsCount > 0 ? ` · ${toolCallsCount} 工具` : ''}
+        </span>
+        {collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+      </button>
+
+      {/* 进度条 */}
+      <div style={{ height: 2, background: 'var(--border-color)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: `${progressPct}%`,
+          background: progressColor,
+          transition: 'width 0.3s ease, background 0.3s ease',
+        }} />
+      </div>
+
+      {/* 步骤时间线列表 */}
+      {!collapsed && (
+        <div style={{ padding: '6px 12px 10px 12px' }}>
+          {planSteps.map((step, idx) => {
+            const isLast = idx === planSteps.length - 1;
+            const nodeColor = step.status === 'done'
+              ? 'var(--success-text)'
+              : step.status === 'error'
+                ? 'var(--error-text, #f85149)'
+                : 'var(--accent-color)';
+            return (
+              <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 0 }}>
+                {/* 时间线：竖线 + 圆点 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 20 }}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: step.status === 'running' ? 'transparent' : nodeColor,
+                    border: `2px solid ${nodeColor}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, marginTop: 3,
+                  }}>
+                    {step.status === 'running' && (
+                      <div style={{ width: 4, height: 4, borderRadius: '50%', background: nodeColor, animation: 'turnNodePulse 1.2s ease-in-out infinite' }} />
+                    )}
+                  </div>
+                  {!isLast && (
+                    <div style={{ width: 2, flex: 1, minHeight: 10, background: 'var(--border-color)', marginTop: 2 }} />
+                  )}
+                </div>
+                {/* 步骤内容 */}
+                <div style={{
+                  flex: 1, minWidth: 0, paddingLeft: 8, paddingBottom: isLast ? 0 : 8,
+                  opacity: step.status === 'done' ? 0.65 : 1,
+                  background: step.status === 'running' ? 'rgba(124,58,237,0.05)' : 'transparent',
+                  borderRadius: 4, padding: '2px 8px 2px 8px', marginLeft: 0,
+                  transition: 'opacity 0.2s',
+                }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: step.status === 'running' ? 600 : 400, lineHeight: 1.5 }}>
+                    {step.label}
+                  </div>
+                  {step.description && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, wordBreak: 'break-word', lineHeight: 1.4 }}>{step.description}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {/* 完成摘要标签 */}
+          {isComplete && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8, paddingLeft: 20 }}>
+              {([`${doneCount} 完成`, errorCount > 0 ? `${errorCount} 失败` : null, toolCallsCount > 0 ? `${toolCallsCount} 工具调用` : null] as (string | null)[]).filter(Boolean).map((m) => (
+                <span key={m!} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 999, background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>{m}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
 /** 消息气泡 — memo 防止流式输出时历史消息无效重渲 */
-const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { msg: Message; searchQuery?: string; isMatch?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStreaming = false, thinkingOverride = null }: { msg: Message; searchQuery?: string; isMatch?: boolean; isStreaming?: boolean; thinkingOverride?: boolean | null }) {
   const [copied, setCopied] = useState(false);
+  // isStreaming 期间自动展开 thinking；结束后恢复用户控制状态（默认折叠）
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  // 全局 override 优先；null 时使用各自内部状态
+  const effectiveExpanded = thinkingOverride ?? thinkingExpanded;
+  // 当 isStreaming 变为 false（完成），不自动折叠（保持用户最后展开状态）
+  const streamingRef = useRef(isStreaming);
+  useEffect(() => {
+    if (isStreaming && !streamingRef.current) {
+      // 刚开始 streaming → 展开
+      setThinkingExpanded(true);
+    }
+    streamingRef.current = isStreaming;
+  }, [isStreaming]);
   const contentRef = useRef<HTMLDivElement>(null);
+  // thinking 内容自动滚动到底部
+  const thinkingContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isStreaming && thinkingContentRef.current) {
+      thinkingContentRef.current.scrollTop = thinkingContentRef.current.scrollHeight;
+    }
+  }, [msg.thinking, isStreaming]);
   const isUser = msg.role === 'user';
   const isSystem = msg.role === 'system';
 
-  // assistant 消息用 marked 渲染 Markdown
+  // assistant 消息用 marked 渲染 Markdown；streaming 时末尾追加闪烁光标
   const htmlContent = useMemo(() => {
     if (isUser || isSystem) return msg.content;
-    return renderMarkdown(msg.content);
-  }, [msg.content, isUser, isSystem]);
+    const base = renderMarkdown(msg.content);
+    return isStreaming ? base + '<span class="streaming-cursor" aria-hidden="true"></span>' : base;
+  }, [msg.content, isUser, isSystem, isStreaming]);
 
   // 代码块自动插入语言标签 + 复制按钮
   useEffect(() => {
@@ -1882,25 +2388,6 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
     return preview.length > 140 ? preview.slice(0, 140) + '…' : preview;
   }, [msg.thinking]);
 
-  const turnSummary = useMemo(() => {
-    if (isUser || !msg.planSteps || msg.planSteps.length === 0) return null;
-    const runningCount = msg.planSteps.filter((step) => step.status === 'running').length;
-    if (runningCount > 0) return null;
-    const doneCount = msg.planSteps.filter((step) => step.status === 'done').length;
-    const errorCount = msg.planSteps.filter((step) => step.status === 'error').length;
-    const toolCount = msg.toolCalls?.length ?? 0;
-    return {
-      statusLabel: errorCount > 0 ? '本轮已结束（含失败步骤）' : '本轮已完成',
-      statusTone: errorCount > 0 ? 'var(--error-text, #f85149)' : 'var(--success-text)',
-      metrics: [
-        `${msg.planSteps.length} 个步骤`,
-        `${doneCount} 已完成`,
-        errorCount > 0 ? `${errorCount} 失败` : null,
-        toolCount > 0 ? `${toolCount} 个工具调用` : null,
-      ].filter(Boolean) as string[],
-    };
-  }, [isUser, msg.planSteps, msg.toolCalls]);
-
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(msg.content);
@@ -1932,37 +2419,6 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
           <span className="message-time">{formatTime(msg.timestamp)}</span>
         </div>
 
-        {!isUser && msg.planSteps && msg.planSteps.length > 0 && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            marginBottom: 12,
-            padding: '10px 12px',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            background: 'var(--bg-secondary)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--accent-color)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              <Activity size={12} />
-              <span>本轮步骤</span>
-            </div>
-            {msg.planSteps.map((step) => (
-              <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, opacity: step.status === 'done' ? 0.7 : 1 }}>
-                <div style={{ flexShrink: 0, marginTop: 1, color: step.status === 'done' ? 'var(--success-text)' : step.status === 'error' ? 'var(--error-text, #f85149)' : 'var(--accent-color)' }}>
-                  {step.status === 'running' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : step.status === 'done' ? <Check size={13} /> : <X size={13} />}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{step.label}</div>
-                  {step.description && (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, wordBreak: 'break-word' }}>{step.description}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* 工具调用列表（assistant 消息） */}
         {!isUser && msg.toolCalls && msg.toolCalls.length > 0 && (
           <div className="tool-calls-list">
@@ -1974,29 +2430,33 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
 
         {/* 推理思考链（extended thinking 模式） */}
         {!isUser && msg.thinking && (
-          <div className="thinking-block">
+          <div className={`thinking-block${isStreaming ? ' thinking-block-streaming' : ''}`}>
             <button
               className="thinking-toggle"
               onClick={() => setThinkingExpanded((v) => !v)}
             >
               <span className="thinking-icon">🤔</span>
-              <span>推理过程</span>
+              <span>{isStreaming ? '正在思考…' : '推理过程'}</span>
               <span style={{ marginLeft: 4, opacity: 0.45, fontSize: 10 }}>
                 {msg.thinking.length} 字
               </span>
               <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 10 }}>
-                {thinkingExpanded ? '收起' : '展开'}
+                {effectiveExpanded ? '收起' : '展开'}
               </span>
-              {thinkingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              {effectiveExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
-            {!thinkingExpanded && thinkingPreview && (
+            {!effectiveExpanded && thinkingPreview && (
               <div className="thinking-preview">
                 {thinkingPreview}
               </div>
             )}
-            {thinkingExpanded && (
-              <div className="thinking-content">
+            {effectiveExpanded && (
+              <div
+                ref={thinkingContentRef}
+                className={`thinking-content${isStreaming ? ' thinking-content-streaming' : ''}`}
+              >
                 {msg.thinking}
+                {isStreaming && <span className="thinking-cursor" />}
               </div>
             )}
           </div>
@@ -2011,41 +2471,6 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false }: { ms
             className="message-content message-content-assistant markdown-body"
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
-        )}
-
-        {!isUser && turnSummary && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            marginTop: 12,
-            padding: '10px 12px',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: turnSummary.statusTone }}>
-              <Check size={13} />
-              <span>{turnSummary.statusLabel}</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {turnSummary.metrics.map((metric) => (
-                <span
-                  key={metric}
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                  }}
-                >
-                  {metric}
-                </span>
-              ))}
-            </div>
-          </div>
         )}
       </div>
 

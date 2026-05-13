@@ -1,7 +1,7 @@
 import { useAppStore } from '../stores/useAppStore';
-import { Wrench, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, FileDiff, Bot } from 'lucide-react';
+import { Wrench, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, FileDiff, Bot, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
-import { InlineDiff, WritePreview, WriteDiff } from './DiffView';
+import { DiffViewer, WritePreview, WriteDiff } from './DiffView';
 
 export function ToolCallView() {
   const { messages } = useAppStore();
@@ -133,6 +133,37 @@ export function ToolCallView() {
               >
                 {call.status === 'success' ? '成功' : call.status === 'error' ? '失败' : '执行中'}
               </span>
+
+              {/* 有文件路径的工具调用显示"在编辑器中打开"按钮 */}
+              {(() => {
+                const filePath = call.arguments?.file_path || call.arguments?.path;
+                const FILE_TOOLS = ['Edit', 'MultiEdit', 'Write', 'Read', 'str_replace_based_edit_tool', 'str_replace_editor'];
+                if (!filePath || !FILE_TOOLS.includes(call.name)) return null;
+                return (
+                  <button
+                    title={`在编辑器中打开：${filePath}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.electronAPI.openInEditor(String(filePath)).catch(() => {});
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      padding: '2px 4px',
+                      borderRadius: 4,
+                      transition: 'color 0.15s',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; }}
+                  >
+                    <ExternalLink size={13} />
+                  </button>
+                );
+              })()}
             </div>
 
             {isExpanded && (
@@ -180,7 +211,7 @@ export function ToolCallView() {
                       <FileDiff size={12} />
                       <span>文件变更 — <code style={{ fontSize: 10 }}>{String(call.arguments.file_path || call.arguments.path || '')}</code></span>
                     </div>
-                    <InlineDiff oldStr={String(call.arguments.old_string)} newStr={String(call.arguments.new_string)} />
+                    <DiffViewer oldStr={String(call.arguments.old_string)} newStr={String(call.arguments.new_string)} />
                   </div>
                 )}
                 {call.name === 'MultiEdit' && Array.isArray(call.arguments?.edits) && (
@@ -192,7 +223,7 @@ export function ToolCallView() {
                     {(call.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => (
                       <div key={idx} style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
-                        <InlineDiff oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
+                        <DiffViewer oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
                       </div>
                     ))}
                   </div>

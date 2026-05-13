@@ -7,13 +7,13 @@ export interface AppSettings {
   authMode: 'api-key' | 'official';
   model: string;
   permissionMode: string;
+  autoConnectOnLaunch: boolean;
   allowedTools: string;
   disallowedTools?: string;
   extraArgs: string;
   addDirs?: string[];
   sessionName?: string;
   maxBudgetUsd?: number;
-  useBareMode: boolean;
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
@@ -57,6 +57,19 @@ export interface AppSettings {
   permissionDeny?: string[];
   /** 权限精细规则：询问 */
   permissionAsk?: string[];
+  /** 自定义 API 配置文件列表（快速切换多套 API 配置） */
+  apiProfiles?: ApiProfile[];
+}
+
+/** 自定义 API 配置文件 */
+export interface ApiProfile {
+  id: string;
+  name: string;
+  authMode: 'api-key' | 'official';
+  apiKey?: string;
+  apiBaseUrl?: string;
+  httpProxy?: string;
+  provider?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -64,9 +77,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   authMode: 'official',
   model: 'sonnet',
   permissionMode: 'auto',
+  autoConnectOnLaunch: true,
   allowedTools: 'default',
   extraArgs: '',
-  useBareMode: false,
   httpProxy: '',
   apiBaseUrl: '',
   provider: 'anthropic',

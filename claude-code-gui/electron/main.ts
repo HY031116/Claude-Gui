@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme, session, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { CliService, type CliStartOptions } from './cli-service';
@@ -16,6 +16,9 @@ const fileService = new FileService();
 const settingsService = new SettingsService();
 const cliConfigService = new CliConfigService();
 
+// 模块顶层常量：是否为开发模式
+const isDev = !app.isPackaged;
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -32,7 +35,6 @@ function createWindow() {
   });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5185';
-  const isDev = !app.isPackaged;
 
   if (isDev) {
     win.loadURL(devServerUrl).catch(() => {
@@ -42,11 +44,49 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // F12 / Ctrl+Shift+I 打开 DevTools（生产环境也支持，用于调试）
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (
+      input.type === 'keyDown' &&
+      (input.key === 'F12' ||
+        (input.control && input.shift && input.key === 'I') ||
+        (input.meta && input.alt && input.key === 'I'))
+    ) {
+      win.webContents.toggleDevTools();
+    }
+  });
 }
 
 app.whenReady().then(() => {
+  // node-pty Windows 清理时 AttachConsole() 可能失败（已知 bug）：进程退出后控制台已卸载
+  // 精准拦截该错误，避免污染日志；其他未捕获异常仍正常抛出
+  process.on('uncaughtException', (err) => {
+    if (err.message === 'AttachConsole failed') return;
+    throw err;
+  });
+
   // 初始化为暗色主题，让 Windows 原生菜单栏/标题栏随应用主题显示
   nativeTheme.themeSource = 'dark';
+
+  // 生产模式下设置 CSP，消除 Electron 安全警告
+  if (!isDev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self';"
+          ],
+        },
+      });
+    });
+  }
 
   createWindow();
 
@@ -74,12 +114,12 @@ ipcMain.handle('cli:stop', async () => {
 });
 
 // 非交互模式发送消息（每条消息独立子进程）
-ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string) => {
-  return cliService.sendMessage(message, cwd, sessionId, imagePaths, agentOverride);
+ipcMain.handle('cli:sendMessage', async (_, message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string) => {
+  return cliService.sendMessage(message, cwd, sessionId, imagePaths, agentOverride, tabId);
 });
 
-ipcMain.handle('cli:stopMessage', async () => {
-  return cliService.stopMessage();
+ipcMain.handle('cli:stopMessage', async (_, tabId?: string) => {
+  return cliService.stopMessage(tabId);
 });
 
 ipcMain.handle('cli:sendToStdin', async (_event, data: string) => {
@@ -336,6 +376,36 @@ ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
     return { success: true };
   }
   return { success: false, error: '系统不支持通知' };
+});
+
+// ── 用系统默认编辑器打开文件 ───────────────────────────────────────────────────
+ipcMain.handle('fs:openInEditor', async (_event, filePath: string) => {
+  try {
+    // 优先用 VS Code 打开（code 命令通常在 PATH 中）
+    const openWithVSCode = () => new Promise<boolean>((resolve) => {
+      const proc = require('child_process').spawn('code', [filePath], {
+        shell: true, detached: true, stdio: 'ignore',
+      });
+      proc.on('error', () => resolve(false));
+      proc.on('spawn', () => { (proc as any).unref(); resolve(true); });
+    });
+    const vsOk = await openWithVSCode();
+    if (vsOk) return { success: true };
+
+    // 回退：Windows 用 notepad，其他系统用 shell.openPath
+    if (process.platform === 'win32') {
+      const np = require('child_process').spawn('notepad.exe', [filePath], {
+        detached: true, stdio: 'ignore',
+      });
+      (np as any).unref();
+      return { success: true };
+    }
+    const errMsg = await shell.openPath(filePath);
+    if (errMsg) return { success: false, error: errMsg };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: String(err?.message ?? err) };
+  }
 });
 
 // ── Claude-Mem 插件集成 ────────────────────────────────────────────────────────

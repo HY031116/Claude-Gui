@@ -33,7 +33,6 @@ export interface CliConfig {
   permissionMode?: string;
   allowedTools?: string;
   extraArgs?: string;
-  useBareMode?: boolean;
   httpProxy?: string;
   apiBaseUrl?: string;
   provider?: string;
@@ -77,7 +76,6 @@ export interface CliConfig {
 export interface CliStartOptions {
   cwd: string;
   args?: string[];
-  forceBareMode?: boolean;
 }
 
 interface PermissionHookPayload {
@@ -112,7 +110,8 @@ export class CliService {
   private process: pty.IPty | null = null;
   private isReady = false;
   private config: CliConfig = {};
-  private activeMessageProcess: ChildProcess | null = null;
+  /** 每个 tabId 对应一个独立的 CLI 子进程，支持多标签并行 */
+  private activeProcesses: Map<string, ChildProcess> = new Map();
   private permissionServer: http.Server | null = null;
   private permissionServerPort: number | null = null;
   private permissionServerPromise: Promise<number> | null = null;
@@ -163,10 +162,8 @@ export class CliService {
       // Build command line arguments from config
       const args: string[] = [];
 
-      // Add bare mode if enabled (simpler mode, uses only API key)
-      if (this.config.useBareMode || options.forceBareMode) {
-        args.push('--bare');
-      }
+      // 始终添加 --bare，跳过 Claude CLI 的交互式向导（文本样式选择等）
+      args.push('--bare');
 
       // Model selection
       if (this.config.model && this.config.model !== 'default') {
@@ -276,7 +273,7 @@ export class CliService {
         rows: 40,
         cwd: resolvedCwd,
         env: env,
-        useConpty: true,
+        useConpty: false, // ConPTY 在 Electron 中 kill() 时会触发子进程 AttachConsole 失败；改用 WinPTY 后端
       });
 
       this.process = ptyProcess;
@@ -356,12 +353,15 @@ export class CliService {
   /**
    * 非交互模式发送消息：使用 claude -p --output-format stream-json
    * 每条消息独立启动子进程，流式推送响应到渲染进程
+   * @param tabId 发起请求的 tab ID，不同 tab 并行运行互不干扰
    */
-  async sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string): Promise<{ success: boolean; error?: string }> {
-    // 如果有正在运行的消息进程，先终止
-    if (this.activeMessageProcess) {
-      this.activeMessageProcess.kill();
-      this.activeMessageProcess = null;
+  async sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string): Promise<{ success: boolean; error?: string }> {
+    const tid = tabId ?? 'default';
+    // 只停当前 tab 的旧进程，不影响其他 tab
+    const existing = this.activeProcesses.get(tid);
+    if (existing) {
+      existing.kill();
+      this.activeProcesses.delete(tid);
     }
 
     const claudePath = CLAUDE_PATH;
@@ -527,7 +527,7 @@ export class CliService {
     const workdir = rawWorkdir.startsWith('~')
       ? path.join(os.homedir(), rawWorkdir.slice(1))
       : rawWorkdir;
-    console.log('[CLI] sendMessage: spawning', claudePath, args, 'cwd:', workdir);
+    console.log('[CLI] sendMessage: spawning', claudePath, args, 'cwd:', workdir, 'tabId:', tid);
 
     try {
       const child = spawn(claudePath, args, {
@@ -537,33 +537,32 @@ export class CliService {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      this.activeMessageProcess = child;
+      this.activeProcesses.set(tid, child);
 
       child.stdout?.on('data', (chunk: Buffer) => {
         const text = chunk.toString();
         console.log('[CLI] sendMessage chunk:', text.slice(0, 200));
-        this.emit('message-chunk', text);
+        this.emit('message-chunk', text, tid);
       });
 
       child.stderr?.on('data', (chunk: Buffer) => {
         const text = chunk.toString();
         console.error('[CLI] sendMessage stderr:', text);
-        // 将 stderr 也作为 chunk 发送，前缀标记
-        this.emit('message-stderr', text);
+        this.emit('message-stderr', text, tid);
       });
 
       child.on('exit', (code) => {
-        console.log('[CLI] sendMessage process exited with code:', code);
-        this.activeMessageProcess = null;
+        console.log('[CLI] sendMessage process exited with code:', code, 'tabId:', tid);
+        this.activeProcesses.delete(tid);
         this.cancelPendingPermissionRequests('Claude 进程已结束，审批请求已取消。');
-        this.emit('message-done', String(code ?? 0));
+        this.emit('message-done', String(code ?? 0), tid);
       });
 
       child.on('error', (err) => {
         console.error('[CLI] sendMessage spawn error:', err);
-        this.activeMessageProcess = null;
+        this.activeProcesses.delete(tid);
         this.cancelPendingPermissionRequests('Claude 进程启动失败，审批请求已取消。');
-        this.emit('message-error', String(err));
+        this.emit('message-error', String(err), tid);
       });
 
       return { success: true };
@@ -573,12 +572,22 @@ export class CliService {
     }
   }
 
-  stopMessage(): { success: boolean } {
-    if (this.activeMessageProcess) {
-      this.activeMessageProcess.kill();
-      this.activeMessageProcess = null;
+  stopMessage(tabId?: string): { success: boolean } {
+    if (tabId) {
+      const proc = this.activeProcesses.get(tabId);
+      if (proc) {
+        proc.kill();
+        this.activeProcesses.delete(tabId);
+        this.emit('message-done', '-1', tabId);
+      }
+    } else {
+      // 停止所有 tab 的进程
+      for (const [tid, proc] of this.activeProcesses) {
+        proc.kill();
+        this.emit('message-done', '-1', tid);
+      }
+      this.activeProcesses.clear();
       this.cancelPendingPermissionRequests('用户已停止生成，审批请求已取消。');
-      this.emit('message-done', '-1');
     }
     return { success: true };
   }
@@ -601,13 +610,16 @@ export class CliService {
     return { success: true };
   }
 
-  /** 向当前消息进程的 stdin 写入原始数据（用于 supervised 模式交互审批） */
-  sendToMessageStdin(data: string): { success: boolean; error?: string } {
-    if (!this.activeMessageProcess || !this.activeMessageProcess.stdin) {
+  /** 向指定 tab（或任意活跃）消息进程的 stdin 写入原始数据 */
+  sendToMessageStdin(data: string, tabId?: string): { success: boolean; error?: string } {
+    const proc = tabId
+      ? this.activeProcesses.get(tabId)
+      : this.activeProcesses.values().next().value;
+    if (!proc || !proc.stdin) {
       return { success: false, error: 'No active message process or stdin not available' };
     }
     try {
-      this.activeMessageProcess.stdin.write(data);
+      proc.stdin.write(data);
       return { success: true };
     } catch (err) {
       return { success: false, error: String(err) };
@@ -618,9 +630,9 @@ export class CliService {
     this.process?.resize(cols, rows);
   }
 
-  private emit(type: string, data: string) {
+  private emit(type: string, data: string, tabId?: string) {
     BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send('cli:output', { type, data });
+      win.webContents.send('cli:output', { type, data, tabId });
     });
   }
 

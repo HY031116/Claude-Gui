@@ -54,6 +54,19 @@ function getGroupKey(workingDir?: string, projectDirName?: string): string {
   return projectDirName ?? '__unknown__';
 }
 
+/** 从会话第一条消息（preview）中提取人类可读的会话标题 */
+function extractSessionTitle(preview: string | undefined): string {
+  if (!preview) return '（无预览）';
+  // 去掉 @文件引用（如 @src/App.tsx）
+  let text = preview.replace(/@\S+/g, '').trim();
+  // 去掉代码块（``` 开头的行及其内容）
+  text = text.replace(/```[\s\S]*?```/g, '').trim();
+  // 取第一行非空内容
+  const firstLine = text.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? text.slice(0, 40);
+  // 截取 40 字符，超出时用省略号
+  return firstLine.length > 40 ? firstLine.slice(0, 40) + '…' : firstLine || '（无预览）';
+}
+
 export function SessionList() {
   const {
     conversationHistory,
@@ -92,11 +105,14 @@ export function SessionList() {
 
     for (const cli of cliSessions) {
       if (localIds.has(cli.sessionId)) continue;
-      let matchedDir = '';
-      for (const rec of conversationHistory) {
-        if (rec.workingDirectory && encodePathLikeCli(rec.workingDirectory).toLowerCase() === cli.projectDirName.toLowerCase()) {
-          matchedDir = rec.workingDirectory;
-          break;
+      // 优先使用从 JSONL cwd 字段解析的目录，否则从本地历史中反向匹配
+      let matchedDir = cli.workingDirectory || '';
+      if (!matchedDir) {
+        for (const rec of conversationHistory) {
+          if (rec.workingDirectory && encodePathLikeCli(rec.workingDirectory).toLowerCase() === cli.projectDirName.toLowerCase()) {
+            matchedDir = rec.workingDirectory;
+            break;
+          }
         }
       }
       all.push({
@@ -316,7 +332,7 @@ export function SessionList() {
                         textOverflow: 'ellipsis',
                         lineHeight: 1.4,
                       }}>
-                        {rec.preview || '（无预览）'}
+                        {extractSessionTitle(rec.preview)}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Clock size={9} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />

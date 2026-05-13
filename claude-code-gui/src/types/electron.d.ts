@@ -1,6 +1,8 @@
 export interface CliOutputEvent {
   type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved';
   data: string;
+  /** 发起请求的 tab ID，用于多会话并行路由 */
+  tabId?: string;
 }
 
 export interface PermissionRequestEvent {
@@ -21,12 +23,12 @@ export interface WorktreeInfo {
 }
 
 export interface ElectronAPI {
-  cliStart: (options: { cwd: string; args?: string[]; forceBareMode?: boolean }) => Promise<{ success: boolean; pid?: number; error?: string }>;
+  cliStart: (options: { cwd: string; args?: string[] }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
   cliStop: () => Promise<{ success: boolean; error?: string }>;
-  /** 非交互模式：每条消息独立子进程，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送 */
-  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string) => Promise<{ success: boolean; error?: string }>;
-  cliStopMessage: () => Promise<{ success: boolean }>;
+  /** 非交互模式：每条消息独立子进程，响应通过 onCliOutput 的 message-chunk/message-done 事件流式推送; tabId 区分并行会话 */
+  cliSendMessage: (message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string) => Promise<{ success: boolean; error?: string }>;
+  cliStopMessage: (tabId?: string) => Promise<{ success: boolean }>;
   /** 向当前运行中的消息进程 stdin 写入数据（supervised 审批用：'y\n'/'n\n'） */
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
   /** 响应 Claude Code PermissionRequest hook 审批 */
@@ -96,6 +98,8 @@ export interface ElectronAPI {
   pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
   pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
+  /** 用系统默认编辑器打开文件 */
+  openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface GitFile {

@@ -73,6 +73,8 @@ export interface CliSessionRecord {
   startedAt: number;
   lastMessageAt: number;
   projectDirName: string;
+  /** 从 JSONL 文件的 cwd 字段解析出的工作目录 */
+  workingDirectory?: string;
 }
 
 /** Token 使用量历史记录（持久化到 localStorage） */
@@ -87,18 +89,29 @@ export interface TokenRecord {
   workingDirectory?: string;
 }
 
+/** 自定义 API 配置文件（用于快速切换多套 API 配置） */
+export interface ApiProfile {
+  id: string;
+  name: string;
+  authMode: 'api-key' | 'official';
+  apiKey?: string;
+  apiBaseUrl?: string;
+  httpProxy?: string;
+  provider?: string;
+}
+
 export interface AppSettings {
   apiKey: string;
   authMode: 'api-key' | 'official';
   model: string;
   permissionMode: string;
+  autoConnectOnLaunch: boolean;
   allowedTools: string;
   disallowedTools?: string;
   extraArgs: string;
   addDirs?: string[];
   sessionName?: string;
   maxBudgetUsd?: number;
-  useBareMode: boolean;
   httpProxy: string;
   apiBaseUrl: string;
   provider: string;
@@ -150,6 +163,8 @@ export interface AppSettings {
   permissionDeny?: string[];
   /** 权限精细规则：询问列表（permissions.ask） */
   permissionAsk?: string[];
+  /** 自定义 API 配置文件列表（快速切换多套 API 配置） */
+  apiProfiles?: ApiProfile[];
 }
 
 export interface AuthStatus {
@@ -159,14 +174,4 @@ export interface AuthStatus {
   apiProvider?: string;
 }
 
-export interface CliPromptOption {
-  value: string;
-  label: string;
-}
 
-export interface CliPrompt {
-  id: string;
-  title: string;
-  description?: string;
-  options: CliPromptOption[];
-}
