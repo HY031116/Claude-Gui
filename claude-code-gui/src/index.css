@@ -485,7 +485,7 @@ pre code {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .message-bubble {
@@ -521,8 +521,9 @@ pre code {
 }
 
 .message-avatar-assistant {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  background: linear-gradient(135deg, var(--accent-glass), rgba(139, 92, 246, 0.3));
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glass-border);
 }
 
 .message-body {
