@@ -15,6 +15,16 @@ renderer.code = function({ text, lang }: { text: string; lang?: string }) {
   const highlighted = hljs.highlight(text, { language }).value;
   return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
 };
+// 表格加外层滚动容器，防止内容溢出
+renderer.table = function(token: { header: unknown[]; rows: unknown[]; }) {
+  const thead = (token.header as Array<{ tokens: unknown[]; align: string | null }>)
+    .map((cell) => `<th${cell.align ? ` style="text-align:${cell.align}"` : ''}>${(cell.tokens as Array<{text?: string; raw?: string}>).map(t => t.text ?? t.raw ?? '').join('')}</th>`)
+    .join('');
+  const tbody = (token.rows as Array<Array<{ tokens: unknown[]; align: string | null }>>)
+    .map((row) => `<tr>${row.map((cell) => `<td${cell.align ? ` style="text-align:${cell.align}"` : ''}>${(cell.tokens as Array<{text?: string; raw?: string}>).map(t => t.text ?? t.raw ?? '').join('')}</td>`).join('')}</tr>`)
+    .join('');
+  return `<div class="table-wrapper"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+};
 marked.use({ gfm: true, breaks: true, renderer });
 
 /** 模块级 LRU 缓存：同一内容不重复调用 marked.parse（容量 30 条）*/

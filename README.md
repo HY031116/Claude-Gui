@@ -290,6 +290,15 @@ npm run dist
 
 ## Changelog
 
+### v1.9.7 — Markdown 渲染质量全面提升
+- **语法高亮颜色修复**：`highlight.js` 主题（`github-dark`）已正确引入，代码块关键字、字符串、注释颜色均正常显示
+- **标题层级拉大**：`h1` 带下划线（1.4em）、`h2` 带浅分割线（1.2em）、`h3/h4` 逐级收窄，信息层次更清晰
+- **列表嵌套样式完善**：嵌套 `ul/ol` 独立 margin，列表项间距调整为 0.3em，marker 颜色用 accent 色标识
+- **表格防溢出**：`renderer.table` 为所有 markdown 表格外层加 `.table-wrapper`（`overflow-x: auto`），宽表格横向滚动而非破坏布局
+- **blockquote 升级**：左紫色边框 + 浅紫背景 + 斜体，引用段落视觉层次明显
+- **行内代码样式**：蓝色高亮（`#79c0ff`）+ 淡边框 + 等宽字体，与代码块区分明确
+- **hljs 背景覆盖**：`.hljs` 背景强制使用 `var(--code-bg)`，保持整体色调一致
+
 ### v1.9.6 — Ctrl+O 全局 Thinking 展开/折叠
 - **Ctrl+O 快捷键**：一键展开或折叠当前聊天中所有 thinking 块，无需逐条操作
 - **`thinkingOverride` prop**：全局 override 优先于各消息的独立展开状态；用户手动点击单条 thinking 按钮时，仍维持该消息的独立控制
