@@ -3992,6 +3992,28 @@ pre code {
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
+/* ── 全局顶栏进度条（streaming 状态感知） ──────────────────────────────── */
+.global-progress-bar {
+  position: relative;
+  height: 2px;
+  background: rgba(124, 58, 237, 0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.global-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #a78bfa, var(--accent));
+  background-size: 200% 100%;
+  border-radius: 0 2px 2px 0;
+  animation: progressShimmer 2s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 0%; }
+}
+
 /* ── 通用按钮点击微缩反馈 ─────────────────────────────────────────────── */
 /* 使用属性选择器保持低特异性，避免覆盖导航按钮等组件样式 */
 [class*="-btn"]:active:not(:disabled),
@@ -4008,5 +4030,107 @@ pre code {
 /* AuxPanel 导航按钮点击反馈 */
 .aux-nav-btn:active {
   transform: scale(0.94);
+}
+
+/* ── 快捷键面板 Modal（v2.0.1）──────────────────────────────────────────── */
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: shortcutsFadeIn 0.18s var(--ease-out);
+}
+
+@keyframes shortcutsFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.shortcuts-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  width: 380px;
+  max-width: 92vw;
+  overflow: hidden;
+  animation: shortcutsSlideIn 0.2s var(--ease-out);
+}
+
+@keyframes shortcutsSlideIn {
+  from { opacity: 0; transform: scale(0.92) translateY(-12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.shortcuts-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.shortcuts-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.shortcuts-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.shortcuts-modal-body {
+  padding: 10px 6px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.shortcut-row:hover {
+  background: var(--bg-hover);
+}
+
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  padding: 3px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.shortcut-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 

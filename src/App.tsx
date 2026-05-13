@@ -194,7 +194,26 @@ function App() {
   // project/tools/config 均展开辅助面板
   const auxPanelOpen = activeNavSection !== 'chat';
 
+  // 快捷键面板
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      if (e.key === '?' && !inInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+      }
+      if (e.key === 'Escape' && showShortcuts) {
+        setShowShortcuts(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showShortcuts]);
+
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* 左侧导航栏 */}
@@ -232,6 +251,36 @@ function App() {
         )}
       </div>
     </div>
+
+      {/* 快捷键一览 Modal（fixed 浮层，挂在 body 级别） */}
+      {showShortcuts && (
+        <div className="shortcuts-overlay" onClick={() => setShowShortcuts(false)} role="dialog" aria-modal="true" aria-label="快捷键一览">
+          <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="shortcuts-modal-header">
+              <span>⌨ 快捷键一览</span>
+              <button className="shortcuts-close-btn" onClick={() => setShowShortcuts(false)} aria-label="关闭">✕</button>
+            </div>
+            <div className="shortcuts-modal-body">
+              {[
+                { key: 'Ctrl+F', desc: '搜索消息' },
+                { key: 'Ctrl+O', desc: '全局展开/折叠 Thinking' },
+                { key: 'Ctrl+T', desc: '新建会话标签' },
+                { key: 'Ctrl+W', desc: '关闭当前标签' },
+                { key: 'Ctrl+V', desc: '粘贴截图为附件' },
+                { key: 'Ctrl+Enter', desc: '发送消息' },
+                { key: 'Esc', desc: '关闭搜索/弹窗' },
+                { key: '?', desc: '显示此快捷键面板' },
+              ].map(({ key, desc }) => (
+                <div key={key} className="shortcut-row">
+                  <kbd className="shortcut-key">{key}</kbd>
+                  <span className="shortcut-desc">{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

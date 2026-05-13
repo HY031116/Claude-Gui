@@ -2,7 +2,7 @@
  * WorkspaceArea — 主工作区（topbar + 标签条 + ChatPanel + TerminalPanel + 历史侧边栏）
  * 直接从 Zustand store 读取所需字段，减少 props 层数
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Cpu, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { ChatPanel } from '../ChatPanel';
@@ -30,6 +30,33 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   const [renameValue, setRenameValue] = useState('');
   // 右侧历史侧边栏折叠状态
   const [showHistory, setShowHistory] = useState(false);
+
+  // 全局进度条：当前活跃 tab 是否处理中
+  const isProcessing = !!(activeTabId && processingTabs[activeTabId]);
+  const [progress, setProgress] = useState(0);
+  const [progressVisible, setProgressVisible] = useState(false);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isProcessing) {
+      setProgress(0);
+      setProgressVisible(true);
+      // 短暂延迟后快速推进到 30%，让动画可见
+      const t = setTimeout(() => setProgress(30), 40);
+      progressTimer.current = setInterval(() => {
+        setProgress((p) => (p < 88 ? p + 2 : p));
+      }, 900);
+      return () => { clearTimeout(t); clearInterval(progressTimer.current!); };
+    } else {
+      clearInterval(progressTimer.current!);
+      setProgress(100);
+      const t = setTimeout(() => {
+        setProgressVisible(false);
+        setProgress(0);
+      }, 450);
+      return () => clearTimeout(t);
+    }
+  }, [isProcessing]);
 
   // 断开连接（停止 Claude 会话）
   const handleDisconnect = useCallback(async () => {
@@ -101,6 +128,19 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
               </button>
             </div>
           </div>
+
+          {/* 全局进度条：streaming 时显示 */}
+          {progressVisible && (
+            <div className="global-progress-bar" aria-hidden="true">
+              <div
+                className="global-progress-fill"
+                style={{
+                  width: `${progress}%`,
+                  transition: progress === 0 ? 'none' : 'width 0.85s cubic-bezier(0.1, 0.4, 0.3, 1)',
+                }}
+              />
+            </div>
+          )}
 
           {/* 多会话标签条 */}
           <div className="session-tab-bar">

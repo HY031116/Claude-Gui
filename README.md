@@ -290,6 +290,17 @@ npm run dist
 
 ## Changelog
 
+### v2.0.1 — 快捷键一览面板
+- **`?` 键唤起**：当焦点不在输入框时，按 `?` 键即可打开/关闭快捷键面板
+- **快捷键 Modal**：居中浮层，列出全部快捷键（Ctrl+F/O/T/W/V、Ctrl+Enter、Esc、?），支持 Esc 或点击背景关闭
+- **Glassmorphism 风格**：模糊背景蒙层 + 圆角卡片 + `border-bottom: 2px` kbd 按键样式，与整体设计语言一致
+- **入场动画**：浮层 `fadeIn`（0.18s）+ 卡片 `scale+translateY`（0.2s）弹入效果
+
+### v2.0.0 — 全局顶栏进度条（streaming 状态感知）
+- **实时进度条**：处于 streaming 状态时，顶栏下方出现 2px 紫色渐变进度条，模拟真实进度（30%→88% 缓增，完成后冲至 100% 再淡出）
+- **流畅动画**：`progressShimmer` shimmer 动效 + `cubic-bezier(0.1,0.4,0.3,1)` 缓动，完成后 450ms 淡出消失
+- **按 tab 隔离**：进度条状态绑定当前激活 tab，多 tab 并行时互不干扰
+
 ### v1.9.9 — 视效与动效全面升级
 - **Streaming 闪烁光标**：assistant 消息流式输出时，正文末尾出现闪烁竖线光标（`streamCursor` / `cursorBlink` 动画），与 thinking 块光标风格一致，生成状态一目了然
 - **Tab 面板淡入**：切换会话 Tab 时，ChatPanel 整体通过 `msgFadeIn` 动画（200ms ease-out）平滑淡入，消除突兀切换感
