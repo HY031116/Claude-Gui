@@ -1139,38 +1139,73 @@ pre code {
   color: var(--text-muted);
 }
 
-/* 命令审批横幅（输入框上方） */
-.approval-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-  margin-bottom: 6px;
-  background: var(--info-glass);
-  border: 1px solid var(--info-glass-border);
+/* 权限审批横幅 — 内联于消息流底部 */
+.permission-banner-card {
+  margin: 8px 0;
   border-radius: var(--radius);
-  font-size: 12px;
-}
-.approval-banner-cmd {
-  flex: 1;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  min-width: 0;
+  animation: permission-banner-in 0.2s ease;
 }
-.approval-banner-cmd code {
-  font-size: 11px;
-  font-family: var(--font-mono), monospace;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+@keyframes permission-banner-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.approval-banner-actions {
+
+.permission-banner-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  padding: 7px 10px 5px;
+  font-size: 12px;
+}
+
+.permission-banner-icon {
+  font-size: 13px;
+}
+
+.permission-banner-tool {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono), monospace;
+}
+
+.permission-banner-label {
+  margin-left: auto;
+  font-size: 10px;
+  color: #f59e0b;
+  opacity: 0.9;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.permission-banner-preview {
+  margin: 0 10px 6px;
+  padding: 5px 8px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono), monospace;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 80px;
+  overflow: auto;
+}
+
+.permission-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 8px;
+}
+
+/* 旧审批横幅（输入框上方，已迁移至消息流，保留选择器防止 CSS 报错） */
+.approval-banner {
+  display: none;
 }
 
 .chat-send-btn {

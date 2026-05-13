@@ -1034,8 +1034,6 @@ export function ChatPanel() {
     return atCurrentDirEntries.filter((e) => e.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 12);
   }, [atMenuOpen, atQuery, atCurrentDirEntries]);
 
-  const pendingApproval = permissionRequests[0] ?? null;
-
   // Ctrl+F 打开搜索 / Ctrl+O 全局展开折叠 thinking
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1396,6 +1394,17 @@ export function ChatPanel() {
         })()}
 
         <div ref={messagesEndRef} />
+
+        {/* 权限审批横幅 — 内联于消息流，等待用户 Allow/Deny */}
+        {permissionRequests.map((req) => (
+          <PermissionBannerCard
+            key={req.id}
+            request={req}
+            responding={permissionRespondingId === req.id}
+            onAllow={() => handleApprovalAction(req, true)}
+            onDeny={() => handleApprovalAction(req, false)}
+          />
+        ))}
         </div>
       </div>
 
@@ -1489,32 +1498,6 @@ export function ChatPanel() {
                 </button>
               </div>
             ))}
-          </div>
-        )}
-        {/* 命令审批横幅（真实 PermissionRequest hook 请求时显示于输入框上方） */}
-        {pendingApproval && (
-          <div className="approval-banner">
-            <div className="approval-banner-cmd">
-              <span style={{ color: '#7ee787', userSelect: 'none', marginRight: 6, fontSize: 13 }}>$</span>
-              <code>
-                {(pendingApproval.inputPreview || JSON.stringify(pendingApproval.toolInput)).slice(0, 120)}
-              </code>
-            </div>
-            <div className="approval-banner-actions">
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>
-                等待审批 · {pendingApproval.toolName}{permissionRequests.length > 1 ? ` +${permissionRequests.length - 1}` : ''}
-              </span>
-              <button
-                className="btn-approve"
-                disabled={permissionRespondingId === pendingApproval.id}
-                onClick={() => handleApprovalAction(pendingApproval, true)}
-              >✓ 允许</button>
-              <button
-                className="btn-deny"
-                disabled={permissionRespondingId === pendingApproval.id}
-                onClick={() => handleApprovalAction(pendingApproval, false)}
-              >✗ 拒绝</button>
-            </div>
           </div>
         )}
         {/* @ 文件提及下拉菜单 */}
@@ -1726,6 +1709,43 @@ export function ChatPanel() {
     </div>
   );
 }
+
+/** 权限审批横幅卡片 — 内联于消息流底部，等待用户 Allow/Deny */
+const PermissionBannerCard = memo(function PermissionBannerCard({
+  request,
+  responding,
+  onAllow,
+  onDeny,
+}: {
+  request: PermissionRequestEvent;
+  responding: boolean;
+  onAllow: () => void;
+  onDeny: () => void;
+}) {
+  const preview = (request.inputPreview || JSON.stringify(request.toolInput)).slice(0, 200);
+  return (
+    <div className="permission-banner-card">
+      <div className="permission-banner-header">
+        <span className="permission-banner-icon">🔐</span>
+        <span className="permission-banner-tool">{request.toolName}</span>
+        <span className="permission-banner-label">等待审批</span>
+      </div>
+      <pre className="permission-banner-preview">{preview}</pre>
+      <div className="permission-banner-actions">
+        <button
+          className="btn-approve"
+          disabled={responding}
+          onClick={onAllow}
+        >✓ 允许</button>
+        <button
+          className="btn-deny"
+          disabled={responding}
+          onClick={onDeny}
+        >✗ 拒绝</button>
+      </div>
+    </div>
+  );
+});
 
 /** Turn 汇总卡片 — 每轮 Claude 执行完成后展示步骤数/token/耗时 */
 const TurnSummaryCard = memo(function TurnSummaryCard({
