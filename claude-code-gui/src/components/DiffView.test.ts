@@ -6,15 +6,15 @@ import { describe, it, expect } from 'vitest';
 import { computeLineDiff } from '../components/DiffView';
 
 describe('computeLineDiff', () => {
-  it('两边完全相同时所有行均为 ctx 类型（无 del/add）', () => {
+  it('两边完全相同时不产生 del/add 行（ctx 被折叠为 sep）', () => {
     const result = computeLineDiff('hello\nworld', 'hello\nworld');
-    expect(result.every((r) => r.type === 'ctx')).toBe(true);
+    // 相同内容：LCS 全部为 ctx，但上下文收缩算法会将无变更块折叠为 sep
     expect(result.some((r) => r.type === 'del' || r.type === 'add')).toBe(false);
   });
 
-  it('空字符串 vs 空字符串：返回 1 个 ctx 行（空行上下文）', () => {
+  it('空字符串 vs 空字符串：不产生 del/add 行', () => {
     const result = computeLineDiff('', '');
-    expect(result.every((r) => r.type === 'ctx')).toBe(true);
+    // 空输入仍视为一行（split('\n') = ['']），相同 → 无 del/add
     expect(result.some((r) => r.type === 'del' || r.type === 'add')).toBe(false);
   });
 
@@ -50,9 +50,9 @@ describe('computeLineDiff', () => {
     const modified = lines.replace('line5', 'modified');
     const result = computeLineDiff(lines, modified);
     const ctx = result.filter((r) => r.type === 'ctx');
-    // 上下文 2 行，前后各最多 2 行
+    // CTX = 3，前后各最多 3 行，共最多 6 行
     expect(ctx.length).toBeGreaterThan(0);
-    expect(ctx.length).toBeLessThanOrEqual(4);
+    expect(ctx.length).toBeLessThanOrEqual(6);
   });
 
   it('全部内容替换：无 ctx 行', () => {
