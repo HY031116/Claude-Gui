@@ -5,9 +5,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Cpu, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
-import { ChatPanel } from '../ChatPanel';
 import { TerminalPanel } from '../TerminalPanel';
 import { SessionList } from '../SessionList';
+import { TaskView } from '../task/TaskView';
 
 interface WorkspaceAreaProps {
   onStartSession: () => void;
@@ -332,7 +332,7 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
             );
           })()}
 
-          <ChatPanel key={activeTabId} />
+          <TaskView activeTabId={activeTabId} />
           <TerminalPanel />
         </div>
 
