@@ -2,7 +2,7 @@
 
 为 [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) 提供完整图形界面的 Electron 桌面应用。
 
-**版本：v1.9.4**
+**版本：v1.9.5**
 
 > 目标：以 Claude Code CLI 为内核，打造对标 Codex CLI Web UI 的可视化界面，结合两家之长。
 
@@ -289,6 +289,12 @@ npm run dist
 ---
 
 ## Changelog
+
+### v1.9.5 — TurnCard 执行进度可视化增强
+- **实时进度条**：TurnCard 头部下方增加薄进度条，随已完成步骤数动态推进（带 transition 动画），颜色按绿/黄/红三态跟随执行状态
+- **时间线样式步骤列表**：步骤项改为竖线 + 圆形节点连接，清晰展示执行路径，视觉层次更接近 VSCode Claude Code 插件体验
+- **运行中节点脉动动画**：执行中的步骤节点持续脉动（`turnNodePulse`），配合轻紫背景高亮，当前执行位置一目了然
+- **步骤计数徽章**：标题行改为 `执行中 · 3/5 工具` 格式，实时展示完成进度
 
 ### v1.9.4 — 会话列表标题优化 + Context 指示器
 - **会话列表智能标题**：`SessionList` 对会话第一条消息自动格式化——去掉 `@文件引用` 和代码块，取第一行非空内容（≤40 字），会话可读性大幅提升
