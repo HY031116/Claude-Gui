@@ -1,10 +1,25 @@
 import { create } from 'zustand';
-import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord } from '../types';
+import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord, Workspace } from '../types';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
 const TOKEN_HISTORY_KEY = 'claude-gui-token-history';
 const TAB_PERSISTENCE_KEY = 'claude-gui-tab-persistence';
+const WORKSPACES_KEY = 'claude-gui-workspaces';
+
+/** 从 localStorage 读取工作区列表 */
+function loadWorkspaces(): Workspace[] {
+  try {
+    return JSON.parse(localStorage.getItem(WORKSPACES_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+/** 保存工作区列表 */
+function saveWorkspaces(list: Workspace[]): void {
+  try { localStorage.setItem(WORKSPACES_KEY, JSON.stringify(list)); } catch { /* 忽略 */ }
+}
 
 /** 从 localStorage 读取历史（最多 50 条） */
 function loadHistory(): ConversationRecord[] {
@@ -171,6 +186,15 @@ interface AppState {
    */
   activeChangeId: string | null;
   setActiveChangeId: (id: string | null) => void;
+
+  // 多项目工作区
+  /** 已保存的工作区列表（持久化到 localStorage） */
+  workspaces: Workspace[];
+  /** 当前激活工作区路径（空字符串 = 显示全部会话） */
+  activeWorkspacePath: string;
+  addWorkspace: (path: string) => void;
+  removeWorkspace: (id: string) => void;
+  setActiveWorkspace: (path: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -395,6 +419,29 @@ export const useAppStore = create<AppState>((set, get) => {
   // 对话 ↔ Diff 联动
   activeChangeId: null,
   setActiveChangeId: (id) => set({ activeChangeId: id }),
+
+  // 多项目工作区
+  workspaces: loadWorkspaces(),
+  activeWorkspacePath: '',
+  addWorkspace: (path) => set((state) => {
+    // 去重：路径相同则跳过
+    if (state.workspaces.some((w) => w.path === path)) {
+      return { activeWorkspacePath: path };
+    }
+    const name = path.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() ?? path;
+    const ws: Workspace = { id: `ws-${Date.now()}`, name, path, addedAt: Date.now() };
+    const next = [ws, ...state.workspaces];
+    saveWorkspaces(next);
+    return { workspaces: next, activeWorkspacePath: path };
+  }),
+  removeWorkspace: (id) => set((state) => {
+    const next = state.workspaces.filter((w) => w.id !== id);
+    saveWorkspaces(next);
+    const removed = state.workspaces.find((w) => w.id === id);
+    const activePath = removed?.path === state.activeWorkspacePath ? '' : state.activeWorkspacePath;
+    return { workspaces: next, activeWorkspacePath: activePath };
+  }),
+  setActiveWorkspace: (path) => set({ activeWorkspacePath: path }),
 }; // return 结束
 }); // create 结束
 

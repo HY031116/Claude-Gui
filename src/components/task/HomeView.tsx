@@ -9,6 +9,7 @@ import {
   GitBranch, SlidersHorizontal, Cpu, Hash, Trash2, FileText,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
+import { WorkspaceSelector } from '../workspace/WorkspaceSelector';
 import type { ConversationRecord, TokenRecord } from '../../types';
 import type { GitFile } from '../../types/electron.d';
 
@@ -185,6 +186,7 @@ export function HomeView({ onStartSession }: HomeViewProps) {
   const session = useAppStore((s) => s.session);
   const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
   const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
+  const activeWorkspacePath = useAppStore((s) => s.activeWorkspacePath);
 
   // 持久化会话列表
   const [persistedSessions, setPersistedSessions] = useState<PersistedSessionSummary[]>([]);
@@ -231,19 +233,24 @@ export function HomeView({ onStartSession }: HomeViewProps) {
 
   // 最近 8 条会话（优先持久化来源）
   const recentSessions = useMemo<ConversationRecord[]>(() => {
+    let records: ConversationRecord[];
     if (persistedSessions.length > 0) {
-      return persistedSessions.slice(0, 8).map((s) => ({
+      records = persistedSessions.slice(0, 50).map((s) => ({
         sessionId: s.sessionId,
         workingDirectory: s.workingDirectory,
         preview: s.title,
         startedAt: s.createdAt,
         lastMessageAt: s.updatedAt,
       }));
+    } else {
+      records = [...conversationHistory].sort((a, b) => b.lastMessageAt - a.lastMessageAt);
     }
-    return [...conversationHistory]
-      .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
-      .slice(0, 8);
-  }, [conversationHistory, persistedSessions]);
+    // 按当前工作区过滤
+    if (activeWorkspacePath) {
+      records = records.filter((r) => r.workingDirectory === activeWorkspacePath);
+    }
+    return records.slice(0, 8);
+  }, [conversationHistory, persistedSessions, activeWorkspacePath]);
 
   /** 删除持久化会话 */
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
@@ -290,6 +297,9 @@ export function HomeView({ onStartSession }: HomeViewProps) {
           )}
         </div>
 
+        {/* 工作区选择器 */}
+        <WorkspaceSelector />
+
         <div className="home-sessions-list">
           {recentSessions.length === 0 ? (
             <div className="home-sessions-empty">暂无历史会话</div>
@@ -305,7 +315,13 @@ export function HomeView({ onStartSession }: HomeViewProps) {
           )}
         </div>
 
-        <button className="home-new-btn" onClick={onStartSession}>
+        <button className="home-new-btn" onClick={() => {
+          // 若有激活工作区，将其设为新会话工作目录
+          if (activeWorkspacePath) {
+            setSession({ workingDirectory: activeWorkspacePath });
+          }
+          onStartSession();
+        }}>
           <Plus size={15} />
           新建任务
         </button>

@@ -74,6 +74,14 @@ export interface ConversationRecord {
   lastMessageAt: number;
 }
 
+/** 工作区（多项目工作区切换） */
+export interface Workspace {
+  id: string;
+  name: string;    // 显示名（默认 = path basename）
+  path: string;    // 绝对路径
+  addedAt: number; // 添加时间戳
+}
+
 /** 来自 ~/.claude/projects/ 的 CLI 原生历史会话 */
 export interface CliSessionRecord {
   sessionId: string;
