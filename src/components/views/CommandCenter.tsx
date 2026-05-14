@@ -56,6 +56,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
   const tabs = useAppStore((s) => s.tabs);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const conversationHistory = useAppStore((s) => s.conversationHistory);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
 
   // 计算待审查变更数量
   const pendingChangesCount = useMemo(() => {
@@ -102,6 +103,12 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
     }
     onNavClick('dispatch');
   }, [session.isConnected, onStartSession, onNavClick]);
+
+  /** 跳转到指定 tab 的 dispatch 视图 */
+  const handleGoToTab = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    onNavClick('dispatch');
+  }, [setActiveTab, onNavClick]);
 
   // 工作目录最后一段
   const projectName = session.workingDirectory
@@ -174,7 +181,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
                 </div>
               </div>
               <div className="intervention-actions">
-                <button className="btn-sm btn-outline" onClick={() => onNavClick('dispatch')}>
+                <button className="btn-sm btn-outline" onClick={() => handleGoToTab(tab.id)}>
                   查看日志
                 </button>
               </div>
@@ -210,7 +217,8 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
                 <div
                   key={tab.id}
                   className={`agent-card${isProcessing ? ' agent-card-active' : ''}`}
-                  onClick={() => onNavClick('dispatch')}
+                  onClick={() => handleGoToTab(tab.id)}
+                  title={`点击进入 ${tab.label}`}
                 >
                   <div className="agent-card-header">
                     <span
