@@ -5151,6 +5151,27 @@ body.is-resizing .resize-handle::after {
   white-space: nowrap;
 }
 
+.home-git-refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+.home-git-refresh-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-hover); }
+.home-git-refresh-btn:disabled { opacity: 0.4; cursor: default; }
+
+.home-section-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 0;
+  text-align: center;
+}
+
 /* ─── 快速跳转 ─── */
 .home-quick-links {
   display: flex;

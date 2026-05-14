@@ -3,10 +3,10 @@
  * 左栏：会话列表（继续任务）+ 新建任务按钮
  * 右栏：3 统计卡片 + 最近修改文件 + 快速导航
  */
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   Plus, FolderOpen, Clock, TrendingUp, Zap,
-  GitBranch, SlidersHorizontal, Cpu, Hash, Trash2, FileText,
+  GitBranch, SlidersHorizontal, Cpu, Hash, Trash2, FileText, RefreshCw,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { WorkspaceSelector } from '../workspace/WorkspaceSelector';
@@ -192,6 +192,11 @@ export function HomeView({ onStartSession }: HomeViewProps) {
   const [persistedSessions, setPersistedSessions] = useState<PersistedSessionSummary[]>([]);
   // 最近修改文件（Git status）
   const [recentFiles, setRecentFiles] = useState<GitFile[]>([]);
+  // Git 分支信息
+  const [gitBranch, setGitBranch] = useState('');
+  const [gitAhead, setGitAhead] = useState(0);
+  const [gitBehind, setGitBehind] = useState(0);
+  const [gitLoading, setGitLoading] = useState(false);
 
   // 本周费用
   const weekCost = useMemo(() => {
@@ -225,31 +230,53 @@ export function HomeView({ onStartSession }: HomeViewProps) {
     return tokenHistory.filter((r) => r.workingDirectory === activeWorkspacePath);
   }, [activeWorkspacePath, tokenHistory]);
 
+  /** 加载 Git 状态（响应 activeWorkspacePath / session.workingDirectory 变化） */
+  const loadGitStatus = useCallback(async (cwd: string) => {
+    if (!cwd) return;
+    setGitLoading(true);
+    try {
+      const res = await window.electronAPI?.gitStatus?.(cwd);
+      if (res?.success && res.status) {
+        const { staged, unstaged, untracked, branch, ahead, behind } = res.status;
+        setGitBranch(branch ?? '');
+        setGitAhead(ahead ?? 0);
+        setGitBehind(behind ?? 0);
+        // staged + unstaged 去重聚合（staged 状态优先）
+        const fileMap = new Map<string, string>();
+        for (const f of (staged ?? [])) fileMap.set(f.path, f.status);
+        for (const f of (unstaged ?? [])) if (!fileMap.has(f.path)) fileMap.set(f.path, f.status);
+        for (const p of (untracked ?? [])) if (!fileMap.has(p)) fileMap.set(p, '?');
+        const files: GitFile[] = Array.from(fileMap.entries())
+          .map(([path, status]) => ({ path, status }))
+          .slice(0, 10);
+        setRecentFiles(files);
+      } else {
+        setRecentFiles([]);
+        setGitBranch('');
+      }
+    } catch {
+      setRecentFiles([]);
+    } finally {
+      setGitLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // 加载持久化会话列表
     window.electronAPI?.sessionList?.().then((res) => {
       if (res.success && res.sessions) setPersistedSessions(res.sessions);
     }).catch(() => {});
 
-    // 加载 Git 最近修改文件
-    const cwd = useAppStore.getState().session.workingDirectory;
-    if (cwd) {
-      window.electronAPI?.gitStatus?.(cwd).then((res) => {
-        if (res.success && res.status) {
-          const files = [
-            ...(res.status.staged ?? []),
-            ...(res.status.unstaged ?? []),
-          ];
-          const seen = new Set<string>();
-          setRecentFiles(files.filter((f) => {
-            if (seen.has(f.path)) return false;
-            seen.add(f.path);
-            return true;
-          }).slice(0, 8));
-        }
-      }).catch(() => {});
-    }
-  }, []);
+    // 加载 Git 最近修改文件：优先激活工作区，否则用当前会话目录
+    const cwd = useAppStore.getState().activeWorkspacePath || useAppStore.getState().session.workingDirectory;
+    if (cwd) loadGitStatus(cwd);
+  }, [loadGitStatus]);
+
+  // 工作区或会话目录变化时重新加载 Git 状态
+  useEffect(() => {
+    const cwd = activeWorkspacePath || session.workingDirectory;
+    if (cwd) loadGitStatus(cwd);
+  }, [activeWorkspacePath, session.workingDirectory, loadGitStatus]);
 
   // 最近 8 条会话（优先持久化来源）
   const recentSessions = useMemo<ConversationRecord[]>(() => {
@@ -403,31 +430,53 @@ export function HomeView({ onStartSession }: HomeViewProps) {
         )}
 
         {/* 最近修改文件（有 Git 数据时显示） */}
-        {recentFiles.length > 0 && (
+        {(recentFiles.length > 0 || gitBranch) && (activeWorkspacePath || session.workingDirectory) && (
           <div className="home-section">
             <div className="home-section-header">
               <GitBranch size={12} />
               <span>最近修改</span>
-              <span className="home-section-meta">{getProjectName(session.workingDirectory)}</span>
+              {gitBranch && (
+                <span className="home-section-meta">
+                  {gitBranch}
+                  {gitAhead > 0 && ` ↑${gitAhead}`}
+                  {gitBehind > 0 && ` ↓${gitBehind}`}
+                </span>
+              )}
+              <button
+                className="home-git-refresh-btn"
+                title="刷新 Git 状态"
+                disabled={gitLoading}
+                onClick={() => {
+                  const cwd = activeWorkspacePath || session.workingDirectory;
+                  if (cwd) loadGitStatus(cwd);
+                }}
+                style={{ marginLeft: 'auto' }}
+              >
+                <RefreshCw size={11} style={gitLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+              </button>
             </div>
-            <div className="home-recent-files">
-              {recentFiles.map((file) => (
-                <div key={file.path} className="home-recent-file">
-                  <span
-                    className="home-recent-file-status"
-                    style={{ color: getStatusColor(file.status) }}
-                  >
-                    {file.status.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="home-recent-file-name" title={file.path}>
-                    {file.path.split('/').pop() ?? file.path}
-                  </span>
-                  <span className="home-recent-file-dir">
-                    {file.path.includes('/') ? file.path.split('/').slice(0, -1).join('/') : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {recentFiles.length === 0 ? (
+              <div className="home-section-empty">暂无未提交变更</div>
+            ) : (
+              <div className="home-recent-files">
+                {recentFiles.map((file) => (
+                  <div key={file.path} className="home-recent-file">
+                    <span
+                      className="home-recent-file-status"
+                      style={{ color: getStatusColor(file.status) }}
+                    >
+                      {file.status.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="home-recent-file-name" title={file.path}>
+                      {file.path.split('/').pop() ?? file.path}
+                    </span>
+                    <span className="home-recent-file-dir">
+                      {file.path.includes('/') ? file.path.split('/').slice(0, -1).join('/') : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
