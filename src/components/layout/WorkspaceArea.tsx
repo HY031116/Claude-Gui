@@ -33,9 +33,11 @@ interface WorkspaceAreaProps {
 export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps) {
   const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const session = useAppStore((s) => s.session);
+  const messages = useAppStore((s) => s.messages);
   const setSession = useAppStore((s) => s.setSession);
   const tabs = useAppStore((s) => s.tabs);
   const activeTabId = useAppStore((s) => s.activeTabId);
+  const tabSnapshots = useAppStore((s) => s.tabSnapshots);
   const addTab = useAppStore((s) => s.addTab);
   const closeTab = useAppStore((s) => s.closeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
@@ -288,10 +290,29 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
                   />
                 ) : (
                   <span className="session-tab-label" title="双击重命名">
-                    {processingTabs[tab.id] && (
-                      <span className="session-tab-spinner" title="处理中…" />
-                    )}
-                    {tab.label}
+                    {/* 状态点：处理中=蓝脉冲 / 已连接=绿 / 未连接=灰 */}
+                    {(() => {
+                      const snap = tabSnapshots[tab.id];
+                      const isConnected = snap?.session?.isConnected;
+                      const isProcessing = processingTabs[tab.id];
+                      return (
+                        <span
+                          className={`session-tab-status-dot${isProcessing ? ' processing' : isConnected ? ' connected' : ''}`}
+                          title={isProcessing ? '处理中' : isConnected ? '已连接' : '未连接'}
+                        />
+                      );
+                    })()}
+                    {/* 标签显示：用户自定义名称；若未改名则尝试显示第一条用户消息前22字 */}
+                    {(() => {
+                      const defaultLabel = `会话 ${tab.id.split('-')[1] ?? '?'}`;
+                      if (tab.label !== defaultLabel) return tab.label;
+                      const snap = tabSnapshots[tab.id];
+                      const firstUserMsg = snap?.messages?.find((m) => m.role === 'user');
+                      if (!firstUserMsg) return tab.label;
+                      const preview = firstUserMsg.content.replace(/\s+/g, ' ').trim();
+                      if (!preview) return tab.label;
+                      return preview.length > 22 ? preview.slice(0, 22) + '…' : preview;
+                    })()}
                   </span>
                 )}
                 {tabs.length > 1 && (
@@ -367,7 +388,43 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
             );
           })()}
 
-          {/* dispatch 内始终显示 TaskView（无连接时显示欢迎态已移至 CommandCenter） */}
+          {/* dispatch 内始终显示 TaskView；未连接且无消息时额外显示引导卡片 */}
+          {!session.isConnected && messages.length === 0 && (
+            <div style={{
+              padding: '20px 20px 0',
+              display: 'flex',
+              gap: 10,
+              flexShrink: 0,
+            }}>
+              <div style={{
+                flex: 1,
+                border: '1px dashed var(--border-color)',
+                borderRadius: 10,
+                padding: '18px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                background: 'var(--bg-secondary)',
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
+                    委派新任务
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                    启动 Claude 后即可在下方输入框开始对话，或在右侧配置任务参数
+                  </div>
+                </div>
+                <button
+                  className="btn-primary btn-sm"
+                  onClick={onStartSession}
+                  style={{ flexShrink: 0 }}
+                >
+                  启动会话
+                </button>
+              </div>
+            </div>
+          )}
           <TaskView activeTabId={activeTabId} />
           <TerminalPanel />
         </div>

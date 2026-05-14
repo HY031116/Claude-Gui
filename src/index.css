@@ -4962,6 +4962,27 @@ body.is-resizing .resize-handle::after {
   gap: 9px;
 }
 
+/* ── 会话标签状态点 ── */
+.session-tab-status-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+  opacity: 0.6;
+  margin-right: 5px;
+  transition: background 0.2s;
+}
+.session-tab-status-dot.connected {
+  background: var(--success);
+  opacity: 1;
+}
+.session-tab-status-dot.processing {
+  background: #3b82f6;
+  opacity: 1;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 /* ─── 工作区横幅（替代问候语） ─── */
 
 /* ═══════════════════════════════════════════════════════════════
