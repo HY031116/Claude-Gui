@@ -5473,3 +5473,75 @@ body.is-resizing .resize-handle::after {
   50%       { opacity: 0.45; }
 }
 
+/* ── Phase D：计划步骤进度条 ──────────────────────────── */
+.task-plan-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.task-plan-progress-track {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.task-plan-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.task-plan-progress-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.task-plan-progress-err {
+  color: var(--error-text, #ef4444);
+}
+
+/* ── Phase D：任务视图顶栏 Token 监控条 ─────────────────── */
+.task-token-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.task-token-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.task-token-label {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.task-token-value {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-token-sep {
+  color: var(--text-muted);
+}
+
+.task-token-cost {
+  color: var(--accent-color);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+

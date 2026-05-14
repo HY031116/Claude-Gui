@@ -15,6 +15,39 @@ import { PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { ChatPanel } from '../ChatPanel';
 import { ReviewQueue } from './ReviewQueue';
 import { TaskTimeline } from './TaskTimeline';
+import { useAppStore } from '../../stores/useAppStore';
+
+/** 格式化 token 数量：≥1000 时缩写为 K */
+function fmtK(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+}
+
+/** 任务视图顶部：Token 与成本实时监控条 */
+function TokenBar() {
+  const tokenUsage = useAppStore((s) => s.tokenUsage);
+  if (!tokenUsage || tokenUsage.inputTokens === 0) return null;
+
+  const { inputTokens, outputTokens, costUsd } = tokenUsage;
+  return (
+    <div className="task-token-bar" title={`输入 ${inputTokens.toLocaleString()} tokens，输出 ${outputTokens.toLocaleString()} tokens`}>
+      <span className="task-token-item">
+        <span className="task-token-label">↑</span>
+        <span className="task-token-value">{fmtK(inputTokens)}</span>
+      </span>
+      <span className="task-token-sep">·</span>
+      <span className="task-token-item">
+        <span className="task-token-label">↓</span>
+        <span className="task-token-value">{fmtK(outputTokens)}</span>
+      </span>
+      {costUsd != null && costUsd > 0 && (
+        <>
+          <span className="task-token-sep">·</span>
+          <span className="task-token-cost">${costUsd.toFixed(4)}</span>
+        </>
+      )}
+    </div>
+  );
+}
 
 /** 右栏宽度限制 */
 const REVIEW_PANEL_MIN = 240;
@@ -77,6 +110,8 @@ export function TaskView({ activeTabId }: TaskViewProps) {
           minWidth: 0,
         }}
       >
+        {/* Token 监控条（有数据时出现） */}
+        <TokenBar />
         {/* 执行时序条（有工具调用时出现，可折叠） */}
         <TaskTimeline />
         {/* 对话流 + 输入区（始终存在，负责 CLI 解析） */}

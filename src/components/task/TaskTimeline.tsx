@@ -12,6 +12,39 @@ import {
 import { useAppStore } from '../../stores/useAppStore';
 import type { ToolCall } from '../../types';
 
+/** 基于 activePlanSteps 渲染实时进度条 */
+function PlanProgressBar() {
+  const activePlanSteps = useAppStore((s) => s.activePlanSteps);
+  if (activePlanSteps.length === 0) return null;
+
+  const total = activePlanSteps.length;
+  const doneCount = activePlanSteps.filter((s) => s.status === 'done').length;
+  const hasError = activePlanSteps.some((s) => s.status === 'error');
+  const isRunning = activePlanSteps.some((s) => s.status === 'running');
+  const pct = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+
+  const barColor = hasError
+    ? 'var(--error-color, #e74c3c)'
+    : isRunning
+      ? 'var(--accent-color, #4a9eff)'
+      : 'var(--success-color, #27ae60)';
+
+  return (
+    <div className="task-plan-progress" title={`${doneCount} / ${total} 步骤完成`}>
+      <div className="task-plan-progress-track">
+        <div
+          className="task-plan-progress-fill"
+          style={{ width: `${pct}%`, background: barColor }}
+        />
+      </div>
+      <span className="task-plan-progress-label">
+        {doneCount}/{total}
+        {hasError && <span className="task-plan-progress-err"> · 有错误</span>}
+      </span>
+    </div>
+  );
+}
+
 /** 工具名 → 友好显示名 + 图标 */
 const TOOL_META: Record<string, { label: string; Icon: React.FC<{ size?: number }> }> = {
   Read:                     { label: 'Read',    Icon: FileText },
@@ -157,6 +190,7 @@ export function TaskTimeline() {
       {/* 时序列表（可滚动） */}
       {!collapsed && (
         <div className="task-timeline-body">
+          <PlanProgressBar />
           {allToolCalls.map((tc) => (
             <TimelineRow key={tc.id} tc={tc} />
           ))}
