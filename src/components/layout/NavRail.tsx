@@ -58,6 +58,7 @@ export function NavRail({ onNavClick }: NavRailProps) {
   const setTheme = useAppStore((s) => s.setTheme);
   const messages = useAppStore((s) => s.messages);
   const processingTabs = useAppStore((s) => s.processingTabs);
+  const tokenUsage = useAppStore((s) => s.tokenUsage);
 
   // 计算待审查变更数量（未审阅的文件修改工具调用）
   const pendingChangesCount = useMemo(() => {
@@ -72,11 +73,18 @@ export function NavRail({ onNavClick }: NavRailProps) {
     return count;
   }, [messages]);
 
-  // 是否有 Agent 正在处理中
-  const hasProcessingAgent = useMemo(
-    () => Object.values(processingTabs).some(Boolean),
+  // 处理中 Agent 数量
+  const processingAgentCount = useMemo(
+    () => Object.values(processingTabs).filter(Boolean).length,
     [processingTabs],
   );
+  const hasProcessingAgent = processingAgentCount > 0;
+
+  // token 高用量警告（超过 100k 时）
+  const tokenHighUsage = useMemo(() => {
+    if (!tokenUsage) return false;
+    return (tokenUsage.inputTokens + tokenUsage.outputTokens) > 100_000;
+  }, [tokenUsage]);
 
   const handleThemeToggle = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -102,8 +110,31 @@ export function NavRail({ onNavClick }: NavRailProps) {
 
     // 各按钮的徽章逻辑
     let badge: React.ReactNode = null;
-    if (item.id === 'dispatch' && hasProcessingAgent) {
-      // 处理中：蓝色脉冲点
+    if (item.id === 'command' && hasProcessingAgent) {
+      // 指挥中心：显示活跃 agent 数量（多于1个时才显示数字，否则只显示脉冲点）
+      badge = processingAgentCount > 1 ? (
+        <span style={{
+          position: 'absolute', top: 4, right: 2,
+          minWidth: 14, height: 14,
+          borderRadius: 7, padding: '0 2px',
+          background: '#3b82f6',
+          border: '1.5px solid var(--bg-primary)',
+          color: '#fff', fontSize: 9, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {processingAgentCount > 9 ? '9+' : processingAgentCount}
+        </span>
+      ) : (
+        <span style={{
+          position: 'absolute', top: 6, right: 6,
+          width: 7, height: 7, borderRadius: '50%',
+          background: '#3b82f6',
+          border: '1.5px solid var(--bg-primary)',
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }} />
+      );
+    } else if (item.id === 'dispatch' && hasProcessingAgent) {
+      // 委派视图：处理中脉冲点
       badge = (
         <span style={{
           position: 'absolute', top: 6, right: 6,
@@ -128,6 +159,16 @@ export function NavRail({ onNavClick }: NavRailProps) {
         }}>
           {pendingChangesCount > 9 ? '9+' : pendingChangesCount}
         </span>
+      );
+    } else if (item.id === 'monitor' && tokenHighUsage) {
+      // 监控：token 高用量橙色警告点
+      badge = (
+        <span style={{
+          position: 'absolute', top: 6, right: 6,
+          width: 7, height: 7, borderRadius: '50%',
+          background: '#f59e0b',
+          border: '1.5px solid var(--bg-primary)',
+        }} />
       );
     }
 
