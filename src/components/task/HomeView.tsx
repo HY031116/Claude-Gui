@@ -1,12 +1,16 @@
 /**
- * HomeView — 首屏欢迎页
- * 在无活跃会话（未连接 + 无消息）时展示
- * 提供：快速新建任务、快速导航、最近会话入口、本周消费概览、全局统计
+ * HomeView — 首屏欢迎页（v3.0 两栏布局）
+ * 左栏：会话列表（继续任务）+ 新建任务按钮
+ * 右栏：3 统计卡片 + 最近修改文件 + 快速导航
  */
 import { useMemo, useEffect, useState } from 'react';
-import { Plus, FolderOpen, Clock, TrendingUp, Zap, GitBranch, SlidersHorizontal, Cpu, Hash, MapPin, Trash2 } from 'lucide-react';
+import {
+  Plus, FolderOpen, Clock, TrendingUp, Zap,
+  GitBranch, SlidersHorizontal, Cpu, Hash, Trash2, FileText,
+} from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import type { ConversationRecord, TokenRecord } from '../../types';
+import type { GitFile } from '../../types/electron.d';
 
 // ─── 工具函数 ───────────────────────────────────────────────────────────────
 
@@ -51,45 +55,68 @@ function getDayStart(daysAgo: number): number {
   return d.getTime();
 }
 
-/** 格式化会话预览（截取 50 字符） */
+/** 格式化会话预览 */
 function formatPreview(preview: string): string {
   const text = preview.replace(/@\S+/g, '').replace(/```[\s\S]*?```/g, '').trim();
   const line = text.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? text;
-  return line.length > 50 ? line.slice(0, 50) + '…' : line || '（空会话）';
+  return line.length > 45 ? line.slice(0, 45) + '…' : line || '（空会话）';
 }
 
-// ─── 子组件：快速导航按钮组 ─────────────────────────────────────────────────
-
-interface QuickAction {
-  icon: React.ReactNode;
-  label: string;
-  section: 'tools' | 'config' | 'project';
-  sub?: string;
+/** 文件状态对应颜色 */
+function getStatusColor(status: string): string {
+  if (status === 'M' || status === 'modified') return 'var(--warning-text, #f59e0b)';
+  if (status === 'A' || status === 'added') return 'var(--success-text, #22c55e)';
+  if (status === 'D' || status === 'deleted') return 'var(--error-text, #ef4444)';
+  return 'var(--text-muted)';
 }
 
-function QuickActions() {
-  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
-  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
+// ─── 子组件：会话卡片 ────────────────────────────────────────────────────────
 
-  const actions: QuickAction[] = [
-    { icon: <GitBranch size={13} />, label: 'Git 变更', section: 'project', sub: 'changes' },
-    { icon: <Cpu size={13} />, label: 'MCP 工具', section: 'tools', sub: 'mcp' },
-    { icon: <SlidersHorizontal size={13} />, label: '设置', section: 'config', sub: 'settings' },
-  ];
+interface SessionCardProps {
+  record: ConversationRecord;
+  onClick: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}
 
-  const handleClick = (action: QuickAction) => {
-    setActiveNavSection(action.section);
-    if (action.sub) setActiveAuxSubPanel(action.sub);
-  };
+function SessionCard({ record, onClick, onDelete }: SessionCardProps) {
+  const projectName = getProjectName(record.workingDirectory);
+  const preview = formatPreview(record.preview);
 
   return (
-    <div className="home-quick-actions">
-      {actions.map((a) => (
-        <button key={a.label} className="home-quick-btn" onClick={() => handleClick(a)}>
-          {a.icon}
-          {a.label}
-        </button>
-      ))}
+    <div className="home-session-card-wrap">
+      <button className="home-session-card" onClick={onClick} title={record.workingDirectory}>
+        <div className="home-session-project">
+          <FolderOpen size={11} />
+          {projectName}
+        </div>
+        <div className="home-session-preview">{preview}</div>
+        <div className="home-session-time">
+          <Clock size={10} />
+          {formatRelTime(record.lastMessageAt)}
+        </div>
+      </button>
+      <button className="home-session-delete-btn" title="删除此会话记录" onClick={onDelete}>
+        <Trash2 size={11} />
+      </button>
+    </div>
+  );
+}
+
+// ─── 子组件：统计卡片 ────────────────────────────────────────────────────────
+
+interface StatCardProps {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  accent?: boolean;
+}
+
+function StatCard({ icon, value, label, accent }: StatCardProps) {
+  return (
+    <div className={`home-stat-card${accent ? ' home-stat-card--accent' : ''}`}>
+      <div className="home-stat-card-icon">{icon}</div>
+      <div className="home-stat-card-value">{value}</div>
+      <div className="home-stat-card-label">{label}</div>
     </div>
   );
 }
@@ -115,76 +142,25 @@ function WeeklyChart({ records }: { records: TokenRecord[] }) {
   }, [records]);
 
   const maxCost = Math.max(...days.map((d) => d.costUsd), 0.0001);
-  const totalCost = days.reduce((sum, d) => sum + d.costUsd, 0);
 
   return (
-    <div className="home-chart-wrap">
-      <div className="home-chart-header">
-        <span className="home-chart-title">
-          <TrendingUp size={14} />
-          本周消费
-        </span>
-        <span className="home-chart-total">{formatCost(totalCost)}</span>
-      </div>
-      <div className="home-chart-bars">
-        {days.map((day) => (
-          <div key={day.label} className="home-chart-bar-col">
-            <div
-              className="home-chart-bar-inner"
-              title={`${day.label}: ${formatCost(day.costUsd)}`}
-              style={{ height: `${Math.max(4, (day.costUsd / maxCost) * 60)}px` }}
-            />
-            <span className="home-chart-bar-label">{day.label}</span>
-          </div>
-        ))}
-      </div>
+    <div className="home-chart-bars">
+      {days.map((day) => (
+        <div key={day.label} className="home-chart-bar-col">
+          <div
+            className="home-chart-bar-inner"
+            title={`${day.label}: ${formatCost(day.costUsd)}`}
+            style={{ height: `${Math.max(4, (day.costUsd / maxCost) * 48)}px` }}
+          />
+          <span className="home-chart-bar-label">{day.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── 子组件：最近会话卡片 ──────────────────────────────────────────────────
+// ─── 持久化会话摘要类型 ───────────────────────────────────────────────────────
 
-interface SessionCardProps {
-  record: ConversationRecord;
-  onClick: () => void;
-  onDelete: (e: React.MouseEvent) => void;
-}
-
-function SessionCard({ record, onClick, onDelete }: SessionCardProps) {
-  const projectName = getProjectName(record.workingDirectory);
-  const preview = formatPreview(record.preview);
-
-  return (
-    <div className="home-session-card-wrap">
-      <button className="home-session-card" onClick={onClick} title={record.workingDirectory}>
-        <div className="home-session-project">
-          <FolderOpen size={12} />
-          {projectName}
-        </div>
-        <div className="home-session-preview">{preview}</div>
-        <div className="home-session-time">
-          <Clock size={10} />
-          {formatRelTime(record.lastMessageAt)}
-        </div>
-      </button>
-      <button
-        className="home-session-delete-btn"
-        title="删除此会话记录"
-        onClick={onDelete}
-      >
-        <Trash2 size={12} />
-      </button>
-    </div>
-  );
-}
-
-// ─── 主组件 ───────────────────────────────────────────────────────────────
-
-interface HomeViewProps {
-  onStartSession: () => void;
-}
-
-/** 持久化会话摘要（从 userData/sessions/*.json 读取） */
 interface PersistedSessionSummary {
   sessionId: string;
   title: string;
@@ -194,6 +170,12 @@ interface PersistedSessionSummary {
   tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
 }
 
+// ─── 主组件 ───────────────────────────────────────────────────────────────
+
+interface HomeViewProps {
+  onStartSession: () => void;
+}
+
 export function HomeView({ onStartSession }: HomeViewProps) {
   const conversationHistory = useAppStore((s) => s.conversationHistory);
   const tokenHistory = useAppStore((s) => s.tokenHistory);
@@ -201,49 +183,56 @@ export function HomeView({ onStartSession }: HomeViewProps) {
   const setSession = useAppStore((s) => s.setSession);
   const clearMessages = useAppStore((s) => s.clearMessages);
   const session = useAppStore((s) => s.session);
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
 
-  // 持久化会话列表（从 userData/sessions/ 读取）
+  // 持久化会话列表
   const [persistedSessions, setPersistedSessions] = useState<PersistedSessionSummary[]>([]);
+  // 最近修改文件（Git status）
+  const [recentFiles, setRecentFiles] = useState<GitFile[]>([]);
 
-  useEffect(() => {
-    window.electronAPI?.sessionList?.().then((res) => {
-      if (res.success && res.sessions) {
-        setPersistedSessions(res.sessions);
-      }
-    }).catch(() => {});
-  }, []);
-
-  // 今日消费
-  const todayCost = useMemo(() => {
-    const start = getDayStart(0);
-    return tokenHistory
-      .filter((r) => r.timestamp >= start)
-      .reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+  // 本周费用
+  const weekCost = useMemo(() => {
+    const start = getDayStart(7);
+    return tokenHistory.filter((r) => r.timestamp >= start).reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
   }, [tokenHistory]);
 
-  // 全局累计消费
+  // 全局累计费用
   const totalCost = useMemo(
     () => tokenHistory.reduce((sum, r) => sum + (r.costUsd ?? 0), 0),
     [tokenHistory]
   );
 
-  // 当前日期显示
-  const [dateStr, setDateStr] = useState(() =>
-    new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })
-  );
-
   useEffect(() => {
-    const timer = setInterval(() => {
-      setDateStr(new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }));
-    }, 60000);
-    return () => clearInterval(timer);
+    // 加载持久化会话列表
+    window.electronAPI?.sessionList?.().then((res) => {
+      if (res.success && res.sessions) setPersistedSessions(res.sessions);
+    }).catch(() => {});
+
+    // 加载 Git 最近修改文件
+    const cwd = useAppStore.getState().session.workingDirectory;
+    if (cwd) {
+      window.electronAPI?.gitStatus?.(cwd).then((res) => {
+        if (res.success && res.status) {
+          const files = [
+            ...(res.status.staged ?? []),
+            ...(res.status.unstaged ?? []),
+          ];
+          const seen = new Set<string>();
+          setRecentFiles(files.filter((f) => {
+            if (seen.has(f.path)) return false;
+            seen.add(f.path);
+            return true;
+          }).slice(0, 8));
+        }
+      }).catch(() => {});
+    }
   }, []);
 
-  // 最近 6 条会话：优先使用持久化来源，回退到 localStorage 历史
+  // 最近 8 条会话（优先持久化来源）
   const recentSessions = useMemo<ConversationRecord[]>(() => {
     if (persistedSessions.length > 0) {
-      // 将持久化格式映射为 ConversationRecord 兼容格式
-      return persistedSessions.slice(0, 6).map((s) => ({
+      return persistedSessions.slice(0, 8).map((s) => ({
         sessionId: s.sessionId,
         workingDirectory: s.workingDirectory,
         preview: s.title,
@@ -253,7 +242,7 @@ export function HomeView({ onStartSession }: HomeViewProps) {
     }
     return [...conversationHistory]
       .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
-      .slice(0, 6);
+      .slice(0, 8);
   }, [conversationHistory, persistedSessions]);
 
   /** 删除持久化会话 */
@@ -261,20 +250,15 @@ export function HomeView({ onStartSession }: HomeViewProps) {
     e.stopPropagation();
     try {
       await window.electronAPI?.sessionDelete?.(sessionId);
-      // 刷新持久化列表
       const res = await window.electronAPI?.sessionList?.();
-      if (res?.success && res.sessions) {
-        setPersistedSessions(res.sessions);
-      }
+      if (res?.success && res.sessions) setPersistedSessions(res.sessions);
     } catch { /* 静默失败 */ }
   };
 
-  /** 点击历史会话：优先从持久化加载完整消息 */
+  /** 恢复历史会话 */
   const handleResume = async (record: ConversationRecord) => {
     clearMessages();
     setSession({ workingDirectory: record.workingDirectory, isConnected: false });
-
-    // 尝试从持久化存储加载完整消息
     try {
       const res = await window.electronAPI?.sessionLoad?.(record.sessionId);
       if (res?.success && res.data && typeof res.data === 'object') {
@@ -284,101 +268,144 @@ export function HomeView({ onStartSession }: HomeViewProps) {
           return;
         }
       }
-    } catch { /* 回退到提示消息 */ }
-
-    // 无持久化数据时显示提示
+    } catch { /* 回退 */ }
     setMessages([{
       id: 'history-preview',
       role: 'system',
-      content: `已切换到会话 ${record.sessionId}，点击连接后可使用 --resume 继续上下文。`,
+      content: `已加载会话 ${record.sessionId}，点击连接后可继续。`,
       timestamp: Date.now(),
     }]);
   };
 
+  const sessionCount = persistedSessions.length || conversationHistory.length;
+
   return (
     <div className="home-view">
-      {/* ── 顶部问候区 ── */}
-      <div className="home-header">
-        <div className="home-greeting">
-          <Zap size={20} className="home-greeting-icon" />
-          <span>{getGreeting()}，准备好了吗？</span>
+      {/* ── 左栏：会话列表 ── */}
+      <div className="home-left">
+        <div className="home-left-header">
+          <span className="home-left-title">继续任务</span>
+          {recentSessions.length > 0 && (
+            <span className="home-left-count">{recentSessions.length}</span>
+          )}
         </div>
-        <div className="home-date">{dateStr}</div>
-        {/* 全局统计小徽章 */}
-        {(conversationHistory.length > 0 || totalCost > 0) && (
-          <div className="home-stats-row">
-            {conversationHistory.length > 0 && (
-              <span className="home-stat-item">
-                <Hash size={10} />
-                {conversationHistory.length} 次会话
-              </span>
-            )}
-            {totalCost > 0 && (
-              <span className="home-stat-item">
-                <TrendingUp size={10} />
-                累计 {formatCost(totalCost)}
-              </span>
-            )}
-            {todayCost > 0 && (
-              <span className="home-stat-item home-stat-today">
-                今日 {formatCost(todayCost)}
-              </span>
-            )}
-          </div>
-        )}
-        {/* 当前工作目录 */}
-        {session.workingDirectory && (
-          <div className="home-workdir">
-            <MapPin size={10} />
-            <span title={session.workingDirectory}>
-              {getProjectName(session.workingDirectory)}
-            </span>
-          </div>
-        )}
+
+        <div className="home-sessions-list">
+          {recentSessions.length === 0 ? (
+            <div className="home-sessions-empty">暂无历史会话</div>
+          ) : (
+            recentSessions.map((rec) => (
+              <SessionCard
+                key={rec.sessionId}
+                record={rec}
+                onClick={() => handleResume(rec)}
+                onDelete={(e) => handleDelete(e, rec.sessionId)}
+              />
+            ))
+          )}
+        </div>
+
+        <button className="home-new-btn" onClick={onStartSession}>
+          <Plus size={15} />
+          新建任务
+        </button>
       </div>
 
-      {/* ── 主 CTA ── */}
-      <button className="home-start-btn" onClick={onStartSession}>
-        <Plus size={18} />
-        开始新任务
-      </button>
+      {/* ── 右栏：概览面板 ── */}
+      <div className="home-right">
+        {/* 问候语 */}
+        <div className="home-greeting-row">
+          <Zap size={17} className="home-greeting-icon" />
+          <span className="home-greeting-text">{getGreeting()}，准备好了吗？</span>
+        </div>
 
-      {/* ── 快速导航 ── */}
-      <QuickActions />
+        {/* 3 个统计卡片 */}
+        <div className="home-stat-cards">
+          <StatCard
+            icon={<Hash size={15} />}
+            value={String(sessionCount || '—')}
+            label="历史会话"
+          />
+          <StatCard
+            icon={<TrendingUp size={15} />}
+            value={weekCost > 0 ? formatCost(weekCost) : '—'}
+            label="本周消费"
+            accent={weekCost > 0}
+          />
+          <StatCard
+            icon={<FileText size={15} />}
+            value={recentFiles.length > 0 ? String(recentFiles.length) : '—'}
+            label="文件变更"
+          />
+        </div>
 
-      {/* ── 内容区（最近会话 + 本周图表）── */}
-      <div className="home-content">
-        {/* 最近会话 */}
-        {recentSessions.length > 0 && (
-          <section className="home-section">
-            <h3 className="home-section-title">最近会话</h3>
-            <div className="home-sessions-grid">
-              {recentSessions.map((rec) => (
-                <SessionCard
-                  key={rec.sessionId}
-                  record={rec}
-                  onClick={() => handleResume(rec)}
-                  onDelete={(e) => handleDelete(e, rec.sessionId)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* 本周消费 */}
+        {/* 本周消费柱状图 */}
         {tokenHistory.length > 0 && (
-          <section className="home-section">
+          <div className="home-section">
+            <div className="home-section-header">
+              <TrendingUp size={12} />
+              <span>本周消费趋势</span>
+              {totalCost > 0 && (
+                <span className="home-section-meta">累计 {formatCost(totalCost)}</span>
+              )}
+            </div>
             <WeeklyChart records={tokenHistory} />
-          </section>
-        )}
-
-        {/* 空状态引导 */}
-        {recentSessions.length === 0 && tokenHistory.length === 0 && (
-          <div className="home-empty">
-            <p>没有历史记录</p>
-            <p className="home-empty-sub">点击上方"开始新任务"连接 Claude CLI，开始编码吧！</p>
           </div>
         )}
+
+        {/* 最近修改文件（有 Git 数据时显示） */}
+        {recentFiles.length > 0 && (
+          <div className="home-section">
+            <div className="home-section-header">
+              <GitBranch size={12} />
+              <span>最近修改</span>
+              <span className="home-section-meta">{getProjectName(session.workingDirectory)}</span>
+            </div>
+            <div className="home-recent-files">
+              {recentFiles.map((file) => (
+                <div key={file.path} className="home-recent-file">
+                  <span
+                    className="home-recent-file-status"
+                    style={{ color: getStatusColor(file.status) }}
+                  >
+                    {file.status.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="home-recent-file-name" title={file.path}>
+                    {file.path.split('/').pop() ?? file.path}
+                  </span>
+                  <span className="home-recent-file-dir">
+                    {file.path.includes('/') ? file.path.split('/').slice(0, -1).join('/') : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 快速跳转 */}
+        <div className="home-quick-links">
+          <button
+            className="home-quick-link"
+            onClick={() => { setActiveNavSection('project'); setActiveAuxSubPanel('changes'); }}
+          >
+            <GitBranch size={12} />
+            Git 面板
+          </button>
+          <button
+            className="home-quick-link"
+            onClick={() => { setActiveNavSection('tools'); setActiveAuxSubPanel('mcp'); }}
+          >
+            <Cpu size={12} />
+            MCP 工具
+          </button>
+          <button
+            className="home-quick-link"
+            onClick={() => { setActiveNavSection('config'); setActiveAuxSubPanel('settings'); }}
+          >
+            <SlidersHorizontal size={12} />
+            设置
+          </button>
+        </div>
       </div>
     </div>
   );
