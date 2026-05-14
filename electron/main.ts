@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme, session, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { autoUpdater } from 'electron-updater';
 import { CliService, type CliStartOptions } from './cli-service';
 import { FileService } from './file-service';
 import { SettingsService } from './settings-service';
@@ -18,6 +19,57 @@ const cliConfigService = new CliConfigService();
 
 // 模块顶层常量：是否为开发模式
 const isDev = !app.isPackaged;
+
+// ── 自动更新 ─────────────────────────────────────────────────────────────────
+
+/** 更新状态事件类型 */
+export type UpdateStatus =
+  | { type: 'checking' }
+  | { type: 'available'; version: string; releaseDate?: string }
+  | { type: 'not-available' }
+  | { type: 'downloading'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string };
+
+function setupAutoUpdater(win: BrowserWindow) {
+  // 开发模式允许测试（但 feed URL 不存在时会静默失败）
+  autoUpdater.autoDownload = false;   // 先提示用户，由用户确认后再下载
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  const send = (status: UpdateStatus) => {
+    if (!win.isDestroyed()) win.webContents.send('app:updateStatus', status);
+  };
+
+  autoUpdater.on('checking-for-update', () => send({ type: 'checking' }));
+
+  autoUpdater.on('update-available', (info) => {
+    send({ type: 'available', version: info.version, releaseDate: info.releaseDate as string | undefined });
+  });
+
+  autoUpdater.on('update-not-available', () => send({ type: 'not-available' }));
+
+  autoUpdater.on('download-progress', (prog) => {
+    send({ type: 'downloading', percent: Math.round(prog.percent) });
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    send({ type: 'downloaded', version: info.version });
+  });
+
+  autoUpdater.on('error', (err) => {
+    // 开发模式/未配置 publish 时产生的错误静默处理
+    const msg = err.message ?? String(err);
+    if (!isDev) send({ type: 'error', message: msg });
+    else console.warn('[AutoUpdater] (dev mode, ignored):', msg);
+  });
+
+  // 打包模式下启动后 5 秒自动检查一次
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => { /* 静默 */ });
+    }, 5000);
+  }
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -89,6 +141,14 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  // 初始化会话持久化目录
+  const sessionsDir = path.join(app.getPath('userData'), 'sessions');
+  fileService.setSessionsDir(sessionsDir);
+
+  // 启动自动更新检测（仅打包模式生效）
+  const mainWin = BrowserWindow.getAllWindows()[0];
+  if (mainWin) setupAutoUpdater(mainWin);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -447,5 +507,52 @@ ipcMain.handle('plugin:install', async (_e, pluginSpec: string) =>
 
 ipcMain.handle('plugin:uninstall', async (_e, pluginSpec: string) =>
   cliService.uninstallPlugin(pluginSpec)
+);
+
+// ── 应用自动更新 ──────────────────────────────────────────────────────────────
+
+/** 手动触发检查更新（renderer 调用） */
+ipcMain.handle('app:checkUpdate', async () => {
+  try {
+    await autoUpdater.checkForUpdates();
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+});
+
+/** 用户确认后开始下载更新 */
+ipcMain.handle('app:downloadUpdate', async () => {
+  try {
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+});
+
+/** 退出并立即安装已下载的更新 */
+ipcMain.on('app:installUpdate', () => {
+  autoUpdater.quitAndInstall(false, true);
+});
+
+// ── 会话持久化（v3.0 Phase 1）────────────────────────────────────────────────
+
+ipcMain.handle('session:save', async (_e, data: Parameters<typeof fileService.saveSession>[0]) =>
+  fileService.saveSession(data)
+);
+
+ipcMain.handle('session:list', async () =>
+  fileService.listSessions()
+);
+
+ipcMain.handle('session:load', async (_e, sessionId: string) =>
+  fileService.loadSession(sessionId)
+);
+
+ipcMain.handle('session:delete', async (_e, sessionId: string) =>
+  fileService.deleteSession(sessionId)
 );
 

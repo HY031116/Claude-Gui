@@ -1,63 +1,33 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAppStore, persistTabState } from './stores/useAppStore';
-import type { TerminalLine } from './types';
 import { NavRail } from './components/layout/NavRail';
 import { WorkspaceArea } from './components/layout/WorkspaceArea';
 import { AuxPanel } from './components/layout/AuxPanel';
+import { StatusBar } from './components/layout/StatusBar';
+import { ShortcutsModal } from './components/layout/ShortcutsModal';
+import { UpdateBanner } from './components/UpdateBanner';
+import { useResizableSidebar } from './hooks/useResizableSidebar';
+import { useCliOutput } from './hooks/useCliOutput';
 import { computeNavTransition } from './utils/nav';
 import type { NavSection, NavClick } from './utils/nav';
 
 function App() {
-  // 精确订阅：只订阅 App 层真正需要的字段（其余已移入各 layout 组件）
+  // 精确订阅：只订阅 App 层真正需要的字段
   const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
   const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
   const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const session = useAppStore((s) => s.session);
   const setSession = useAppStore((s) => s.setSession);
-  const addTerminalLine = useAppStore((s) => s.addTerminalLine);
-  const addTerminalLines = useAppStore((s) => s.addTerminalLines);
   const addMessage = useAppStore((s) => s.addMessage);
+  const addTerminalLine = useAppStore((s) => s.addTerminalLine);
   const theme = useAppStore((s) => s.theme);
-  const tokenUsage = useAppStore((s) => s.tokenUsage);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
 
-  // 可拖拽侧边栏宽度（240~480px，localStorage 持久化）
-  const [sidebarWidth, setSidebarWidth] = useState(() =>
-    Math.min(480, Math.max(240, parseInt(localStorage.getItem('claude-gui-sidebar-width') || '280', 10)))
-  );
-  const isResizing = useRef(false);
-  const resizeStartX = useRef(0);
-  const resizeStartWidth = useRef(0);
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    isResizing.current = true;
-    resizeStartX.current = e.clientX;
-    resizeStartWidth.current = sidebarWidth;
-    document.body.classList.add('is-resizing');
-    e.preventDefault();
-  }, [sidebarWidth]);
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isResizing.current) return;
-      const delta = e.clientX - resizeStartX.current;
-      const next = Math.max(240, Math.min(480, resizeStartWidth.current + delta));
-      setSidebarWidth(next);
-      localStorage.setItem('claude-gui-sidebar-width', String(next));
-    };
-    const onMouseUp = () => {
-      if (!isResizing.current) return;
-      isResizing.current = false;
-      document.body.classList.remove('is-resizing');
-    };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, []);
+  // 可拖拽侧边栏
+  const { sidebarWidth, handleResizeMouseDown } = useResizableSidebar();
+  // CLI 输出监听（RAF 批次写入）
+  useCliOutput();
 
   // 主题切换：更新 document 根元素的 data-theme 属性
   useEffect(() => {
@@ -90,9 +60,7 @@ function App() {
 
   const autoConnectAttempted = useRef(false);
 
-  // RAF 批次写入终端行，避免高频输出时每行一次 setState
-  const terminalLineBuffer = useRef<TerminalLine[]>([]);
-  const terminalRafPending = useRef(false);
+  // RAF 批次写入终端行已移至 useCliOutput hook
 
   const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
   const [startupSettingsLoaded, setStartupSettingsLoaded] = useState(false);
@@ -129,44 +97,6 @@ function App() {
 
 
 
-  useEffect(() => {
-    if (!window.electronAPI) return;
-
-    const unsubscribe = window.electronAPI.onCliOutput((event) => {
-      // message-* 类型属于非交互聊天通道，不加入 terminalLines
-      if (event.type === 'stdout' || event.type === 'stderr' || event.type === 'exit') {
-        // RAF 批次刷新：收集到 buffer，下一帧一次批量写入 store
-        terminalLineBuffer.current.push({
-          id: `${Date.now()}-${Math.random()}`,
-          type: event.type,
-          content: event.data,
-          timestamp: Date.now(),
-        });
-        if (!terminalRafPending.current) {
-          terminalRafPending.current = true;
-          requestAnimationFrame(() => {
-            if (terminalLineBuffer.current.length > 0) {
-              addTerminalLines(terminalLineBuffer.current);
-              terminalLineBuffer.current = [];
-            }
-            terminalRafPending.current = false;
-          });
-        }
-      }
-
-      // PTY 进程退出事件
-      if (event.type === 'exit') {
-        // 聊天频道走独立子进程，不依赖 PTY 状态
-        // 只清除 pid，保持 isConnected 以允许继续发消息
-        setSession({ pid: undefined });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [addTerminalLines, setSession]);
-
   const handleStartSession = useCallback(async () => {
     await startCliSession();
   }, [startCliSession]);
@@ -196,6 +126,7 @@ function App() {
 
   // 快捷键面板
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const handleCloseShortcuts = useCallback(() => setShowShortcuts(false), []);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -204,17 +135,15 @@ function App() {
         e.preventDefault();
         setShowShortcuts((v) => !v);
       }
-      if (e.key === 'Escape' && showShortcuts) {
-        setShowShortcuts(false);
-      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [showShortcuts]);
+  }, []);
 
   return (
     <>
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <UpdateBanner />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} data-aux-panel={auxPanelOpen ? 'open' : 'closed'}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* 左侧导航栏 */}
       <NavRail onNavClick={handleNavClick as (id: NavClick) => void} />
@@ -233,53 +162,11 @@ function App() {
       </div>{/* /inner flex-row */}
 
       {/* 底部状态栏 */}
-      <div className="status-bar">
-        <span className={`status-dot ${session.isConnected ? 'connected' : 'disconnected'}`} />
-        <span className="status-item">
-          {session.isConnected ? '已连接' : '未连接'}
-        </span>
-        {session.isConnected && tokenUsage && (
-          <>
-            <span className="status-sep">|</span>
-            <span className="status-item status-tokens" title={`输入 ${tokenUsage.inputTokens.toLocaleString()} tokens，输出 ${tokenUsage.outputTokens.toLocaleString()} tokens${tokenUsage.costUsd != null ? `，费用 $${tokenUsage.costUsd.toFixed(4)}` : ''}`}>
-              ↑{tokenUsage.inputTokens.toLocaleString()} ↓{tokenUsage.outputTokens.toLocaleString()} tokens
-              {tokenUsage.costUsd != null && (
-                <> · ${tokenUsage.costUsd.toFixed(4)}</>
-              )}
-            </span>
-          </>
-        )}
-      </div>
+      <StatusBar />
     </div>
 
       {/* 快捷键一览 Modal（fixed 浮层，挂在 body 级别） */}
-      {showShortcuts && (
-        <div className="shortcuts-overlay" onClick={() => setShowShortcuts(false)} role="dialog" aria-modal="true" aria-label="快捷键一览">
-          <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="shortcuts-modal-header">
-              <span>⌨ 快捷键一览</span>
-              <button className="shortcuts-close-btn" onClick={() => setShowShortcuts(false)} aria-label="关闭">✕</button>
-            </div>
-            <div className="shortcuts-modal-body">
-              {[
-                { key: 'Ctrl+F', desc: '搜索消息' },
-                { key: 'Ctrl+O', desc: '全局展开/折叠 Thinking' },
-                { key: 'Ctrl+T', desc: '新建会话标签' },
-                { key: 'Ctrl+W', desc: '关闭当前标签' },
-                { key: 'Ctrl+V', desc: '粘贴截图为附件' },
-                { key: 'Enter', desc: '发送消息（Shift+Enter 换行）' },
-                { key: 'Esc', desc: '关闭搜索/弹窗' },
-                { key: '?', desc: '显示此快捷键面板' },
-              ].map(({ key, desc }) => (
-                <div key={key} className="shortcut-row">
-                  <kbd className="shortcut-key">{key}</kbd>
-                  <span className="shortcut-desc">{desc}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {showShortcuts && <ShortcutsModal onClose={handleCloseShortcuts} />}
     </>
   );
 }

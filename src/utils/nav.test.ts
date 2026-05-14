@@ -51,48 +51,43 @@ describe('computeNavTransition — changes 按钮', () => {
   });
 });
 
-describe('computeNavTransition — tools 按钮', () => {
-  it('非 tools 状态点击 tools → 展开，section=tools', () => {
-    const t = computeNavTransition('chat', 'settings', 'tools');
+describe('computeNavTransition — settings 按钮（合并 tools+config）', () => {
+  it('chat 状态点击 settings → 进入 tools 区域', () => {
+    const t = computeNavTransition('chat', 'files', 'settings');
     expect(t.section).toBe('tools');
   });
 
-  it('展开 tools 时当前 sub 合法 → subPanel 不覆盖（返回 undefined）', () => {
-    const t = computeNavTransition('chat', 'agents', 'tools');
+  it('chat 状态、当前 sub 是 tools 合法子标签 → 不覆盖 subPanel', () => {
+    const t = computeNavTransition('chat', 'agents', 'settings');
     expect(t.section).toBe('tools');
     expect(t.subPanel).toBeUndefined(); // agents 是 tools 合法子标签，不覆盖
   });
 
-  it('展开 tools 时当前 sub 不合法 → 重置为默认值 mcp', () => {
-    const t = computeNavTransition('chat', 'settings', 'tools');
+  it('chat 状态、当前 sub 不合法 → 重置为默认值 mcp', () => {
+    const t = computeNavTransition('chat', 'xxx', 'settings');
+    expect(t.section).toBe('tools');
     expect(t.subPanel).toBe('mcp');
   });
 
-  it('已在 tools → 再次点击 → 折叠回 chat', () => {
-    const t = computeNavTransition('tools', 'mcp', 'tools');
-    expect(t.section).toBe('chat');
-  });
-});
-
-describe('computeNavTransition — config 按钮', () => {
-  it('非 config 状态点击 config → 展开，section=config', () => {
-    const t = computeNavTransition('chat', 'mcp', 'config');
+  it('已在 tools → 再次点击 settings → 切到 config', () => {
+    const t = computeNavTransition('tools', 'mcp', 'settings');
     expect(t.section).toBe('config');
   });
 
-  it('展开 config 时当前 sub 合法 → subPanel 不覆盖', () => {
-    const t = computeNavTransition('chat', 'rules', 'config');
+  it('tools → settings，当前 sub 是 config 合法子标签 → 不覆盖', () => {
+    const t = computeNavTransition('tools', 'rules', 'settings');
     expect(t.section).toBe('config');
-    expect(t.subPanel).toBeUndefined(); // rules 是 config 合法子标签
+    expect(t.subPanel).toBeUndefined();
   });
 
-  it('展开 config 时当前 sub 不合法 → 重置为默认值 settings', () => {
-    const t = computeNavTransition('chat', 'mcp', 'config');
+  it('tools → settings，当前 sub 不合法 → 重置为默认值 settings', () => {
+    const t = computeNavTransition('tools', 'mcp', 'settings');
+    expect(t.section).toBe('config');
     expect(t.subPanel).toBe('settings');
   });
 
-  it('已在 config → 再次点击 → 折叠回 chat', () => {
-    const t = computeNavTransition('config', 'settings', 'config');
+  it('已在 config → 再次点击 settings → 折叠回 chat', () => {
+    const t = computeNavTransition('config', 'settings', 'settings');
     expect(t.section).toBe('chat');
   });
 });

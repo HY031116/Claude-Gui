@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Settings, Check, X, Loader2, Database } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Settings, Check, X, Loader2, Database, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import { TabBar } from './TabBar';
 import type { AppSettings, AuthStatus } from '../types';
@@ -28,6 +28,9 @@ export function SettingsPanel() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // 检查更新状态
+  const [checkUpdateStatus, setCheckUpdateStatus] = useState<'idle' | 'checking' | 'latest' | 'error'>('idle');
+  const checkUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState<'model' | 'permissions' | 'session' | 'connection' | 'integrations'>('model');
 
@@ -293,14 +296,59 @@ export function SettingsPanel() {
         </p>
       </div>
 
-      {/* 版本信息 */}
+      {/* 版本信息 + 检查更新 */}
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 0' }}>
           Claude Code GUI &nbsp;
           <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
             v{typeof window !== 'undefined' ? (window as { __APP_VERSION__?: string }).__APP_VERSION__ ?? '1.0.0' : '1.0.0'}
           </span>
         </p>
+        <button
+          onClick={async () => {
+            if (checkUpdateStatus === 'checking') return;
+            setCheckUpdateStatus('checking');
+            if (checkUpdateTimerRef.current) clearTimeout(checkUpdateTimerRef.current);
+            // 监听一次 updateStatus，捕获 not-available（available 由 UpdateBanner 处理）
+            let unsubscribed = false;
+            const unsub = window.electronAPI?.onUpdateStatus?.((s) => {
+              if (unsubscribed) return;
+              if (s.type === 'not-available') {
+                setCheckUpdateStatus('latest');
+                checkUpdateTimerRef.current = setTimeout(() => setCheckUpdateStatus('idle'), 3000);
+                unsubscribed = true;
+                unsub?.();
+              } else if (s.type === 'available' || s.type === 'downloaded') {
+                // UpdateBanner 会接管显示，这里只重置按钮
+                setCheckUpdateStatus('idle');
+                unsubscribed = true;
+                unsub?.();
+              } else if (s.type === 'error') {
+                setCheckUpdateStatus('error');
+                checkUpdateTimerRef.current = setTimeout(() => setCheckUpdateStatus('idle'), 4000);
+                unsubscribed = true;
+                unsub?.();
+              }
+            });
+            const result = await window.electronAPI?.checkUpdate?.();
+            if (!result?.success) {
+              setCheckUpdateStatus('error');
+              checkUpdateTimerRef.current = setTimeout(() => setCheckUpdateStatus('idle'), 4000);
+              unsubscribed = true;
+              unsub?.();
+            }
+          }}
+          disabled={checkUpdateStatus === 'checking'}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11,
+            padding: '4px 10px', borderRadius: 5, cursor: checkUpdateStatus === 'checking' ? 'not-allowed' : 'pointer',
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+            color: checkUpdateStatus === 'latest' ? 'var(--color-success)' : checkUpdateStatus === 'error' ? 'var(--color-error)' : 'var(--text-secondary)',
+          }}
+        >
+          <RefreshCw size={11} className={checkUpdateStatus === 'checking' ? 'spinning' : ''} />
+          {checkUpdateStatus === 'checking' ? '检查中…' : checkUpdateStatus === 'latest' ? '✓ 已是最新版' : checkUpdateStatus === 'error' ? '检查失败' : '检查更新'}
+        </button>
       </div>
     </div>
   );

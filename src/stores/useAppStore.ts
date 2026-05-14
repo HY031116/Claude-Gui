@@ -81,6 +81,7 @@ interface AppState {
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
   renameTab: (tabId: string, label: string) => void;
+  reorderTab: (fromIndex: number, toIndex: number) => void;
 
   // Session
   session: SessionState;
@@ -263,6 +264,16 @@ export const useAppStore = create<AppState>((set, get) => {
 
   renameTab: (tabId: string, label: string) => {
     set((s) => ({ tabs: s.tabs.map((t) => t.id === tabId ? { ...t, label } : t) }));
+  },
+
+  reorderTab: (fromIndex: number, toIndex: number) => {
+    set((s) => {
+      if (fromIndex === toIndex) return {};
+      const tabs = [...s.tabs];
+      const [moved] = tabs.splice(fromIndex, 1);
+      tabs.splice(toIndex, 0, moved);
+      return { tabs };
+    });
   },
 
   session: { ..._activeSnap.session, isConnected: false }, // 恢复工作目录，但连接状态重置

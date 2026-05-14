@@ -957,5 +957,129 @@ export class FileService {
       return { success: false, error: String(error) };
     }
   }
+
+  // ==================== 会话持久化（v3.0 Phase 1）====================
+
+  /** userData/sessions 目录路径（由 main 进程初始化后注入） */
+  private sessionsDir = '';
+
+  setSessionsDir(dir: string) {
+    this.sessionsDir = dir;
+  }
+
+  /** 持久化保存一条会话记录 */
+  async saveSession(data: {
+    sessionId: string;
+    title: string;
+    workingDirectory: string;
+    createdAt: number;
+    updatedAt: number;
+    messages: unknown[];
+    tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+  }): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!this.sessionsDir) return { success: false, error: 'sessionsDir not set' };
+      await fs.mkdir(this.sessionsDir, { recursive: true });
+      const filePath = path.join(this.sessionsDir, `${data.sessionId}.json`);
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+      // 超出 50 条时删除最旧的
+      await this.pruneOldSessions(50);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** 列出所有保存的会话（按 updatedAt 倒序，最多 50 条） */
+  async listSessions(): Promise<{
+    success: boolean;
+    sessions?: Array<{
+      sessionId: string;
+      title: string;
+      workingDirectory: string;
+      createdAt: number;
+      updatedAt: number;
+      tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+    }>;
+    error?: string;
+  }> {
+    try {
+      if (!this.sessionsDir) return { success: true, sessions: [] };
+      const exists = fsSync.existsSync(this.sessionsDir);
+      if (!exists) return { success: true, sessions: [] };
+      const files = await fs.readdir(this.sessionsDir);
+      const jsonFiles = files.filter((f) => f.endsWith('.json'));
+      const sessions: Array<{
+        sessionId: string; title: string; workingDirectory: string;
+        createdAt: number; updatedAt: number;
+        tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+      }> = [];
+      for (const file of jsonFiles) {
+        try {
+          const raw = await fs.readFile(path.join(this.sessionsDir, file), 'utf-8');
+          const record = JSON.parse(raw);
+          sessions.push({
+            sessionId: record.sessionId,
+            title: record.title ?? '',
+            workingDirectory: record.workingDirectory ?? '',
+            createdAt: record.createdAt ?? 0,
+            updatedAt: record.updatedAt ?? 0,
+            tokenSummary: record.tokenSummary ?? { inputTokens: 0, outputTokens: 0 },
+          });
+        } catch { /* 损坏文件跳过 */ }
+      }
+      sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+      return { success: true, sessions: sessions.slice(0, 50) };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** 加载单条会话（含完整 messages） */
+  async loadSession(sessionId: string): Promise<{ success: boolean; data?: unknown; error?: string }> {
+    try {
+      if (!this.sessionsDir) return { success: false, error: 'sessionsDir not set' };
+      const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+      const raw = await fs.readFile(filePath, 'utf-8');
+      return { success: true, data: JSON.parse(raw) };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** 删除一条会话记录 */
+  async deleteSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!this.sessionsDir) return { success: false, error: 'sessionsDir not set' };
+      const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+      await fs.unlink(filePath);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** 清理超出限制数量的旧会话（保留最新 maxCount 条） */
+  private async pruneOldSessions(maxCount: number): Promise<void> {
+    try {
+      const files = await fs.readdir(this.sessionsDir);
+      const jsonFiles = files.filter((f) => f.endsWith('.json'));
+      if (jsonFiles.length <= maxCount) return;
+      // 读取 updatedAt 排序后删除最旧的
+      const withTime: Array<{ file: string; updatedAt: number }> = [];
+      for (const file of jsonFiles) {
+        try {
+          const raw = await fs.readFile(path.join(this.sessionsDir, file), 'utf-8');
+          const record = JSON.parse(raw);
+          withTime.push({ file, updatedAt: record.updatedAt ?? 0 });
+        } catch { withTime.push({ file, updatedAt: 0 }); }
+      }
+      withTime.sort((a, b) => a.updatedAt - b.updatedAt);
+      const toDelete = withTime.slice(0, withTime.length - maxCount);
+      for (const { file } of toDelete) {
+        await fs.unlink(path.join(this.sessionsDir, file)).catch(() => {});
+      }
+    } catch { /* 静默失败 */ }
+  }
 }
 

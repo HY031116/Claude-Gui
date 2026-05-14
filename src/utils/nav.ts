@@ -4,7 +4,7 @@
  */
 
 export type NavSection = 'chat' | 'project' | 'tools' | 'config';
-export type NavClick = 'chat' | 'files' | 'changes' | 'tools' | 'config';
+export type NavClick = 'chat' | 'files' | 'changes' | 'settings';
 
 /** tools/config 展开时默认激活的子标签 */
 export const SECTION_DEFAULTS: Record<'tools' | 'config', string> = {
@@ -58,18 +58,21 @@ export function computeNavTransition(
     return { section: 'project', subPanel: 'changes' };
   }
 
-  // tools / config
-  const navId = click as 'tools' | 'config';
-  if (currentSection === navId) {
-    // 再次点击已激活区域 → 折叠
+  // settings：合并 tools + config，点击循环 tools → config → chat
+  if (currentSection === 'tools') {
+    // tools 已激活 → 切到 config
+    const sub = SECTION_VALID_SUBS.config.includes(currentSubPanel)
+      ? undefined
+      : SECTION_DEFAULTS.config;
+    return { section: 'config', subPanel: sub };
+  }
+  if (currentSection === 'config') {
+    // config 已激活 → 折叠
     return { section: 'chat' };
   }
-
-  const nextSection = navId;
-  const validSubs = SECTION_VALID_SUBS[navId];
-  const subPanel = validSubs.includes(currentSubPanel)
-    ? undefined // 当前 sub 仍然合法，不覆盖
-    : SECTION_DEFAULTS[navId];
-
-  return { section: nextSection, subPanel };
+  // 其他状态 → 进入 tools
+  const sub = SECTION_VALID_SUBS.tools.includes(currentSubPanel)
+    ? undefined
+    : SECTION_DEFAULTS.tools;
+  return { section: 'tools', subPanel: sub };
 }

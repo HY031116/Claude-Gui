@@ -5,9 +5,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Cpu, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
-import { ChatPanel } from '../ChatPanel';
 import { TerminalPanel } from '../TerminalPanel';
 import { SessionList } from '../SessionList';
+import { TaskView } from '../task/TaskView';
+import { HomeView } from '../task/HomeView';
 
 interface WorkspaceAreaProps {
   onStartSession: () => void;
@@ -15,6 +16,7 @@ interface WorkspaceAreaProps {
 
 export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   const session = useAppStore((s) => s.session);
+  const messages = useAppStore((s) => s.messages);
   const setSession = useAppStore((s) => s.setSession);
   const tabs = useAppStore((s) => s.tabs);
   const activeTabId = useAppStore((s) => s.activeTabId);
@@ -22,12 +24,33 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
   const closeTab = useAppStore((s) => s.closeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const renameTab = useAppStore((s) => s.renameTab);
+  const reorderTab = useAppStore((s) => s.reorderTab);
   const currentModel = useAppStore((s) => s.currentModel);
   const processingTabs = useAppStore((s) => s.processingTabs);
 
   // 标签内联重命名本地状态（仅 WorkspaceArea 使用）
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+
+  // 拖拽排序状态
+  const dragFromIndex = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭右键菜单
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [contextMenu]);
   // 右侧历史侧边栏折叠状态
   const [showHistory, setShowHistory] = useState(false);
 
@@ -160,16 +183,51 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
 
           {/* 多会话标签条 */}
           <div className="session-tab-bar">
-            {tabs.map((tab) => (
+            {tabs.map((tab, index) => (
               <div
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                draggable={renamingTabId !== tab.id}
+                onDragStart={(e) => {
+                  dragFromIndex.current = index;
+                  e.dataTransfer.effectAllowed = 'move';
+                  // 延迟让浏览器截图有机会生成
+                  setTimeout(() => setDragOverIndex(index), 0);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDragOverIndex(index);
+                }}
+                onDragLeave={() => {
+                  // 仅在离开到非 tab 区域时清除
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragFromIndex.current !== null && dragFromIndex.current !== index) {
+                    reorderTab(dragFromIndex.current, index);
+                  }
+                  dragFromIndex.current = null;
+                  setDragOverIndex(null);
+                }}
+                onDragEnd={() => {
+                  dragFromIndex.current = null;
+                  setDragOverIndex(null);
+                }}
+                onClick={() => { if (renamingTabId !== tab.id) setActiveTab(tab.id); }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   setRenamingTabId(tab.id);
                   setRenameValue(tab.label);
                 }}
-                className={`session-tab${tab.id === activeTabId ? ' active' : ''}`}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ tabId: tab.id, x: e.clientX, y: e.clientY });
+                }}
+                className={[
+                  'session-tab',
+                  tab.id === activeTabId ? 'active' : '',
+                  dragOverIndex === index && dragFromIndex.current !== index ? 'drag-over' : '',
+                ].filter(Boolean).join(' ')}
               >
                 {renamingTabId === tab.id ? (
                   <input
@@ -228,7 +286,60 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
             </button>
           </div>
 
-          <ChatPanel key={activeTabId} />
+          {/* 右键菜单 */}
+          {contextMenu && (() => {
+            const tab = tabs.find((t) => t.id === contextMenu.tabId);
+            if (!tab) return null;
+            return (
+              <div
+                ref={contextMenuRef}
+                className="tab-context-menu"
+                style={{ top: contextMenu.y, left: contextMenu.x }}
+              >
+                <button
+                  className="tab-context-item"
+                  onClick={() => {
+                    setRenamingTabId(tab.id);
+                    setRenameValue(tab.label);
+                    setContextMenu(null);
+                  }}
+                >
+                  ✏️ 重命名
+                </button>
+                <button
+                  className="tab-context-item"
+                  onClick={() => {
+                    // 从 store 的 snapshot 中读取工作目录
+                    const snap = useAppStore.getState().tabSnapshots[tab.id];
+                    const path = snap?.session?.workingDirectory ?? '';
+                    if (path) void navigator.clipboard.writeText(path);
+                    setContextMenu(null);
+                  }}
+                >
+                  📋 复制路径
+                </button>
+                {tabs.length > 1 && (
+                  <button
+                    className="tab-context-item danger"
+                    onClick={() => {
+                      window.electronAPI.cliStopMessage(tab.id).catch(() => {});
+                      closeTab(tab.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    ✕ 关闭标签
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 无连接 + 无消息：显示首屏欢迎页 */}
+          {!session.isConnected && messages.length === 0 ? (
+            <HomeView onStartSession={onStartSession} />
+          ) : (
+            <TaskView activeTabId={activeTabId} />
+          )}
           <TerminalPanel />
         </div>
 

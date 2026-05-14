@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+/** 应用更新状态（与 main.ts 中的 UpdateStatus 保持一致） */
+export type UpdateStatus =
+  | { type: 'checking' }
+  | { type: 'available'; version: string; releaseDate?: string }
+  | { type: 'not-available' }
+  | { type: 'downloading'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string };
+
 export interface CliOutputEvent {
   type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved';
   data: string;
@@ -85,6 +94,28 @@ export interface ElectronAPI {
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   /** 用系统默认编辑器打开文件 */
   openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+  // 应用自动更新
+  /** 手动触发检查更新 */
+  checkUpdate: () => Promise<{ success: boolean; error?: string }>;
+  /** 开始下载更新（用户确认后调用） */
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+  /** 退出并立即安装已下载的更新 */
+  installUpdate: () => void;
+  /** 订阅更新状态事件 */
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  // 会话持久化（v3.0 Phase 1）
+  sessionSave: (data: {
+    sessionId: string; title: string; workingDirectory: string;
+    createdAt: number; updatedAt: number; messages: unknown[];
+    tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+  }) => Promise<{ success: boolean; error?: string }>;
+  sessionList: () => Promise<{ success: boolean; sessions?: Array<{
+    sessionId: string; title: string; workingDirectory: string;
+    createdAt: number; updatedAt: number;
+    tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+  }>; error?: string }>;
+  sessionLoad: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  sessionDelete: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const api: ElectronAPI = {
@@ -156,6 +187,20 @@ const api: ElectronAPI = {
   pluginInstall: (pluginSpec) => ipcRenderer.invoke('plugin:install', pluginSpec),
   pluginUninstall: (pluginSpec) => ipcRenderer.invoke('plugin:uninstall', pluginSpec),
   openInEditor: (filePath) => ipcRenderer.invoke('fs:openInEditor', filePath),
+  // 应用自动更新
+  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
+  downloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
+  installUpdate: () => ipcRenderer.send('app:installUpdate'),
+  // 会话持久化（v3.0 Phase 1）
+  sessionSave: (data) => ipcRenderer.invoke('session:save', data),
+  sessionList: () => ipcRenderer.invoke('session:list'),
+  sessionLoad: (sessionId) => ipcRenderer.invoke('session:load', sessionId),
+  sessionDelete: (sessionId) => ipcRenderer.invoke('session:delete', sessionId),
+  onUpdateStatus: (callback) => {
+    const handler = (_: unknown, status: unknown) => callback(status as any);
+    ipcRenderer.on('app:updateStatus', handler);
+    return () => ipcRenderer.removeListener('app:updateStatus', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

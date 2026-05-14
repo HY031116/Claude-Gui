@@ -254,6 +254,12 @@ export function ChatPanel() {
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
   const [input, setInput] = useState('');
+  // 输入历史（发送成功后追加）
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  // 当前历史浏览索引，-1 = 未浏览历史（当前草稿）
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  // 浏览历史前的草稿备份
+  const historyDraftRef = useRef('');
   const [isProcessing, setIsProcessing] = useState(false);
   // isProcessing 变化时同步到 store（供 TabBar 显示旋转指示器）
   useEffect(() => {
@@ -336,6 +342,8 @@ export function ChatPanel() {
   const firstUserMessageRef = useRef<string>('');
   // 当前对话开始时间戳
   const conversationStartedAtRef = useRef<number>(Date.now());
+  // 当前 Turn 开始时间戳（用于计算每轮耗时）
+  const turnStartedAtRef = useRef<number>(Date.now());
   // 工作目录 ref（避免加入 useEffect 依赖）
   const workingDirectoryRef = useRef<string>(session.workingDirectory);
   workingDirectoryRef.current = session.workingDirectory;
@@ -573,6 +581,19 @@ export function ChatPanel() {
                 workingDirectory: workingDirectoryRef.current,
               });
             }
+            // 写入本轮 Turn 摘要到最后一条 assistant 消息
+            if (assistantIdRef.current) {
+              const durationMs = Date.now() - turnStartedAtRef.current;
+              updateMessage(assistantIdRef.current, {
+                turnSummary: {
+                  toolCallCount: pendingToolCallsRef.current.length,
+                  inputTokens: parsed.usage?.input_tokens,
+                  outputTokens: parsed.usage?.output_tokens,
+                  costUsd: parsed.costUsd,
+                  durationMs,
+                },
+              });
+            }
             // 将此次会话保存到历史记录
             addOrUpdateConversation({
               sessionId: parsed.sessionId,
@@ -690,7 +711,12 @@ export function ChatPanel() {
     }
 
     addMessage({ id: `msg-${Date.now()}`, role: 'user', content: userMsg, timestamp: Date.now() });
+    // 发送成功后将消息追加到输入历史，重置历史浏览索引
+    setInputHistory((prev) => [...prev, userMsg]);
+    setHistoryIndex(-1);
     setInput('');
+    // 发送后重置 textarea 高度到最小值
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setContextFiles([]); // 发送后清空附件
     setPastedImages([]); // 发送后清空图片
     setAtMenuOpen(false); // 发送后关闭 @ 菜单
@@ -698,6 +724,7 @@ export function ChatPanel() {
     if (continueMode) setContinueMode(false); // 发送后清除 continue 模式
     setTokenUsage(null); // 新对话开始时重置 token 用量
     clearPlanSteps();    // 新消息时清空上一轮步骤
+    turnStartedAtRef.current = Date.now(); // 记录本轮 turn 开始时间
     setIsProcessing(true);
     assistantIdRef.current = null;
     targetContentRef.current = '';
@@ -879,6 +906,54 @@ export function ChatPanel() {
         return;
       }
     }
+    // Ctrl+K: 清空输入框并重置历史浏览
+    if (e.ctrlKey && e.key === 'k') {
+      e.preventDefault();
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      setHistoryIndex(-1);
+      historyDraftRef.current = '';
+      return;
+    }
+    // Arrow Up: 历史回填（@ 菜单和 slash 菜单均关闭、光标在第一行时）
+    if (e.key === 'ArrowUp' && !atMenuOpen && slashSuggestions.length === 0) {
+      const ta = e.currentTarget as HTMLTextAreaElement;
+      const textBeforeCursor = input.slice(0, ta.selectionStart);
+      if (!textBeforeCursor.includes('\n')) {
+        if (inputHistory.length === 0) return;
+        e.preventDefault();
+        const nextIdx = historyIndex === -1 ? inputHistory.length - 1 : Math.max(0, historyIndex - 1);
+        if (historyIndex === -1) historyDraftRef.current = input; // 保存当前草稿
+        setHistoryIndex(nextIdx);
+        const historyVal = inputHistory[nextIdx];
+        setInput(historyVal);
+        // 下一帧将光标移到末尾
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = historyVal.length;
+          }
+        });
+        return;
+      }
+    }
+    // Arrow Down: 历史向前（当前处于历史浏览模式时）
+    if (e.key === 'ArrowDown' && historyIndex >= 0 && !atMenuOpen && slashSuggestions.length === 0) {
+      const ta = e.currentTarget as HTMLTextAreaElement;
+      const textAfterCursor = input.slice(ta.selectionStart);
+      if (!textAfterCursor.includes('\n')) {
+        e.preventDefault();
+        if (historyIndex >= inputHistory.length - 1) {
+          // 回到发送前的草稿
+          setHistoryIndex(-1);
+          setInput(historyDraftRef.current);
+        } else {
+          const nextIdx = historyIndex + 1;
+          setHistoryIndex(nextIdx);
+          setInput(inputHistory[nextIdx]);
+        }
+        return;
+      }
+    }
     // isComposing: 中文/日文等 IME 组字过程中 Enter 不应触发发送
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -1017,8 +1092,6 @@ export function ChatPanel() {
     if (!filter) return atCurrentDirEntries.slice(0, 12);
     return atCurrentDirEntries.filter((e) => e.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 12);
   }, [atMenuOpen, atQuery, atCurrentDirEntries]);
-
-  const pendingApproval = permissionRequests[0] ?? null;
 
   // Ctrl+F 打开搜索 / Ctrl+O 全局展开折叠 thinking
   useEffect(() => {
@@ -1380,6 +1453,17 @@ export function ChatPanel() {
         })()}
 
         <div ref={messagesEndRef} />
+
+        {/* 权限审批横幅 — 内联于消息流，等待用户 Allow/Deny */}
+        {permissionRequests.map((req) => (
+          <PermissionBannerCard
+            key={req.id}
+            request={req}
+            responding={permissionRespondingId === req.id}
+            onAllow={() => handleApprovalAction(req, true)}
+            onDeny={() => handleApprovalAction(req, false)}
+          />
+        ))}
         </div>
       </div>
 
@@ -1475,32 +1559,6 @@ export function ChatPanel() {
             ))}
           </div>
         )}
-        {/* 命令审批横幅（真实 PermissionRequest hook 请求时显示于输入框上方） */}
-        {pendingApproval && (
-          <div className="approval-banner">
-            <div className="approval-banner-cmd">
-              <span style={{ color: '#7ee787', userSelect: 'none', marginRight: 6, fontSize: 13 }}>$</span>
-              <code>
-                {(pendingApproval.inputPreview || JSON.stringify(pendingApproval.toolInput)).slice(0, 120)}
-              </code>
-            </div>
-            <div className="approval-banner-actions">
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>
-                等待审批 · {pendingApproval.toolName}{permissionRequests.length > 1 ? ` +${permissionRequests.length - 1}` : ''}
-              </span>
-              <button
-                className="btn-approve"
-                disabled={permissionRespondingId === pendingApproval.id}
-                onClick={() => handleApprovalAction(pendingApproval, true)}
-              >✓ 允许</button>
-              <button
-                className="btn-deny"
-                disabled={permissionRespondingId === pendingApproval.id}
-                onClick={() => handleApprovalAction(pendingApproval, false)}
-              >✗ 拒绝</button>
-            </div>
-          </div>
-        )}
         {/* @ 文件提及下拉菜单 */}
         {atMenuOpen && atSuggestions.length > 0 && (
           <div className="at-menu">
@@ -1584,7 +1642,7 @@ export function ChatPanel() {
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
-              target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+              target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
             }}
           />
           <button
@@ -1711,6 +1769,142 @@ export function ChatPanel() {
   );
 }
 
+/** 权限审批横幅卡片 — 内联于消息流底部，等待用户 Allow/Deny */
+const PermissionBannerCard = memo(function PermissionBannerCard({
+  request,
+  responding,
+  onAllow,
+  onDeny,
+}: {
+  request: PermissionRequestEvent;
+  responding: boolean;
+  onAllow: () => void;
+  onDeny: () => void;
+}) {
+  const preview = (request.inputPreview || JSON.stringify(request.toolInput)).slice(0, 200);
+  return (
+    <div className="permission-banner-card">
+      <div className="permission-banner-header">
+        <span className="permission-banner-icon">🔐</span>
+        <span className="permission-banner-tool">{request.toolName}</span>
+        <span className="permission-banner-label">等待审批</span>
+      </div>
+      <pre className="permission-banner-preview">{preview}</pre>
+      <div className="permission-banner-actions">
+        <button
+          className="btn-approve"
+          disabled={responding}
+          onClick={onAllow}
+        >✓ 允许</button>
+        <button
+          className="btn-deny"
+          disabled={responding}
+          onClick={onDeny}
+        >✗ 拒绝</button>
+      </div>
+    </div>
+  );
+});
+
+/** Turn 汇总卡片 — 每轮 Claude 执行完成后展示步骤数/token/耗时 */
+const FILE_MODIFY_NAMES_SUMMARY = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
+
+const TurnSummaryCard = memo(function TurnSummaryCard({
+  summary,
+  toolCalls,
+}: {
+  summary: NonNullable<Message['turnSummary']>;
+  toolCalls?: ToolCall[];
+}) {
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+  };
+  const formatTokens = (n: number) => {
+    if (n < 1000) return String(n);
+    return `${(n / 1000).toFixed(1)}k`;
+  };
+  const totalTokens = (summary.inputTokens ?? 0) + (summary.outputTokens ?? 0);
+
+  // 找出本轮可回滚目标：成功且有快照的文件修改（按文件路径去重，取第一次快照作为原始状态）
+  const rollbackTargets = useMemo(() => {
+    if (!toolCalls) return [];
+    const seen = new Set<string>();
+    const targets: { filePath: string; originalContent: string }[] = [];
+    for (const call of toolCalls) {
+      if (!FILE_MODIFY_NAMES_SUMMARY.includes(call.name)) continue;
+      if (call.status !== 'success') continue;
+      if (call.originalContent === undefined) continue;
+      if (call.diffReviewStatus === 'reverted') continue; // 已单独回滚，跳过
+      const fp = String(call.arguments?.file_path ?? call.arguments?.path ?? '');
+      if (!fp || seen.has(fp)) continue;
+      seen.add(fp);
+      targets.push({ filePath: fp, originalContent: call.originalContent });
+    }
+    return targets;
+  }, [toolCalls]);
+
+  const [rolling, setRolling] = useState(false);
+  const [rolled, setRolled] = useState(false);
+
+  const handleRollbackTurn = useCallback(async () => {
+    if (rolling || rolled || rollbackTargets.length === 0) return;
+    setRolling(true);
+    try {
+      for (const target of rollbackTargets) {
+        await window.electronAPI.writeFile(target.filePath, target.originalContent);
+      }
+      setRolled(true);
+    } finally {
+      setRolling(false);
+    }
+  }, [rolling, rolled, rollbackTargets]);
+
+  return (
+    <div className="turn-summary-card">
+      {summary.toolCallCount > 0 && (
+        <span className="turn-summary-item">
+          <span className="turn-summary-icon">⚡</span>
+          {summary.toolCallCount} 步
+        </span>
+      )}
+      {totalTokens > 0 && (
+        <span className="turn-summary-item">
+          <span className="turn-summary-icon">🪙</span>
+          {formatTokens(totalTokens)} tokens
+          {summary.costUsd !== undefined && (
+            <span className="turn-summary-cost"> (${summary.costUsd.toFixed(4)})</span>
+          )}
+        </span>
+      )}
+      {summary.durationMs !== undefined && (
+        <span className="turn-summary-item">
+          <span className="turn-summary-icon">⏱</span>
+          {formatDuration(summary.durationMs)}
+        </span>
+      )}
+      {/* 一键回滚：仅当本轮有可回滚的文件快照时显示 */}
+      {rollbackTargets.length > 0 && !rolled && (
+        <button
+          className="turn-summary-rollback-btn"
+          onClick={() => void handleRollbackTurn()}
+          disabled={rolling}
+          title={`回滚本轮 ${rollbackTargets.length} 个文件的修改`}
+        >
+          <RotateCcw size={10} />
+          {rolling ? '回滚中…' : `回滚本轮 (${rollbackTargets.length})`}
+        </button>
+      )}
+      {rolled && (
+        <span className="turn-summary-rolled">
+          <RotateCcw size={10} /> 已回滚
+        </span>
+      )}
+    </div>
+  );
+});
+
 /** 工具调用折叠卡片 — memo 防止父消息文本更新时未变工具卡片重渲 */
 const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   // 文件修改类工具默认展开（Diff 直接可见，无需用户主动点击）
@@ -1726,6 +1920,16 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   const bashCommand = isBash
     ? (toolCall.arguments?.command as string | undefined) ?? ''
     : '';
+
+  // 工具类型 → CSS 类名（对应 index.css §tool-call-type-* 颜色规范）
+  const toolTypeClass = useMemo(() => {
+    const name = toolCall.name;
+    if (name === 'Bash' || name === 'bash') return 'tool-call-type-bash';
+    if (['Write', 'write_file'].includes(name)) return 'tool-call-type-write';
+    if (['Read', 'read_file', 'LS', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'computer_use_browser'].includes(name)) return 'tool-call-type-read';
+    if (['Edit', 'edit_file', 'str_replace_editor', 'str_replace_based_edit_tool', 'MultiEdit', 'multiedit'].includes(name)) return 'tool-call-type-edit';
+    return '';
+  }, [toolCall.name]);
 
   const filePath = useMemo(() => {
     return String(toolCall.arguments?.file_path ?? toolCall.arguments?.path ?? toolCall.arguments?.filename ?? '');
@@ -1804,7 +2008,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   // Bash 工具的专属卡片
   if (isBash) {
     return (
-      <div className={`tool-call-card tool-call-${toolCall.status} tool-call-bash`}>
+      <div className={`tool-call-card tool-call-${toolCall.status} tool-call-type-bash ${toolTypeClass}`}>
         <div className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
           <span style={{ fontSize: 13 }}>⚙️</span>
           <span className="tool-call-name">Shell 命令</span>
@@ -1868,7 +2072,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   }
 
   return (
-    <div className={`tool-call-card tool-call-${toolCall.status}`}>
+    <div className={`tool-call-card tool-call-${toolCall.status} ${toolTypeClass}`}>
       <div className="tool-call-header" onClick={() => setExpanded((v) => !v)}>
         <Wrench size={11} className="tool-call-icon-svg" />
         <span className="tool-call-name">{toolIcon} {toolCall.name}</span>
@@ -1909,7 +2113,7 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               onClick={() => void handleRejectDiff()}
               disabled={reviewBusy || !isLatestFileChange}
               title={isLatestFileChange ? '回滚到修改前' : '仅允许回滚最新一次修改'}
-              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3 }}
+              style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, color: 'var(--error-text)' }}
             >
               <RotateCcw size={10} /> 拒绝
             </button>
@@ -1991,44 +2195,64 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               }
             </div>
           )}
-          {canReviewDiff && (
+          {/* str_replace_editor / str_replace_based_edit_tool：行级 Diff（使用 old_str/new_str 字段） */}
+          {['str_replace_editor', 'str_replace_based_edit_tool'].includes(toolCall.name) &&
+           (toolCall.arguments?.old_str !== undefined || toolCall.arguments?.old_string !== undefined) &&
+           (toolCall.arguments?.new_str !== undefined || toolCall.arguments?.new_string !== undefined) && (
             <div className="tool-call-section">
-              <div className="tool-call-section-label">变更确认</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  className="btn"
-                  onClick={handleAcceptDiff}
-                  disabled={reviewBusy || toolCall.diffReviewStatus === 'accepted'}
-                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-                >
-                  <Check size={11} />
-                  {toolCall.diffReviewStatus === 'accepted' ? '已接受' : '接受'}
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => void handleRejectDiff()}
-                  disabled={reviewBusy || !isLatestFileChange || toolCall.diffReviewStatus === 'reverted'}
-                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-                  title={isLatestFileChange ? '将文件回滚到本次修改前的内容' : '仅允许回滚该文件最新一次修改，避免覆盖后续变更'}
-                >
-                  <RotateCcw size={11} />
-                  {toolCall.diffReviewStatus === 'reverted' ? '已拒绝并回滚' : '拒绝'}
-                </button>
-                {reviewBusy && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>处理中…</span>
-                )}
-                {!isLatestFileChange && toolCall.diffReviewStatus !== 'reverted' && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>仅最新一次文件修改可直接回滚</span>
-                )}
-                <button
-                  className="btn"
-                  onClick={handleOpenInEditor}
-                  style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}
-                  title="用系统默认编辑器打开文件进行手动编辑"
-                >
-                  <Pencil size={11} /> 编辑
-                </button>
+              <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <FileDiff size={11} /> 文件变更
               </div>
+              <DiffViewer
+                oldStr={String(toolCall.arguments.old_str ?? toolCall.arguments.old_string)}
+                newStr={String(toolCall.arguments.new_str ?? toolCall.arguments.new_string)}
+              />
+            </div>
+          )}
+          {/* 变更确认：操作后按钮消失，显示状态标记 */}
+          {canReviewDiff && (
+            <div className="tool-call-section diff-action-bar">
+              {toolCall.diffReviewStatus === 'accepted' ? (
+                <div className="diff-review-status diff-review-accepted">
+                  <Check size={12} /> 已接受变更
+                </div>
+              ) : toolCall.diffReviewStatus === 'reverted' ? (
+                <div className="diff-review-status diff-review-reverted">
+                  <RotateCcw size={12} /> 已回滚至原版本
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    className="btn diff-action-accept"
+                    onClick={handleAcceptDiff}
+                    disabled={reviewBusy}
+                  >
+                    <Check size={11} /> 接受变更
+                  </button>
+                  <button
+                    className="btn diff-action-reject"
+                    onClick={() => void handleRejectDiff()}
+                    disabled={reviewBusy || !isLatestFileChange}
+                    title={isLatestFileChange ? '将文件回滚到本次修改前的内容' : '仅允许回滚该文件最新一次修改，避免覆盖后续变更'}
+                  >
+                    <RotateCcw size={11} /> 拒绝并回滚
+                  </button>
+                  {reviewBusy && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>处理中…</span>
+                  )}
+                  {!isLatestFileChange && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>（仅最新文件改动可回滚）</span>
+                  )}
+                  <button
+                    className="btn"
+                    onClick={handleOpenInEditor}
+                    style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}
+                    title="用系统默认编辑器打开文件进行手动编辑"
+                  >
+                    <Pencil size={11} /> 编辑
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {/* Read 工具结果：显示文件内容而非 JSON */}
@@ -2471,6 +2695,10 @@ const MessageBubble = memo(function MessageBubble({ msg, isMatch = false, isStre
             className="message-content message-content-assistant markdown-body"
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
+        )}
+        {/* Turn 汇总卡片（仅 assistant 消息，turn 完成后显示） */}
+        {!isUser && msg.turnSummary && (
+          <TurnSummaryCard summary={msg.turnSummary} toolCalls={msg.toolCalls} />
         )}
       </div>
 

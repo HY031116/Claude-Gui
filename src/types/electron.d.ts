@@ -100,6 +100,24 @@ export interface ElectronAPI {
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   /** 用系统默认编辑器打开文件 */
   openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+  // 应用自动更新
+  checkUpdate: () => Promise<{ success: boolean; error?: string }>;
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+  installUpdate: () => void;
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  // 会话持久化（v3.0 Phase 1）
+  sessionSave?: (data: {
+    sessionId: string; title: string; workingDirectory: string;
+    createdAt: number; updatedAt: number; messages: unknown[];
+    tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+  }) => Promise<{ success: boolean; error?: string }>;
+  sessionList?: () => Promise<{ success: boolean; sessions?: Array<{
+    sessionId: string; title: string; workingDirectory: string;
+    createdAt: number; updatedAt: number;
+    tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+  }>; error?: string }>;
+  sessionLoad?: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+  sessionDelete?: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface GitFile {
@@ -133,6 +151,15 @@ export interface InstalledPlugin {
   enabled: boolean;
   pluginDir: string;
 }
+
+/** 应用自动更新状态 */
+export type UpdateStatus =
+  | { type: 'checking' }
+  | { type: 'available'; version: string; releaseDate?: string }
+  | { type: 'not-available' }
+  | { type: 'downloading'; percent: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string };
 
 declare global {
   interface Window {

@@ -72,7 +72,7 @@ function QuickActions() {
   const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
 
   const actions: QuickAction[] = [
-    { icon: <GitBranch size={13} />, label: 'Git 变更', section: 'project' },
+    { icon: <GitBranch size={13} />, label: 'Git 变更', section: 'project', sub: 'changes' },
     { icon: <Cpu size={13} />, label: 'MCP 工具', section: 'tools', sub: 'mcp' },
     { icon: <SlidersHorizontal size={13} />, label: '设置', section: 'config', sub: 'settings' },
   ];
@@ -174,6 +174,16 @@ interface HomeViewProps {
   onStartSession: () => void;
 }
 
+/** 持久化会话摘要（从 userData/sessions/*.json 读取） */
+interface PersistedSessionSummary {
+  sessionId: string;
+  title: string;
+  workingDirectory: string;
+  createdAt: number;
+  updatedAt: number;
+  tokenSummary: { inputTokens: number; outputTokens: number; costUsd?: number };
+}
+
 export function HomeView({ onStartSession }: HomeViewProps) {
   const conversationHistory = useAppStore((s) => s.conversationHistory);
   const tokenHistory = useAppStore((s) => s.tokenHistory);
@@ -181,6 +191,17 @@ export function HomeView({ onStartSession }: HomeViewProps) {
   const setSession = useAppStore((s) => s.setSession);
   const clearMessages = useAppStore((s) => s.clearMessages);
   const session = useAppStore((s) => s.session);
+
+  // 持久化会话列表（从 userData/sessions/ 读取）
+  const [persistedSessions, setPersistedSessions] = useState<PersistedSessionSummary[]>([]);
+
+  useEffect(() => {
+    window.electronAPI?.sessionList?.().then((res) => {
+      if (res.success && res.sessions) {
+        setPersistedSessions(res.sessions);
+      }
+    }).catch(() => {});
+  }, []);
 
   // 今日消费
   const todayCost = useMemo(() => {
@@ -208,18 +229,41 @@ export function HomeView({ onStartSession }: HomeViewProps) {
     return () => clearInterval(timer);
   }, []);
 
-  // 最近 6 条会话（最新优先）
+  // 最近 6 条会话：优先使用持久化来源，回退到 localStorage 历史
   const recentSessions = useMemo<ConversationRecord[]>(() => {
+    if (persistedSessions.length > 0) {
+      // 将持久化格式映射为 ConversationRecord 兼容格式
+      return persistedSessions.slice(0, 6).map((s) => ({
+        sessionId: s.sessionId,
+        workingDirectory: s.workingDirectory,
+        preview: s.title,
+        startedAt: s.createdAt,
+        lastMessageAt: s.updatedAt,
+      }));
+    }
     return [...conversationHistory]
       .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
       .slice(0, 6);
-  }, [conversationHistory]);
+  }, [conversationHistory, persistedSessions]);
 
-  /** 点击历史会话：清理当前 tab 状态后跳转到该会话（UI 仅显示历史消息，不自动重连） */
-  const handleResume = (record: ConversationRecord) => {
+  /** 点击历史会话：优先从持久化加载完整消息 */
+  const handleResume = async (record: ConversationRecord) => {
     clearMessages();
     setSession({ workingDirectory: record.workingDirectory, isConnected: false });
-    // 简单加载历史预览（真正的 --resume 在 onStartSession 后由 CLI 处理）
+
+    // 尝试从持久化存储加载完整消息
+    try {
+      const res = await window.electronAPI?.sessionLoad?.(record.sessionId);
+      if (res?.success && res.data && typeof res.data === 'object') {
+        const data = res.data as { messages?: unknown[] };
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessages(data.messages as Parameters<typeof setMessages>[0]);
+          return;
+        }
+      }
+    } catch { /* 回退到提示消息 */ }
+
+    // 无持久化数据时显示提示
     setMessages([{
       id: 'history-preview',
       role: 'system',
