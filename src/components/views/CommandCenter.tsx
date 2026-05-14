@@ -58,6 +58,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
   const conversationHistory = useAppStore((s) => s.conversationHistory);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
+  const setPendingHighlightSessionId = useAppStore((s) => s.setPendingHighlightSessionId);
 
   // 计算待审查变更数量
   const pendingChangesCount = useMemo(() => {
@@ -111,11 +112,12 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
     onNavClick('dispatch');
   }, [setActiveTab, onNavClick]);
 
-  /** 跳转到 MonitorView 历史会话 tab */
-  const handleGoToSessions = useCallback(() => {
+  /** 跳转到 MonitorView 历史会话 tab，可选高亮某条会话 */
+  const handleGoToSessions = useCallback((sessionId?: string) => {
+    if (sessionId) setPendingHighlightSessionId(sessionId);
     setPendingMonitorTab('sessions');
     onNavClick('monitor');
-  }, [setPendingMonitorTab, onNavClick]);
+  }, [setPendingHighlightSessionId, setPendingMonitorTab, onNavClick]);
 
   // 工作目录最后一段
   const projectName = session.workingDirectory
@@ -298,7 +300,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
             <Clock size={14} />
             <span>最近会话</span>
             <button
-              onClick={handleGoToSessions}
+              onClick={() => handleGoToSessions()}
               style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--accent, #6366f1)', padding: '0 4px' }}
             >
               查看全部 →
@@ -309,7 +311,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
               <div
                 key={record.sessionId}
                 className="recent-session-item"
-                onClick={handleGoToSessions}
+                onClick={() => handleGoToSessions(record.sessionId)}
                 style={{ cursor: 'pointer' }}
                 title="点击查看历史会话"
               >

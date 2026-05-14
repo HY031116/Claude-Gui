@@ -150,6 +150,9 @@ interface AppState {
   /** 一次性跳转到 MonitorView 的指定 tab（消费后清空） */
   pendingMonitorTab: string | null;
   setPendingMonitorTab: (tab: string | null) => void;
+  /** 一次性高亮定位到 HistoryPanel 中某条会话（消费后清空） */
+  pendingHighlightSessionId: string | null;
+  setPendingHighlightSessionId: (id: string | null) => void;
   // 兼容保留（部分组件仍引用 activePanel，逐步迁移）
   activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost';
   setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost') => void;
@@ -381,6 +384,8 @@ export const useAppStore = create<AppState>((set, get) => {
   setActiveAuxSubPanel: (sub) => set({ activeAuxSubPanel: sub }),
   pendingMonitorTab: null,
   setPendingMonitorTab: (tab) => set({ pendingMonitorTab: tab }),
+  pendingHighlightSessionId: null,
+  setPendingHighlightSessionId: (id) => set({ pendingHighlightSessionId: id }),
   // 兼容保留
   activePanel: 'chat',
   setActivePanel: (panel) => set({ activePanel: panel }),

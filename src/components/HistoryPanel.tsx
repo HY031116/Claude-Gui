@@ -73,7 +73,10 @@ interface ProjectGroup {
   sessions: ConversationRecord[];
 }
 
-export function HistoryPanel() {
+export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
+  highlightSessionId?: string | null;
+  onHighlightConsumed?: () => void;
+} = {}) {
   const { conversationHistory, clearConversationHistory, removeConversation, session, setSession, clearMessages, setActiveNavSection } = useAppStore();
   const [cliSessions, setCliSessions] = useState<CliSessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +93,35 @@ export function HistoryPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   /** 时间排序：false=最新优先，true=最旧优先 */
   const [sortAsc, setSortAsc] = useState(false);
+  /** 当前高亮的 sessionId（闪烁后清除） */
+  const [flashingId, setFlashingId] = useState<string | null>(null);
+
+  /** 当外部传入 highlightSessionId 时，自动定位到对应项目分组并滚动高亮 */
+  useEffect(() => {
+    if (!highlightSessionId) return;
+    // 找出该 sessionId 所在的 projectGroup key
+    let foundKey: string | null = null;
+    for (const group of projectGroups) {
+      if (group.sessions.some((s) => s.sessionId === highlightSessionId)) {
+        foundKey = group.key;
+        break;
+      }
+    }
+    if (foundKey) setSelectedProject(foundKey);
+    setFlashingId(highlightSessionId);
+    // 延迟滚动（等待 DOM 更新后）
+    setTimeout(() => {
+      const el = document.getElementById(`hsession-${highlightSessionId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    // 高亮闪烁持续 2s 后清除
+    const timer = setTimeout(() => {
+      setFlashingId(null);
+      onHighlightConsumed?.();
+    }, 2000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightSessionId]);
 
   /** 加载 CLI 本地历史会话 */
   const loadHistory = useCallback(async () => {
@@ -515,13 +547,15 @@ export function HistoryPanel() {
                     const isActive = session.conversationSessionId === record.sessionId;
                     const isDeleting = deletingId === record.sessionId;
                     const isBatchChecked = batchSelected.has(record.sessionId);
+                    const isFlashing = flashingId === record.sessionId;
                     // 找到该会话对应的 CLI projectDirName（用于删除文件）
                     const cliRec = cliSessions.find((s) => s.sessionId === record.sessionId);
                     const projectDirName = cliRec?.projectDirName ?? (activeGroup.key.includes('--') ? activeGroup.key : '');
                     return (
                       <div
                         key={record.sessionId}
-                        className={`history-session-row ${isActive && !batchMode ? 'active' : ''} ${batchMode && isBatchChecked ? 'batch-checked' : ''}`}
+                        id={`hsession-${record.sessionId}`}
+                        className={`history-session-row ${isActive && !batchMode ? 'active' : ''} ${batchMode && isBatchChecked ? 'batch-checked' : ''} ${isFlashing ? 'highlight-flash' : ''}`}
                         onClick={() => {
                           if (batchMode) { toggleBatchSelect(record.sessionId); return; }
                           if (!isDeleting) handleSelectSession(record);

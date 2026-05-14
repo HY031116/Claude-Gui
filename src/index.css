@@ -3155,6 +3155,16 @@ body.is-resizing .resize-handle::after {
   background: var(--bg-active, rgba(66,153,225,0.08));
 }
 
+/* 从 CommandCenter 跳转过来时的高亮闪烁效果 */
+@keyframes session-highlight-flash {
+  0%   { background: rgba(99, 102, 241, 0.25); box-shadow: inset 2px 0 0 var(--accent, #6366f1); }
+  60%  { background: rgba(99, 102, 241, 0.12); box-shadow: inset 2px 0 0 var(--accent, #6366f1); }
+  100% { background: transparent; box-shadow: none; }
+}
+.history-session-row.highlight-flash {
+  animation: session-highlight-flash 2s ease-out forwards;
+}
+
 .history-session-dot {
   width: 8px;
   height: 8px;

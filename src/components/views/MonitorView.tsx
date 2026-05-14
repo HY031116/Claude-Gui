@@ -33,6 +33,8 @@ export function MonitorView() {
   const processingTabs = useAppStore((s) => s.processingTabs);
   const pendingMonitorTab = useAppStore((s) => s.pendingMonitorTab);
   const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
+  const pendingHighlightSessionId = useAppStore((s) => s.pendingHighlightSessionId);
+  const setPendingHighlightSessionId = useAppStore((s) => s.setPendingHighlightSessionId);
 
   // 消费一次性跳转 tab 请求
   useEffect(() => {
@@ -41,6 +43,15 @@ export function MonitorView() {
       setPendingMonitorTab(null);
     }
   }, [pendingMonitorTab, setPendingMonitorTab]);
+
+  // 高亮 sessionId 消费（给 HistoryPanel 用）
+  const [highlightSessionId, setHighlightSessionId] = useState<string | null>(null);
+  useEffect(() => {
+    if (pendingHighlightSessionId) {
+      setHighlightSessionId(pendingHighlightSessionId);
+      setPendingHighlightSessionId(null);
+    }
+  }, [pendingHighlightSessionId, setPendingHighlightSessionId]);
 
   // 当前上下文用量
   const totalTokens = (tokenUsage?.inputTokens ?? 0) + (tokenUsage?.outputTokens ?? 0);
@@ -166,7 +177,7 @@ export function MonitorView() {
       <div className="full-view-content">
         {activeTab === 'context' && <ContextPanel />}
         {activeTab === 'cost' && <CostPanel />}
-        {activeTab === 'sessions' && <HistoryPanel />}
+        {activeTab === 'sessions' && <HistoryPanel highlightSessionId={highlightSessionId} onHighlightConsumed={() => setHighlightSessionId(null)} />}
       </div>
     </div>
   );
