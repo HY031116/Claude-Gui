@@ -57,6 +57,8 @@ function AiArtifactsPanel({ onGoGit }: { onGoGit: () => void }) {
 
   const [stagingPath, setStagingPath] = useState<string | null>(null);
   const [stageResults, setStageResults] = useState<Record<string, boolean>>({});
+  const [batchStaging, setBatchStaging] = useState(false);
+  const [batchResult, setBatchResult] = useState<{ ok: number; fail: number } | null>(null);
 
   // 聚合当前会话中所有被 AI 修改的文件
   const aiFiles = useMemo<AiFileRecord[]>(() => {
@@ -96,6 +98,47 @@ function AiArtifactsPanel({ onGoGit }: { onGoGit: () => void }) {
     }
   }, [cwd, stagingPath]);
 
+  /** 批量暂存：只暂存未回滚且尚未成功暂存的文件 */
+  const stageAll = useCallback(async () => {
+    if (!cwd || batchStaging) return;
+    const targets = aiFiles.filter(
+      (f) => !f.hasReverted && stageResults[f.path] !== true,
+    );
+    if (!targets.length) return;
+    setBatchStaging(true);
+    setBatchResult(null);
+    let ok = 0; let fail = 0;
+    try {
+      const paths = targets.map((f) => f.path);
+      const r = await window.electronAPI.gitAdd(cwd, paths);
+      if (r.success) {
+        ok = paths.length;
+        setStageResults((prev) => {
+          const next = { ...prev };
+          paths.forEach((p) => { next[p] = true; });
+          return next;
+        });
+      } else {
+        // 逐个尝试
+        for (const f of targets) {
+          try {
+            const fr = await window.electronAPI.gitAdd(cwd, [f.path]);
+            setStageResults((prev) => ({ ...prev, [f.path]: fr.success }));
+            if (fr.success) ok++; else fail++;
+          } catch {
+            setStageResults((prev) => ({ ...prev, [f.path]: false }));
+            fail++;
+          }
+        }
+      }
+    } catch {
+      fail = targets.length;
+    } finally {
+      setBatchStaging(false);
+      setBatchResult({ ok, fail });
+    }
+  }, [cwd, batchStaging, aiFiles, stageResults]);
+
   if (!session.isConnected && aiFiles.length === 0) {
     return (
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
@@ -123,24 +166,57 @@ function AiArtifactsPanel({ onGoGit }: { onGoGit: () => void }) {
         borderBottom: '1px solid var(--border-color)',
         display: 'flex', alignItems: 'center', gap: 12,
         fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0,
+        flexWrap: 'wrap', rowGap: 6,
       }}>
         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{aiFiles.length} 个文件</span>
         <span>·</span>
         <span>{aiFiles.reduce((s, f) => s + f.writeCount, 0)} 次写入</span>
         <span>·</span>
         <span>{aiFiles.reduce((s, f) => s + f.editCount, 0)} 次编辑</span>
-        <button
-          onClick={onGoGit}
-          style={{
-            marginLeft: 'auto', fontSize: 11,
-            background: 'none', border: '1px solid var(--border-color)',
-            borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
-            color: 'var(--accent, #6366f1)', display: 'flex', alignItems: 'center', gap: 4,
-          }}
-        >
-          <GitBranch size={10} />
-          前往 Git
-        </button>
+        {batchResult && (
+          <span style={{
+            fontSize: 11,
+            color: batchResult.fail > 0 ? '#ef4444' : '#22c55e',
+          }}>
+            {batchResult.fail > 0
+              ? `✓ ${batchResult.ok} 成功  ✗ ${batchResult.fail} 失败`
+              : `✓ 全部 ${batchResult.ok} 个已暂存`}
+          </span>
+        )}
+        {/* 全部暂存按钮 */}
+        {cwd && aiFiles.some((f) => !f.hasReverted && stageResults[f.path] !== true) && (
+          <button
+            onClick={stageAll}
+            disabled={batchStaging || !!stagingPath}
+            style={{
+              marginLeft: 'auto', fontSize: 11,
+              background: 'var(--accent, #6366f1)',
+              border: 'none', borderRadius: 4,
+              padding: '3px 10px', cursor: batchStaging ? 'default' : 'pointer',
+              color: '#fff', display: 'flex', alignItems: 'center', gap: 4,
+              opacity: batchStaging ? 0.7 : 1,
+            }}
+          >
+            {batchStaging
+              ? <><RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} /> 暂存中…</>
+              : <><CheckSquare size={10} /> 全部暂存</>}
+          </button>
+        )}
+        {/* 全部暂存后显示前往 Git 按钮 */}
+        {(!cwd || !aiFiles.some((f) => !f.hasReverted && stageResults[f.path] !== true)) && (
+          <button
+            onClick={onGoGit}
+            style={{
+              marginLeft: 'auto', fontSize: 11,
+              background: 'none', border: '1px solid var(--border-color)',
+              borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
+              color: 'var(--accent, #6366f1)', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <GitBranch size={10} />
+            前往 Git 提交
+          </button>
+        )}
       </div>
 
       {/* 文件列表 */}
