@@ -696,22 +696,26 @@ export class CliService {
       return;
     }
 
-    const route = req.url?.split('?')[0];
+    const route = req.url?.split('?')[0] ?? '';
     if (route === '/permission-tool') {
       await this.handlePermissionToolRequest(req, res);
       return;
     }
 
-    if (route !== '/permission-request') {
+    // 路径格式：/permission-request 或 /permission-request/:tabId
+    if (!route.startsWith('/permission-request')) {
       this.writeJsonResponse(res, 404, { error: 'Not found' });
       return;
     }
+
+    // 解析路径中的 tabId（/permission-request/:tabId）
+    const tabIdFromPath = route.slice('/permission-request'.length).replace(/^\//, '') || undefined;
 
     try {
       const body = await this.readRequestBody(req);
       const payload = JSON.parse(body || '{}') as PermissionHookPayload;
       const request = this.createPermissionRequest(payload);
-      const decision = await this.waitForPermissionDecision(request);
+      const decision = await this.waitForPermissionDecision(request, tabIdFromPath);
 
       this.writeJsonResponse(res, 200, {
         hookSpecificOutput: {
@@ -781,16 +785,16 @@ export class CliService {
     };
   }
 
-  private waitForPermissionDecision(request: PermissionRequestForRenderer): Promise<PermissionDecision> {
+  private waitForPermissionDecision(request: PermissionRequestForRenderer, tabId?: string): Promise<PermissionDecision> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pendingPermissionRequests.delete(request.id);
         resolve({ behavior: 'deny', message: 'GUI 权限审批超时，已自动拒绝工具调用。' });
-        this.emit('permission-resolved', JSON.stringify({ id: request.id, behavior: 'deny', timeout: true }));
+        this.emit('permission-resolved', JSON.stringify({ id: request.id, behavior: 'deny', timeout: true }), tabId);
       }, 60 * 60 * 1000);
 
       this.pendingPermissionRequests.set(request.id, { request, resolve, timer });
-      this.emit('permission-request', JSON.stringify(request));
+      this.emit('permission-request', JSON.stringify(request), tabId);
     });
   }
 

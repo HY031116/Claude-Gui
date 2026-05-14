@@ -5,6 +5,7 @@ import { marked } from 'marked';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import type { Message, PlanStep, ToolCall } from '../types';
+import { PlanReviewPanel, parsePlanSteps } from './PlanReviewPanel';
 import type { PermissionRequestEvent } from '../types/electron';
 import { DiffViewer, WritePreview, WriteDiff, computeLineDiff } from './DiffView';
 
@@ -297,6 +298,9 @@ export function ChatPanel() {
   const setTabInterventionStatus = useAppStore((s) => s.setTabInterventionStatus);
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
+  const planReview = useAppStore((s) => s.planReview);
+  const setPlanReview = useAppStore((s) => s.setPlanReview);
+  const resetPlanReview = useAppStore((s) => s.resetPlanReview);
   const [input, setInput] = useState('');
   // 输入历史（发送成功后追加）
   const [inputHistory, setInputHistory] = useState<string[]>([]);
@@ -354,6 +358,8 @@ export function ChatPanel() {
   const [localModel, setLocalModel] = useState('');
   // 权限/执行模式快切（Claude Code 原生 permission-mode）
   const [localPermissionMode, setLocalPermissionMode] = useState('auto');
+  const localPermissionModeRef = useRef('auto');
+  useEffect(() => { localPermissionModeRef.current = localPermissionMode; }, [localPermissionMode]);
   const [autoConnectOnLaunch, setAutoConnectOnLaunch] = useState(true);
   // 首次启动引导：读取 localStorage 标志，未设置则显示引导卡片
   const [onboardingDone, setOnboardingDone] = useState(
@@ -711,7 +717,13 @@ export function ChatPanel() {
         // 介入检测：类型 B（决策问题）和类型 C（文件/截图请求）
         const completedText = targetContentRef.current;
         if (completedText && !pendingToolCallsRef.current.length) {
-          if (detectDecisionRequest(completedText)) {
+          // 3.4 Plan Mode 审查：若当前为 plan 模式且 Claude 输出了编号计划，进入审查态
+          if (localPermissionModeRef.current === 'plan') {
+            const steps = parsePlanSteps(completedText);
+            if (steps.length > 0) {
+              setPlanReview({ phase: 'plan_ready', rawPlanText: completedText, parsedSteps: steps });
+            }
+          } else if (detectDecisionRequest(completedText)) {
             setPendingDecision({ text: completedText, options: extractQuickOptions(completedText) });
           } else if (detectFileRequest(completedText)) {
             setPendingFileRequest(completedText);
@@ -812,6 +824,7 @@ export function ChatPanel() {
     if (continueMode) setContinueMode(false); // 发送后清除 continue 模式
     setTokenUsage(null); // 新对话开始时重置 token 用量
     clearPlanSteps();    // 新消息时清空上一轮步骤
+    resetPlanReview();   // 新消息时重置 Plan Mode 审查状态（3.4）
     turnStartedAtRef.current = Date.now(); // 记录本轮 turn 开始时间
     setIsProcessing(true);
     assistantIdRef.current = null;
@@ -877,6 +890,23 @@ export function ChatPanel() {
       setIsProcessing(false);
     }
   }, [isProcessing, session.workingDirectory, session.conversationSessionId, localAgent, activeTabId, addMessage, setTokenUsage, clearPlanSteps]);
+
+  /** 3.4 Plan Mode：用户确认执行计划（带跳过注入协议） */
+  const handlePlanConfirm = useCallback(async (skipMessage: string) => {
+    if (skipMessage) {
+      // 先注入跳过指令
+      await sendQuickReply(skipMessage);
+      // 等一次 tick 后再发确认（确保顺序）
+      await new Promise<void>((r) => setTimeout(r, 200));
+    }
+    await sendQuickReply('Please proceed with the plan.');
+  }, [sendQuickReply]);
+
+  /** 3.4 Plan Mode：用户取消计划 */
+  const handlePlanCancel = useCallback(async () => {
+    resetPlanReview();
+    await sendQuickReply('Please cancel the plan.');
+  }, [sendQuickReply, resetPlanReview]);
 
   /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
   const loadAtDir = useCallback(async (query: string) => {
@@ -1580,6 +1610,16 @@ export function ChatPanel() {
             onDeny={() => handleApprovalAction(req, false)}
           />
         ))}
+
+        {/* 3.4 Plan Mode 审查视图：在 plan_ready / executing / generating_plan 阶段显示 */}
+        {planReview.phase !== 'idle' && planReview.phase !== 'done' && planReview.phase !== 'cancelled' && (
+          <div style={{ margin: '8px 0' }}>
+            <PlanReviewPanel
+              onConfirm={(skipMsg) => void handlePlanConfirm(skipMsg)}
+              onCancel={() => void handlePlanCancel()}
+            />
+          </div>
+        )}
 
         {/* 介入类型 B：决策型问题卡片 */}
         {pendingDecision && (

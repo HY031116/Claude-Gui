@@ -190,4 +190,36 @@ export interface AuthStatus {
   apiProvider?: string;
 }
 
+// ── 3.4 Plan Mode 审查视图类型 ────────────────────────────────────────────────
 
+export type PlanRiskLevel = 'low' | 'medium' | 'high';
+export type PlanStepStatus = 'waiting' | 'running' | 'done' | 'skipped' | 'error';
+
+export interface ReviewablePlanStep {
+  id: string;            // "plan-step-{index}"
+  index: number;         // 显示序号，从 1 开始
+  rawText: string;       // Claude 原始描述文字
+  toolType: string;      // 推断工具类型（Read/Edit/Bash/Write/Unknown）
+  riskLevel: PlanRiskLevel;
+  riskReason?: string;   // 高风险时的详细说明
+  target?: string;       // 文件路径或命令摘要
+  checked: boolean;      // 是否被用户选中（false = 跳过）
+  status: PlanStepStatus;
+  toolCallId?: string;
+  error?: string;
+}
+
+export type PlanReviewPhase =
+  | 'idle'
+  | 'generating_plan'
+  | 'plan_ready'
+  | 'executing'
+  | 'done'
+  | 'cancelled';
+
+export interface PlanReviewState {
+  phase: PlanReviewPhase;
+  rawPlanText: string;
+  parsedSteps: ReviewablePlanStep[];
+  confirmedAt?: number;
+}

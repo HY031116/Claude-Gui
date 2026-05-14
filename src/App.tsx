@@ -128,6 +128,40 @@ function App() {
   // 快捷键面板
   const [showShortcuts, setShowShortcuts] = useState(false);
   const handleCloseShortcuts = useCallback(() => setShowShortcuts(false), []);
+
+  // 3.3.7：监听后台 tab 的 permission-request 事件，触发系统通知
+  useEffect(() => {
+    if (!window.electronAPI?.onCliOutput) return;
+    const unsubscribe = window.electronAPI.onCliOutput((event) => {
+      if (event.type !== 'permission-request') return;
+      if (!event.tabId) return;
+      const { activeTabId: curActive, tabs } = useAppStore.getState();
+      if (event.tabId === curActive) return; // 当前 tab 已可见，无需通知
+      try {
+        const req = JSON.parse(event.data) as { toolName?: string };
+        const tabLabel = tabs.find((t) => t.id === event.tabId)?.label ?? event.tabId;
+        const toolName = req.toolName ?? '工具调用';
+        window.electronAPI.notifySend(
+          'Claude 需要你的输入',
+          `${tabLabel} — ${toolName} 请求审批`,
+          event.tabId,
+        ).catch(() => {});
+      } catch { /* 忽略解析失败 */ }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 3.3.7：点击系统通知 → 切换到对应 tab 并跳到 dispatch 视图
+  useEffect(() => {
+    if (!window.electronAPI?.onNotificationClick) return;
+    const unsubscribe = window.electronAPI.onNotificationClick((tabId) => {
+      const store = useAppStore.getState();
+      store.setActiveTab(tabId);
+      store.setActiveNavSection('dispatch');
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;

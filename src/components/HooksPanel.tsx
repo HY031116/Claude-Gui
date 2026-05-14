@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Zap, Plus, Trash2, ChevronDown, ChevronUp, Save, AlertCircle, CheckCircle, ToggleLeft, ToggleRight, Copy } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Zap, Plus, Trash2, ChevronDown, ChevronUp, Save, AlertCircle, CheckCircle, ToggleLeft, ToggleRight, Copy, FlaskConical, Play } from 'lucide-react';
+import { useAppStore } from '../stores/useAppStore';
 
 // ─── 类型定义 ───────────────────────────────────────────────────────────────
 
@@ -447,6 +448,198 @@ function MatcherGroupEditor({
   );
 }
 
+// ─── 3.5.7 TestRunnerModal ─────────────────────────────────────────────────
+
+/** 各事件的默认模拟环境变量 */
+const DEFAULT_ENV: Record<string, Record<string, string>> = {
+  PreToolUse:  { CLAUDE_TOOL_NAME: 'Bash', CLAUDE_BASH_COMMAND: 'echo test' },
+  PostToolUse: { CLAUDE_TOOL_NAME: 'Write', CLAUDE_FILE_PATHS: '/workspace/test.ts' },
+  PostToolUseFailure: { CLAUDE_TOOL_NAME: 'Bash', CLAUDE_BASH_COMMAND: 'exit 1' },
+  SessionStart: { CLAUDE_SESSION_ID: 'test-session-001' },
+  SessionEnd:   { CLAUDE_SESSION_ID: 'test-session-001' },
+  FileChanged:  { CLAUDE_FILE_PATHS: '/workspace/test.ts' },
+  Notification: { CLAUDE_NOTIFICATION_TYPE: 'idle_prompt' },
+  Stop:         { CLAUDE_SESSION_ID: 'test-session-001' },
+};
+
+interface TestResult {
+  hookIndex: number;
+  command: string;
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  durationMs: number;
+  error?: string;
+}
+
+function TestRunnerModal({
+  event,
+  groups,
+  cwd,
+  onClose,
+}: {
+  event: string;
+  groups: HookMatcherGroup[];
+  cwd: string;
+  onClose: () => void;
+}) {
+  const defaultEnv = DEFAULT_ENV[event] ?? {};
+  const [envRows, setEnvRows] = useState<Array<{ key: string; value: string }>>(
+    Object.entries(defaultEnv).map(([key, value]) => ({ key, value }))
+  );
+  const [results, setResults] = useState<TestResult[]>([]);
+  const [running, setRunning] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  // 收集所有 command 类型 handlers
+  const commandHandlers: Array<{ groupIdx: number; hookIdx: number; command: string; matcher?: string }> = [];
+  groups.forEach((g, gi) => {
+    g.hooks.forEach((h, hi) => {
+      if (h.type === 'command' && h.command) {
+        commandHandlers.push({ groupIdx: gi, hookIdx: hi, command: h.command, matcher: g.matcher });
+      }
+    });
+  });
+
+  const envObj = Object.fromEntries(envRows.filter((r) => r.key.trim()).map((r) => [r.key.trim(), r.value]));
+  envObj.CLAUDE_PROJECT_DIR = cwd || '/';
+
+  const handleRun = useCallback(async () => {
+    if (!window.electronAPI?.hookTestRun) return;
+    setRunning(true);
+    setResults([]);
+    const newResults: TestResult[] = [];
+    for (let i = 0; i < commandHandlers.length; i++) {
+      const { command } = commandHandlers[i];
+      const res = await window.electronAPI.hookTestRun(command, cwd, envObj);
+      newResults.push({ hookIndex: i, command, ...res });
+      setResults([...newResults]);
+    }
+    setRunning(false);
+  }, [commandHandlers, cwd, envObj]);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [results]);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 10,
+        width: 620, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+          <FlaskConical size={15} style={{ color: 'var(--accent)' }} />
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Hook 测试运行器</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: 6, padding: '1px 8px', marginLeft: 4 }}>{event}</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* 环境变量 */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>模拟环境变量</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {envRows.map((row, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    className="input"
+                    style={{ flex: '0 0 200px', fontSize: 12, fontFamily: 'monospace', padding: '3px 6px' }}
+                    value={row.key}
+                    placeholder="变量名"
+                    onChange={(e) => { const n = [...envRows]; n[i] = { ...n[i], key: e.target.value }; setEnvRows(n); }}
+                  />
+                  <input
+                    className="input"
+                    style={{ flex: 1, fontSize: 12, fontFamily: 'monospace', padding: '3px 6px' }}
+                    value={row.value}
+                    placeholder="值"
+                    onChange={(e) => { const n = [...envRows]; n[i] = { ...n[i], value: e.target.value }; setEnvRows(n); }}
+                  />
+                  <button onClick={() => setEnvRows(envRows.filter((_, j) => j !== i))}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+              <button className="btn" onClick={() => setEnvRows([...envRows, { key: '', value: '' }])} style={{ alignSelf: 'flex-start', fontSize: 11, marginTop: 2 }}>
+                <Plus size={11} /> 添加变量
+              </button>
+            </div>
+          </div>
+
+          {/* 待测 handlers 列表 */}
+          {commandHandlers.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              当前事件下没有 command 类型的 Handler，无法运行测试。
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>将运行 {commandHandlers.length} 个 Handler</div>
+              {commandHandlers.map((h, i) => (
+                <div key={i} style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', padding: '3px 0' }}>
+                  #{i + 1} {h.matcher ? `[${h.matcher}] ` : ''}{h.command.slice(0, 80)}{h.command.length > 80 ? '…' : ''}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 结果 */}
+          {results.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>运行结果</div>
+              {results.map((r, i) => (
+                <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-secondary)', fontSize: 12 }}>
+                    {r.success ? <CheckCircle size={13} style={{ color: '#22c55e' }} /> : <AlertCircle size={13} style={{ color: '#ef4444' }} />}
+                    <span style={{ fontWeight: 600 }}>Handler #{r.hookIndex + 1}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{r.durationMs}ms</span>
+                    <span style={{ color: r.exitCode === 0 ? '#22c55e' : '#ef4444' }}>退出码: {r.exitCode ?? 'N/A'}</span>
+                    {r.error && <span style={{ color: '#f59e0b', fontSize: 11 }}>{r.error}</span>}
+                  </div>
+                  {(r.stdout || r.stderr) && (
+                    <pre style={{ margin: 0, padding: '8px 10px', fontSize: 11, fontFamily: 'monospace', background: '#0d0d0d', color: '#e5e7eb', overflowX: 'auto', maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                      {r.stdout}
+                      {r.stderr && <span style={{ color: '#fca5a5' }}>{r.stderr}</span>}
+                    </pre>
+                  )}
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderTop: '1px solid var(--border-color)', flexShrink: 0 }}>
+          <span style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)' }}>
+            工作目录：{cwd || '(未设置)'}
+          </span>
+          <button className="btn" onClick={onClose} style={{ fontSize: 12 }}>关闭</button>
+          <button
+            className="btn btn-primary"
+            onClick={() => void handleRun()}
+            disabled={running || commandHandlers.length === 0 || !window.electronAPI?.hookTestRun}
+            style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <Play size={12} />
+            {running ? '运行中…' : '▶ 运行'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 主组件 ────────────────────────────────────────────────────────────────
 
 export function HooksPanel() {
@@ -458,6 +651,8 @@ export function HooksPanel() {
   const [showPresets, setShowPresets] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showTestRunner, setShowTestRunner] = useState(false); // 3.5.7
+  const cwd = useAppStore((s) => s.session.workingDirectory) || '';
 
   // 加载配置
   useEffect(() => {
@@ -541,6 +736,15 @@ export function HooksPanel() {
         </button>
         <button className="btn" onClick={() => setShowPresets((v) => !v)} style={{ fontSize: 12 }}>
           <Copy size={12} /> 预设
+        </button>
+        {/* 3.5.7 测试运行器按钮 */}
+        <button
+          className="btn"
+          onClick={() => setShowTestRunner(true)}
+          title="测试当前事件的所有 Hook Handler"
+          style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <FlaskConical size={12} /> 测试
         </button>
         <button className="btn" onClick={() => setShowJson((v) => !v)} style={{ fontSize: 12 }}>
           {'{}'} JSON
@@ -653,6 +857,16 @@ export function HooksPanel() {
           </div>
         </div>
       </div>
+
+      {/* 3.5.7 TestRunnerModal */}
+      {showTestRunner && (
+        <TestRunnerModal
+          event={selectedEvent}
+          groups={currentGroups}
+          cwd={cwd}
+          onClose={() => setShowTestRunner(false)}
+        />
+      )}
     </div>
   );
 }

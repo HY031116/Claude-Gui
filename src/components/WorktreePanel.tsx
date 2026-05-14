@@ -1,7 +1,160 @@
 import { useState, useEffect, useCallback } from 'react';
-import { GitFork, Plus, Trash2, RefreshCw, Scissors, CheckCircle, AlertTriangle, FolderOpen, ExternalLink } from 'lucide-react';
+import { GitFork, Plus, Trash2, RefreshCw, Scissors, CheckCircle, AlertTriangle, FolderOpen, ExternalLink, GitCompare } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { WorktreeInfo } from '../types/electron';
+
+// ─── 3.6.4 WorktreeCompareModal ───────────────────────────────────────────
+
+function WorktreeCompareModal({
+  worktrees,
+  onClose,
+}: {
+  worktrees: WorktreeInfo[];
+  onClose: () => void;
+}) {
+  const [leftIdx, setLeftIdx] = useState(0);
+  const [rightIdx, setRightIdx] = useState(Math.min(1, worktrees.length - 1));
+  const [leftDiff, setLeftDiff] = useState('');
+  const [rightDiff, setRightDiff] = useState('');
+  const [leftFiles, setLeftFiles] = useState<string[]>([]);
+  const [rightFiles, setRightFiles] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [compared, setCompared] = useState(false);
+
+  const handleCompare = useCallback(async () => {
+    const leftWt = worktrees[leftIdx];
+    const rightWt = worktrees[rightIdx];
+    if (!leftWt || !rightWt) return;
+    if (!window.electronAPI?.gitWorktreeFullDiff) {
+      setError('当前版本不支持 Worktree 全量 Diff 接口');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setCompared(false);
+    const [lRes, rRes] = await Promise.all([
+      window.electronAPI.gitWorktreeFullDiff(leftWt.path),
+      window.electronAPI.gitWorktreeFullDiff(rightWt.path),
+    ]);
+    setLoading(false);
+    if (!lRes.success || !rRes.success) {
+      setError(lRes.error ?? rRes.error ?? '获取 diff 失败');
+      return;
+    }
+    setLeftDiff(lRes.diff || '(无改动)');
+    setRightDiff(rRes.diff || '(无改动)');
+    setLeftFiles(lRes.changedFiles);
+    setRightFiles(rRes.changedFiles);
+    setCompared(true);
+  }, [worktrees, leftIdx, rightIdx]);
+
+  const leftWt = worktrees[leftIdx];
+  const rightWt = worktrees[rightIdx];
+
+  // 公共文件（两侧都有改动）
+  const commonFiles = compared ? leftFiles.filter((f) => rightFiles.includes(f)) : [];
+  const onlyLeft = compared ? leftFiles.filter((f) => !rightFiles.includes(f)) : [];
+  const onlyRight = compared ? rightFiles.filter((f) => !leftFiles.includes(f)) : [];
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      paddingTop: 40,
+    }}>
+      <div style={{
+        background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 10,
+        width: '92vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.45)',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+          <GitCompare size={15} style={{ color: 'var(--accent)' }} />
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Worktree 并排对比</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 20, lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>左侧：</span>
+          <select
+            className="input"
+            style={{ fontSize: 12, padding: '3px 8px', minWidth: 160 }}
+            value={leftIdx}
+            onChange={(e) => setLeftIdx(Number(e.target.value))}
+          >
+            {worktrees.map((wt, i) => (
+              <option key={wt.path} value={i}>{wt.branch || `(${wt.head.slice(0, 7)})`} — {wt.path}</option>
+            ))}
+          </select>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>右侧：</span>
+          <select
+            className="input"
+            style={{ fontSize: 12, padding: '3px 8px', minWidth: 160 }}
+            value={rightIdx}
+            onChange={(e) => setRightIdx(Number(e.target.value))}
+          >
+            {worktrees.map((wt, i) => (
+              <option key={wt.path} value={i}>{wt.branch || `(${wt.head.slice(0, 7)})`} — {wt.path}</option>
+            ))}
+          </select>
+          <button
+            className="btn btn-primary"
+            onClick={() => void handleCompare()}
+            disabled={loading || leftIdx === rightIdx}
+            style={{ fontSize: 12 }}
+          >
+            {loading ? '加载中…' : '开始对比'}
+          </button>
+          {error && <span style={{ color: '#ef4444', fontSize: 12 }}>{error}</span>}
+        </div>
+
+        {/* 文件摘要栏 */}
+        {compared && (
+          <div style={{ display: 'flex', gap: 16, padding: '8px 16px', borderBottom: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0, flexWrap: 'wrap' }}>
+            {commonFiles.length > 0 && <span>🔵 公共改动: {commonFiles.join(', ').slice(0, 120)}</span>}
+            {onlyLeft.length > 0 && <span>🟡 仅左侧: {onlyLeft.join(', ').slice(0, 80)}</span>}
+            {onlyRight.length > 0 && <span>🟢 仅右侧: {onlyRight.join(', ').slice(0, 80)}</span>}
+            {leftFiles.length === 0 && rightFiles.length === 0 && <span>两个 worktree 均无未提交改动</span>}
+          </div>
+        )}
+
+        {/* Main diff area */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+          {/* Left */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-color)', minWidth: 0 }}>
+            <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-color)', fontSize: 12, fontWeight: 600, background: 'var(--bg-secondary)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <GitFork size={12} />
+              {leftWt?.branch || leftWt?.head.slice(0, 7) || '左侧'}
+              <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: 11 }}>{leftFiles.length} 文件</span>
+            </div>
+            <pre style={{ margin: 0, flex: 1, overflow: 'auto', padding: '10px 12px', fontSize: 11, fontFamily: 'monospace', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--text-primary)', background: 'var(--bg-primary)' }}>
+              {compared ? leftDiff : <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>请选择 worktree 并点击「开始对比」</span>}
+            </pre>
+          </div>
+          {/* Right */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-color)', fontSize: 12, fontWeight: 600, background: 'var(--bg-secondary)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <GitFork size={12} />
+              {rightWt?.branch || rightWt?.head.slice(0, 7) || '右侧'}
+              <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: 11 }}>{rightFiles.length} 文件</span>
+            </div>
+            <pre style={{ margin: 0, flex: 1, overflow: 'auto', padding: '10px 12px', fontSize: 11, fontFamily: 'monospace', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--text-primary)', background: 'var(--bg-primary)' }}>
+              {compared ? rightDiff : <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>请选择 worktree 并点击「开始对比」</span>}
+            </pre>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px', borderTop: '1px solid var(--border-color)', flexShrink: 0 }}>
+          <button className="btn" onClick={onClose} style={{ fontSize: 12 }}>关闭</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function WorktreePanel() {
   const { session, setSession } = useAppStore();
@@ -25,6 +178,9 @@ export function WorktreePanel() {
   const [deleteTarget, setDeleteTarget] = useState<WorktreeInfo | null>(null);
   const [forceDelete, setForceDelete] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // 3.6.4 Worktree 对比视图
+  const [showCompare, setShowCompare] = useState(false);
 
   const load = useCallback(async () => {
     if (!cwd) return;
@@ -135,6 +291,16 @@ export function WorktreePanel() {
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           <button className="btn" title="修剪悬空 worktree" onClick={handlePrune} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px' }}>
             <Scissors size={11} /> 修剪
+          </button>
+          {/* 3.6.4 并排对比 */}
+          <button
+            className="btn"
+            title="并排对比两个 Worktree 的变更"
+            onClick={() => setShowCompare(true)}
+            disabled={worktrees.length < 2}
+            style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px' }}
+          >
+            <GitCompare size={11} /> 对比
           </button>
           <button className="btn btn-primary" onClick={() => { setShowAddForm(true); setAddError(''); }} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px' }}>
             <Plus size={11} /> 新建
@@ -328,6 +494,14 @@ export function WorktreePanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 3.6.4 Worktree 并排对比 Modal */}
+      {showCompare && (
+        <WorktreeCompareModal
+          worktrees={worktrees}
+          onClose={() => setShowCompare(false)}
+        />
       )}
     </div>
   );

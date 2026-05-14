@@ -72,8 +72,10 @@ export interface ElectronAPI {
   gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
   gitWorktreeRemove: (cwd: string, worktreePath: string, force: boolean) => Promise<{ success: boolean; error?: string }>;
   gitWorktreePrune: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 3.6.4 Worktree 对比视图：获取某 worktree 路径的 git diff HEAD 结果 */
+  gitWorktreeFullDiff: (wtPath: string) => Promise<{ success: boolean; diff: string; changedFiles: string[]; error?: string }>;
   // 系统通知
-  notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
+  notifySend: (title: string, body: string, tabId?: string) => Promise<{ success: boolean; error?: string }>;
   // 保存文件对话框（导出会话）
   saveFileDialog: (options?: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<{ success: boolean; path: string | null }>;
   /** 将 base64 图片保存到系统临时目录，返回文件路径（图片粘贴功能用） */
@@ -103,6 +105,8 @@ export interface ElectronAPI {
   installUpdate: () => void;
   /** 订阅更新状态事件 */
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  /** 订阅通知点击事件：返回被点击通知对应的 tabId */
+  onNotificationClick: (cb: (tabId: string) => void) => () => void;
   // 会话持久化（v3.0 Phase 1）
   sessionSave: (data: {
     sessionId: string; title: string; workingDirectory: string;
@@ -116,6 +120,10 @@ export interface ElectronAPI {
   }>; error?: string }>;
   sessionLoad: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
   sessionDelete: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 3.5.7 Hook 测试运行器：执行一条命令，注入模拟环境变量，返回 stdout/stderr/exitCode/耗时 */
+  hookTestRun: (command: string, cwd: string, envVars: Record<string, string>) => Promise<{
+    success: boolean; stdout: string; stderr: string; exitCode: number | null; durationMs: number; error?: string;
+  }>;
 }
 
 const api: ElectronAPI = {
@@ -166,8 +174,10 @@ const api: ElectronAPI = {
   gitWorktreeAdd: (cwd, worktreePath, branch, createBranch, commitIsh) => ipcRenderer.invoke('git:worktree:add', cwd, worktreePath, branch, createBranch, commitIsh),
   gitWorktreeRemove: (cwd, worktreePath, force) => ipcRenderer.invoke('git:worktree:remove', cwd, worktreePath, force),
   gitWorktreePrune: (cwd) => ipcRenderer.invoke('git:worktree:prune', cwd),
+  // 3.6.4 Worktree 全量 diff
+  gitWorktreeFullDiff: (wtPath) => ipcRenderer.invoke('git:worktree:fullDiff', wtPath),
   // 系统通知
-  notifySend: (title, body) => ipcRenderer.invoke('notify:send', title, body),
+  notifySend: (title, body, tabId?) => ipcRenderer.invoke('notify:send', title, body, tabId),
   // 保存文件对话框（导出会话）
   saveFileDialog: (options) => ipcRenderer.invoke('dialog:save-file', options),
   saveTempImage: (base64, ext) => ipcRenderer.invoke('fs:saveTempImage', base64, ext),
@@ -196,10 +206,17 @@ const api: ElectronAPI = {
   sessionList: () => ipcRenderer.invoke('session:list'),
   sessionLoad: (sessionId) => ipcRenderer.invoke('session:load', sessionId),
   sessionDelete: (sessionId) => ipcRenderer.invoke('session:delete', sessionId),
+  // Hook 测试运行器（3.5.7）
+  hookTestRun: (command, cwd, envVars) => ipcRenderer.invoke('hook:testRun', command, cwd, envVars),
   onUpdateStatus: (callback) => {
     const handler = (_: unknown, status: unknown) => callback(status as any);
     ipcRenderer.on('app:updateStatus', handler);
     return () => ipcRenderer.removeListener('app:updateStatus', handler);
+  },
+  onNotificationClick: (callback) => {
+    const handler = (_: unknown, tabId: string) => callback(tabId);
+    ipcRenderer.on('notification:clicked', handler);
+    return () => ipcRenderer.removeListener('notification:clicked', handler);
   },
 };
 

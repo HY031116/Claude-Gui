@@ -428,11 +428,48 @@ ipcMain.handle('git:worktree:prune', async (_e, cwd: string) => {
   return pruneWorktrees(cwd);
 });
 
+// ── 3.6.4 Worktree 全量 diff（供对比视图使用）──────────────────────────────
+ipcMain.handle('git:worktree:fullDiff', async (_e, wtPath: string) => {
+  try {
+    const { spawnSync } = require('child_process') as typeof import('child_process');
+    // 获取所有已改动文件名（status）
+    const statusResult = spawnSync('git', ['status', '--porcelain', '-u'], {
+      cwd: wtPath, encoding: 'utf-8', timeout: 10000,
+    });
+    const changedFiles: string[] = [];
+    if (statusResult.status === 0 && statusResult.stdout) {
+      for (const line of statusResult.stdout.split('\n')) {
+        if (!line.trim()) continue;
+        changedFiles.push(line.slice(3).trim());
+      }
+    }
+    // 获取完整 diff（HEAD vs working tree，含 staged）
+    const diffResult = spawnSync('git', ['diff', 'HEAD'], {
+      cwd: wtPath, encoding: 'utf-8', timeout: 15000, maxBuffer: 4 * 1024 * 1024,
+    });
+    const diff = diffResult.status === 0 ? (diffResult.stdout ?? '') : '';
+    return { success: true, diff, changedFiles };
+  } catch (err: unknown) {
+    return { success: false, diff: '', changedFiles: [], error: String((err as Error)?.message ?? err) };
+  }
+});
+
 // ── 系统通知 ──────────────────────────────────────────────────────────────────
 
-ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
+ipcMain.handle('notify:send', async (_e, title: string, body: string, tabId?: string) => {
   if (Notification.isSupported()) {
-    new Notification({ title, body }).show();
+    const notification = new Notification({ title, body });
+    if (tabId) {
+      notification.on('click', () => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win) {
+          if (win.isMinimized()) win.restore();
+          win.focus();
+          win.webContents.send('notification:clicked', tabId);
+        }
+      });
+    }
+    notification.show();
     return { success: true };
   }
   return { success: false, error: '系统不支持通知' };
@@ -557,4 +594,53 @@ ipcMain.handle('session:load', async (_e, sessionId: string) =>
 ipcMain.handle('session:delete', async (_e, sessionId: string) =>
   fileService.deleteSession(sessionId)
 );
+
+// ── Hook 测试运行器（3.5.7）────────────────────────────────────────────────
+/**
+ * 执行单条 Hook 命令，携带模拟环境变量，实时收集 stdout/stderr，返回完整结果。
+ * 安全限制：仅允许运行已保存在 hooks 配置里的命令（外部校验），超时 30s。
+ */
+ipcMain.handle('hook:testRun', async (
+  _e,
+  command: string,
+  cwd: string,
+  envVars: Record<string, string>,
+) => {
+  const { spawn } = require('child_process') as typeof import('child_process');
+  return new Promise<{ success: boolean; stdout: string; stderr: string; exitCode: number | null; durationMs: number; error?: string }>((resolve) => {
+    const start = Date.now();
+    const mergedEnv = { ...process.env, ...envVars };
+    const isWin = process.platform === 'win32';
+    const shell: string = isWin ? 'cmd.exe' : '/bin/sh';
+    const shellArgs: string[] = isWin ? ['/c', command] : ['-c', command];
+    let stdout = '';
+    let stderr = '';
+    let finished = false;
+    try {
+      const child = spawn(shell, shellArgs, {
+        cwd: cwd || process.env.HOME || '/',
+        env: mergedEnv,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+      child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+      const timeout = setTimeout(() => {
+        if (!finished) { finished = true; child.kill(); resolve({ success: false, stdout, stderr, exitCode: null, durationMs: Date.now() - start, error: '超时（30s）' }); }
+      }, 30_000);
+      child.on('close', (code: number | null) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        resolve({ success: code === 0, stdout, stderr, exitCode: code, durationMs: Date.now() - start });
+      });
+      child.on('error', (err: Error) => {
+        if (finished) return;
+        finished = true;
+        resolve({ success: false, stdout, stderr, exitCode: null, durationMs: Date.now() - start, error: err.message });
+      });
+    } catch (err: unknown) {
+      resolve({ success: false, stdout, stderr, exitCode: null, durationMs: Date.now() - start, error: String((err as Error)?.message ?? err) });
+    }
+  });
+});
 

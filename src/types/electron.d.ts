@@ -75,8 +75,11 @@ export interface ElectronAPI {
   gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
   gitWorktreeRemove: (cwd: string, worktreePath: string, force: boolean) => Promise<{ success: boolean; error?: string }>;
   gitWorktreePrune: (cwd: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 3.6.4 Worktree 对比视图 */
+  gitWorktreeFullDiff?: (wtPath: string) => Promise<{ success: boolean; diff: string; changedFiles: string[]; error?: string }>;
   // 系统通知
-  notifySend: (title: string, body: string) => Promise<{ success: boolean; error?: string }>;
+  notifySend: (title: string, body: string, tabId?: string) => Promise<{ success: boolean; error?: string }>;
+  onNotificationClick: (cb: (tabId: string) => void) => () => void;
   // 保存文件对话框（导出会话）
   saveFileDialog: (options?: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<{ success: boolean; path: string | null }>;
   /** 将 base64 图片保存到系统临时目录，返回文件路径（图片粘贴功能用） */
@@ -118,6 +121,10 @@ export interface ElectronAPI {
   }>; error?: string }>;
   sessionLoad?: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
   sessionDelete?: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 3.5.7 Hook 测试运行器 */
+  hookTestRun?: (command: string, cwd: string, envVars: Record<string, string>) => Promise<{
+    success: boolean; stdout: string; stderr: string; exitCode: number | null; durationMs: number; error?: string;
+  }>;
 }
 
 export interface GitFile {

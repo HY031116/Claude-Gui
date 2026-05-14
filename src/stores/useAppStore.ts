@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord, Workspace } from '../types';
+import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord, Workspace, PlanReviewState } from '../types';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
@@ -53,6 +53,7 @@ interface TabSnapshot {
   tokenUsage: { inputTokens: number; outputTokens: number; costUsd?: number } | null;
   todoItems: { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }[];
   activePlanSteps: PlanStep[];
+  planReview: PlanReviewState;
 }
 
 /** Tab 描述符 */
@@ -62,12 +63,14 @@ export interface ChatTab {
 }
 
 const DEFAULT_SESSION: SessionState = { isConnected: false, workingDirectory: '' };
+const DEFAULT_PLAN_REVIEW: PlanReviewState = { phase: 'idle', rawPlanText: '', parsedSteps: [] };
 const DEFAULT_SNAPSHOT: TabSnapshot = {
   messages: [],
   session: DEFAULT_SESSION,
   tokenUsage: null,
   todoItems: [],
   activePlanSteps: [],
+  planReview: DEFAULT_PLAN_REVIEW,
 };
 
 /** 从 localStorage 读取上次关闭时的多标签状态 */
@@ -182,6 +185,11 @@ interface AppState {
   updatePlanStep: (id: string, status: 'done' | 'error') => void;
   clearPlanSteps: () => void;
 
+  /** Plan Mode 审查视图状态（3.4）*/
+  planReview: PlanReviewState;
+  setPlanReview: (state: Partial<PlanReviewState>) => void;
+  resetPlanReview: () => void;
+
   /** 按 tabId 记录各 tab 的 isProcessing 状态，供 TabBar 显示旋转指示器 */
   processingTabs: Record<string, boolean>;
   setTabProcessing: (tabId: string, processing: boolean) => void;
@@ -232,6 +240,7 @@ export const useAppStore = create<AppState>((set, get) => {
       tokenUsage: state.tokenUsage,
       todoItems: state.todoItems,
       activePlanSteps: state.activePlanSteps,
+      planReview: state.planReview,
     };
     set((s) => ({
       tabs: [...s.tabs, { id, label }],
@@ -243,6 +252,7 @@ export const useAppStore = create<AppState>((set, get) => {
       tokenUsage: null,
       todoItems: [],
       activePlanSteps: [],
+      planReview: DEFAULT_PLAN_REVIEW,
     }));
     return id;
   },
@@ -269,6 +279,7 @@ export const useAppStore = create<AppState>((set, get) => {
         tokenUsage: snapshot.tokenUsage,
         todoItems: snapshot.todoItems,
         activePlanSteps: snapshot.activePlanSteps,
+        planReview: snapshot.planReview ?? DEFAULT_PLAN_REVIEW,
       });
     } else {
       const restSnapshots = { ...state.tabSnapshots };
@@ -287,6 +298,7 @@ export const useAppStore = create<AppState>((set, get) => {
       tokenUsage: state.tokenUsage,
       todoItems: state.todoItems,
       activePlanSteps: state.activePlanSteps,
+      planReview: state.planReview,
     };
     const targetSnapshot = state.tabSnapshots[tabId] ?? DEFAULT_SNAPSHOT;
     set({
@@ -297,6 +309,7 @@ export const useAppStore = create<AppState>((set, get) => {
       tokenUsage: targetSnapshot.tokenUsage,
       todoItems: targetSnapshot.todoItems,
       activePlanSteps: targetSnapshot.activePlanSteps,
+      planReview: targetSnapshot.planReview ?? DEFAULT_PLAN_REVIEW,
     });
   },
 
@@ -429,6 +442,11 @@ export const useAppStore = create<AppState>((set, get) => {
   })),
   clearPlanSteps: () => set({ activePlanSteps: [] }),
 
+  // Plan Mode 审查视图（3.4）
+  planReview: _activeSnap.planReview ?? DEFAULT_PLAN_REVIEW,
+  setPlanReview: (partial) => set((state) => ({ planReview: { ...state.planReview, ...partial } })),
+  resetPlanReview: () => set({ planReview: DEFAULT_PLAN_REVIEW }),
+
   processingTabs: {},
   setTabProcessing: (tabId, processing) => set((state) => ({
     processingTabs: { ...state.processingTabs, [tabId]: processing },
@@ -486,6 +504,7 @@ export function persistTabState(): void {
       tokenUsage: s.tokenUsage,
       todoItems: s.todoItems,
       activePlanSteps: s.activePlanSteps,
+      planReview: s.planReview,
     };
     const snapshots: Record<string, TabSnapshot> = {};
     for (const [k, v] of Object.entries(s.tabSnapshots)) {
