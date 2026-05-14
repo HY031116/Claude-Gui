@@ -4,7 +4,7 @@
  * 展示每个文件的变更次数、操作类型及可展开的 Diff 预览
  */
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers, CheckCheck, RotateCcw } from 'lucide-react';
+import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers, CheckCheck, RotateCcw, GitCommit } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { ToolCall } from '../types';
 import { DiffViewer, WritePreview, WriteDiff } from './DiffView';
@@ -128,6 +128,8 @@ export function ChangeSummaryPanel() {
   const updateMessage = useAppStore((s) => s.updateMessage);
   const activeChangeId = useAppStore((s) => s.activeChangeId);
   const setActiveChangeId = useAppStore((s) => s.setActiveChangeId);
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [expandedChanges, setExpandedChanges] = useState<Set<string>>(new Set());
   const [revertBusy, setRevertBusy] = useState(false);
@@ -355,6 +357,26 @@ export function ChangeSummaryPanel() {
             <RotateCcw size={12} style={{ animation: revertBusy ? 'tab-spin 0.7s linear infinite' : undefined }} />
             {revertBusy ? '回滚中…' : '撤销全部'}
           </button>
+          {/* 全部变更已应用时，显示"提交到 Git"快捷入口 */}
+          {pendingCount === 0 && acceptedCount > 0 && (
+            <button
+              onClick={() => {
+                setActiveNavSection('project');
+                setActiveAuxSubPanel('git');
+              }}
+              title="切换到 Git 面板快速提交这批变更"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, padding: '3px 8px', borderRadius: 4,
+                border: '1px solid var(--accent-primary, #7c3aed)',
+                color: 'var(--accent-primary, #7c3aed)',
+                background: 'transparent', cursor: 'pointer',
+              }}
+            >
+              <GitCommit size={12} />
+              提交到 Git ↗
+            </button>
+          )}
         </div>
       </div>
 

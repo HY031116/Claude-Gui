@@ -150,9 +150,9 @@
 | 功能 | 文档声称 | 代码验证结果 |
 |------|---------|------------|
 | Phase 3 统一变更确认 | 部分完成，"应用全部/撤销全部"未实现 | ✅ **已完整实现** — `ChangeSummaryCard` 含精确行统计、批量接受/撤销、Checkpoint 回滚 |
-| Dashboard 首屏 | 未提及 | ❌ **不存在** — 无任何相关组件 |
-| 自动更新 | 0% | ❌ **未实现** — 确认缺失 |
-| 测试覆盖 | 0% | ⚠️ **极少** — 仅 `DiffView.test.ts` + `useAppStore.test.ts` 两个文件 |
+| Dashboard 首屏 | 未提及 | ✅ **已实现** — `HomeView.tsx`（两栏布局：继续任务列表 + 本周概览 + 最近文件） |
+| 自动更新 | 0% | ✅ **已实现** — `electron-updater` + `UpdateBanner` + `NavRail` 更新角标 |
+| 测试覆盖 | 0% | ⚠️ **极少** — nav.test.ts/DiffView.test.ts/useAppStore.test.ts，55个测试通过 |
 | AgentPanel | 任务监控（推断） | ❌ **非监控** — 实际是 Claude Agent 配置文件（.claude/agents/*.md）管理 |
 
 ---
@@ -161,36 +161,7 @@
 
 ### 缺口 1：首屏体验断层（高优先级）
 
-**事实**：`activeNavSection === 'chat'` 时 `AuxPanel` 返回 `null`，WorkspaceArea 仅显示空 ChatPanel。  
-**推导**：新用户启动后看到空聊天框，无任何引导、历史记录、项目概览，功能可发现性为零。  
-**结论**：需要一个"空状态首屏"，当无活动会话时呈现。
-
-**界面设计（WorkspaceArea 空状态替换）：**
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  下午好                                      v2.4  检查更新  │
-├─────────────────┬────────────────────────────────────────────┤
-│  继续项目        │  本周概览                                  │
-│                 │  ┌──────────┐ ┌──────────┐ ┌──────────┐   │
-│  ● my-project   │  │  12 次   │ │  $1.24   │ │  47 个   │   │
-│    3小时前      │  │  会话    │ │   花费   │ │ 文件修改  │   │
-│                 │  └──────────┘ └──────────┘ └──────────┘   │
-│  ● payment-api  │                                            │
-│    昨天         │  最近修改文件                               │
-│                 │  src/ChatPanel.tsx        今天 14:23        │
-│  ● frontend     │  electron/main.ts         今天 11:05        │
-│    3天前        │  src/stores/useAppStore.ts 昨天 16:44       │
-│                 │                                            │
-│  [+ 新建会话]   │  [→ 打开 Git 面板]  [→ 查看成本报告]       │
-└─────────────────┴────────────────────────────────────────────┘
-```
-
-**实现要点**：
-- 触发条件：`sessions.length === 0` 或无 `activeSessionId`
-- "继续项目"列表：读取 `sessionList`（已有），按 `updatedAt` 排序
-- 本周概览：`CostPanel` 数据已存在，复用 `tokenHistory` 聚合
-- 最近修改文件：通过 `git log --name-only --since=7days` 获取，无需新 IPC
+**状态**：✅ **已实现** — `HomeView.tsx` 在无活动会话时展示，含继续任务列表、本周概览、最近修改文件。
 
 ---
 
@@ -210,70 +181,31 @@
 ```
 实现：`setActiveNavSection('project'); setActiveAuxSubPanel('git');`（store 已有这两个 setter）
 
+**状态**：✅ **已实现（v3.5.0）** — `ChangeSummaryPanel` 在 `pendingCount === 0 && acceptedCount > 0` 时显示"提交到 Git ↗"按钮
+
 ---
 
 ### 缺口 3：自动更新（中优先级）
 
-**事实**：`package.json` 已含 `electron-builder`，`release/` 目录有完整安装包历史。  
-**推导**：`electron-updater` 是 `electron-builder` 生态的官方配套，接入成本极低。  
-**结论**：接入 `electron-updater` 自动检查 GitHub Releases，有更新时在 NavRail 底部显示角标。
-
-**实现方案**：
-```
-启动时（main.ts）：
-  autoUpdater.checkForUpdatesAndNotify()
-  → 有更新：ipcMain.send('update:available', { version, notes })
-
-NavRail（renderer）：
-  监听 update:available → 底部 ⬆ 角标 + 版本号 tooltip
-  点击 → UpdateModal（版本号 + Changelog + 立即安装按钮）
-```
+**状态**：✅ **已实现** — main.ts `setupAutoUpdater` + `UpdateBanner` + NavRail 底部更新角标（available=脉冲蓝点，downloaded=绿点）
 
 ---
 
 ### 缺口 4：实时任务监控（低优先级，长期价值高）
 
-**事实**：`TaskPanel` 仅追踪 `todoItems`（静态列表），`AgentPanel` 是 Agent 配置管理，无实时监控面板。  
-**推导**：长任务执行时（>1分钟），用户只能盯着 ChatPanel 逐行看输出，缺乏结构化进度感知。  
-**结论**：在 tools 标签下新增"监控"子面板，展示当前会话工具调用时序 + Token 消耗趋势。
-
-**界面设计（AuxPanel tools 新增 monitor 子标签）：**
-
-```
-┌──────────────────────────────────────────────────┐
-│  🔄 当前任务                        运行中 4:23  │
-├──────────────────────────────────────────────────┤
-│  工具调用时序（本轮）                            │
-│  04:01  Read   src/parser.ts          ✓ 1.2s    │
-│  04:05  Read   src/types.ts           ✓ 0.8s    │
-│  04:09  Bash   npx tsc --noEmit      ✓ 3.1s    │
-│  04:21  Write  src/parser.ts          ● 进行中  │
-├──────────────────────────────────────────────────┤
-│  Token 消耗  12,450 / 200,000  ▓▓▓░░░  6.2%    │
-│  预估花费    ~¥0.18                             │
-└──────────────────────────────────────────────────┘
-```
-
-**数据来源**：完全复用 `useAppStore` 中现有的 `toolCalls` 和 `tokenStats`，无需新 IPC。  
-**暂停功能**：暂缓实现（CLI 层需发送 `\x03` 中断信号，有破坏整个 PTY 会话的风险）。
+**状态**：✅ **已实现（v3.4.0）** — `TaskTimeline.tsx` 进度条（`PlanProgressBar`）+ `TaskView.tsx` Token 监控顶栏（`TokenBar`）
 
 ---
 
 ## 三、执行优先级（修正后）
 
-| 优先级 | 功能 | 复杂度 | 核心理由 |
-|--------|------|--------|---------|
-| P0 | 首屏 Dashboard（空状态替换） | 中（1-2天） | 新用户旅程断点，无任何现有代码可依赖 |
-| P1 | ChangeSummaryCard → Git 提交入口 | 低（2小时） | 高频操作，3行 store 调用可完成 |
-| P2 | 自动更新（electron-updater） | 中（1天） | 产品信任度关键，生态已有官方方案 |
-| P3 | 实时任务监控面板 | 低-中（1天） | 复用现有数据，仅新增展示层 |
-| P4 | 测试补全（Phase 5） | 高（持续） | 工程稳态，与功能开发并行 |
-
----
-
-| P2 | 自动更新（electron-updater） | 中（1天） | 产品信任度关键，生态已有官方方案 |
-| P3 | 实时任务监控面板 | 低-中（1天） | 复用现有数据，仅新增展示层 |
-| P4 | 测试补全（Phase 5） | 高（持续） | 工程稳态，与功能开发并行 |
+| 优先级 | 功能 | 复杂度 | 核心理由 | 状态 |
+|--------|------|--------|---------|------|
+| P0 | 首屏 Dashboard（HomeView） | 中（1-2天） | 新用户旅程断点 | ✅ 已完成 |
+| P1 | ChangeSummaryCard → Git 提交入口 | 低（2小时） | 高频操作减少导航层数 | ✅ 已完成（v3.5.0） |
+| P2 | 自动更新（electron-updater） | 中（1天） | 产品信任度关键 | ✅ 已完成 |
+| P3 | 实时任务监控面板 | 低-中（1天） | 复用现有数据，仅新增展示层 | ✅ 已完成（v3.4.0） |
+| P4 | 测试补全（Phase 5） | 高（持续） | 工程稳态，与功能开发并行 | ⚠️ 进行中（55测试） |
 
 ---
 

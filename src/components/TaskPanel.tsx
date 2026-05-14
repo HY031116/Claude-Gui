@@ -1,8 +1,8 @@
 ﻿import { useAppStore } from '../stores/useAppStore';
 import { CheckCircle2, Circle, Loader2, ClipboardList } from 'lucide-react';
 
-// Phase 1 鍚庯細TaskPanel 閫€鍖栦负绾緟鍔╄鍥撅紝鍙睍绀?Claude 鍒涘缓鐨?todoItems
-// 瀹炴椂鎵ц姝ラ鐜板凡鐢?ChatPanel 鍐呯殑 TurnCard 鐙珛灞曠ず
+// Phase 1 后：TaskPanel 退化为纯辅助视图，仅展示 Claude 创建的 todoItems
+// 实时执行步骤现已由 ChatPanel 内的 TurnCard 独立展示
 export function TaskPanel() {
   const todoItems = useAppStore((s) => s.todoItems);
 
@@ -20,8 +20,8 @@ export function TaskPanel() {
       }}>
         <ClipboardList size={36} strokeWidth={1} />
         <span style={{ fontSize: 13, textAlign: 'center' }}>
-          鏆傛棤浠诲姟<br />
-          <span style={{ fontSize: 11, opacity: 0.7 }}>褰?Claude 鍒涘缓寰呭姙浜嬮」鏃讹紝浠诲姟灏嗗湪杩欓噷鏄剧ず</span>
+          暂无任务<br />
+          <span style={{ fontSize: 11, opacity: 0.7 }}>当 Claude 创建待办事项时，任务将在这里显示</span>
         </span>
       </div>
     );
@@ -34,7 +34,7 @@ export function TaskPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* 杩涘害姒傝 */}
+      {/* 进度概览 */}
       <div style={{
         padding: '12px 16px',
         borderBottom: '1px solid var(--border-color)',
@@ -42,7 +42,7 @@ export function TaskPanel() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            浠诲姟杩涘害 {done}/{total}
+            任务进度 {done}/{total}
           </span>
           <span style={{ fontSize: 12, color: 'var(--accent-color)', fontWeight: 600 }}>{progress}%</span>
         </div>
@@ -57,7 +57,7 @@ export function TaskPanel() {
         </div>
       </div>
 
-      {/* 浠诲姟鍒楄〃 */}
+      {/* 任务列表 */}
       <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
         {todoItems.map((item) => (
           <div
@@ -92,7 +92,7 @@ export function TaskPanel() {
                 flexShrink: 0,
                 fontWeight: 500,
               }}>
-                杩涜涓?
+                进行中
               </span>
             )}
           </div>
