@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.7.1] - 2026-05-30
+
+### 修复
+- **DiffView — Side-by-Side 多 hunk 行号偏移**：`buildSideBySideRows` 遇到 `sep`（折叠行）时未将跳过行数累加到 `leftLine`/`rightLine`，导致多段变更场景下第二个 hunk 之后的所有行号偏低
+- **ChangeSummaryPanel — multi_edit diff 行号从 1 开始**：`multi_edit` 类型每段 diff 未传 `startLineOld`/`startLineNew`，点击行号跳转到错误位置；补充从 `originalContent` 计算各段起始行号
+- **ChatPanel — MultiEdit diff 行号缺失**：工具调用卡片内 `MultiEdit` 的多段 diff 同样缺失行号计算，已利用 `toolCall.originalContent` 补充
+- **SkillsPanel — 全局指令文件永远不加载**：`window.__HOME_CLAUDE_MD__` 全局变量从未被定义，导致 `~/.claude/CLAUDE.md` 始终无法出现在技能列表；改为直接使用路径字符串（`file-service.ts` 已实现 `~` 展开）
+
+---
+
 ## [3.7.0] - 2026-05-29
 
 ### 新增
