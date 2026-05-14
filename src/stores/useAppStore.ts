@@ -147,6 +147,9 @@ interface AppState {
   /** 辅助面板内当前子标签（如 'files'、'git'、'settings'） */
   activeAuxSubPanel: string;
   setActiveAuxSubPanel: (sub: string) => void;
+  /** 一次性跳转到 MonitorView 的指定 tab（消费后清空） */
+  pendingMonitorTab: string | null;
+  setPendingMonitorTab: (tab: string | null) => void;
   // 兼容保留（部分组件仍引用 activePanel，逐步迁移）
   activePanel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost';
   setActivePanel: (panel: 'chat' | 'files' | 'tools' | 'history' | 'skills' | 'tasks' | 'git' | 'changes' | 'mem' | 'claude-md' | 'checkpoints' | 'mcp' | 'agents' | 'plugins' | 'worktrees' | 'hooks' | 'rules' | 'cost') => void;
@@ -376,6 +379,8 @@ export const useAppStore = create<AppState>((set, get) => {
   setActiveNavSection: (section) => set({ activeNavSection: section }),
   activeAuxSubPanel: '',
   setActiveAuxSubPanel: (sub) => set({ activeAuxSubPanel: sub }),
+  pendingMonitorTab: null,
+  setPendingMonitorTab: (tab) => set({ pendingMonitorTab: tab }),
   // 兼容保留
   activePanel: 'chat',
   setActivePanel: (panel) => set({ activePanel: panel }),

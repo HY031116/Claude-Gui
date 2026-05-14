@@ -2,7 +2,7 @@
  * MonitorView — 监控视图
  * 展示：实时指标仪表盘 + 上下文用量 + Token/成本统计 + 历史会话
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Info, DollarSign, Clock, Cpu, Activity } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { ContextPanel } from '../ContextPanel';
@@ -31,6 +31,16 @@ export function MonitorView() {
   const tokenHistory = useAppStore((s) => s.tokenHistory);
   const conversationHistory = useAppStore((s) => s.conversationHistory);
   const processingTabs = useAppStore((s) => s.processingTabs);
+  const pendingMonitorTab = useAppStore((s) => s.pendingMonitorTab);
+  const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
+
+  // 消费一次性跳转 tab 请求
+  useEffect(() => {
+    if (pendingMonitorTab) {
+      setActiveTab(pendingMonitorTab as MonitorTab);
+      setPendingMonitorTab(null);
+    }
+  }, [pendingMonitorTab, setPendingMonitorTab]);
 
   // 当前上下文用量
   const totalTokens = (tokenUsage?.inputTokens ?? 0) + (tokenUsage?.outputTokens ?? 0);

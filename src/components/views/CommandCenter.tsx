@@ -57,6 +57,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
   const tokenUsage = useAppStore((s) => s.tokenUsage);
   const conversationHistory = useAppStore((s) => s.conversationHistory);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
 
   // 计算待审查变更数量
   const pendingChangesCount = useMemo(() => {
@@ -109,6 +110,12 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
     setActiveTab(tabId);
     onNavClick('dispatch');
   }, [setActiveTab, onNavClick]);
+
+  /** 跳转到 MonitorView 历史会话 tab */
+  const handleGoToSessions = useCallback(() => {
+    setPendingMonitorTab('sessions');
+    onNavClick('monitor');
+  }, [setPendingMonitorTab, onNavClick]);
 
   // 工作目录最后一段
   const projectName = session.workingDirectory
@@ -290,10 +297,22 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
           <div className="command-section-title">
             <Clock size={14} />
             <span>最近会话</span>
+            <button
+              onClick={handleGoToSessions}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--accent, #6366f1)', padding: '0 4px' }}
+            >
+              查看全部 →
+            </button>
           </div>
           <div className="recent-sessions-list">
             {conversationHistory.slice(0, 5).map((record) => (
-              <div key={record.sessionId} className="recent-session-item">
+              <div
+                key={record.sessionId}
+                className="recent-session-item"
+                onClick={handleGoToSessions}
+                style={{ cursor: 'pointer' }}
+                title="点击查看历史会话"
+              >
                 <div className="recent-session-title">
                   {record.preview || '（无标题）'}
                 </div>
