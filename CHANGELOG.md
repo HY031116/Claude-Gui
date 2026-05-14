@@ -4,6 +4,19 @@
 
 ---
 
+## [3.1.0] - 2026-05-20
+
+### 新增
+- **WorkspaceSelector 多项目切换**：NavRail 顶部新增工作区下拉选择器，支持添加/切换/删除本地项目工作区，持久化至 `localStorage`
+- **HomeView 工作区层级概览**：激活工作区时右栏显示专属横幅，统计卡展示工作区会话数/消费，周 Token 趋势图和最近会话列表均按工作区过滤
+- **全局 `Workspace` 类型**：`types/index.ts` 新增 `Workspace` 接口（id/name/path/addedAt）
+
+### 修复
+- **HistoryPanel 导航适配**：`setActivePanel('chat')` 迁移为 `setActiveNavSection('chat')`，会话点击/返回按钮现在正确关闭 AuxPanel 并回到对话区
+- **ChatPanel 快速导航按钮**：运行概览的任务/工具/成本/变更按钮由旧 `setActivePanel` 迁移至 `setActiveNavSection + setActiveAuxSubPanel`，按钮点击现在正确打开对应 AuxPanel 子面板
+
+---
+
 ## [3.0.0] - 2026-05-19
 
 ### 新增
