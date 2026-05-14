@@ -4,7 +4,7 @@
  * 直接从 Zustand store 读取 activeNavSection / theme，
  * 将 onNavClick 通过 props 传入（handleNavClick 含 toggle 逻辑，保留在 App.tsx）
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/useAppStore';
 import {
   Play,
@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   Bot,
+  ArrowUpCircle,
 } from 'lucide-react';
 import type { NavClick } from '../../utils/nav';
 
@@ -71,6 +72,18 @@ export function NavRail({ onNavClick }: NavRailProps) {
     window.electronAPI?.setNativeTheme?.(next);
   }, [theme, setTheme]);
 
+  /** 订阅 autoUpdater 状态，有可用更新时亮角标 */
+  const [updateState, setUpdateState] = useState<'available' | 'downloaded' | null>(null);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onUpdateStatus) return;
+    return window.electronAPI.onUpdateStatus((s) => {
+      if (s.type === 'available') setUpdateState('available');
+      else if (s.type === 'downloaded') setUpdateState('downloaded');
+      else if (s.type === 'not-available') setUpdateState(null);
+    });
+  }, []);
+
   // activeAuxSubPanel 用于 tooltip 显示当前激活子面板（保留以备用）
   void activeAuxSubPanel;
 
@@ -115,8 +128,21 @@ export function NavRail({ onNavClick }: NavRailProps) {
         );
       })}
 
-      {/* 底部区域（主题切换） */}
+      {/* 底部区域（主题切换 + 更新角标） */}
       <div className="nav-rail-spacer" />
+      {/* 更新可用时显示更新按钮（跳转至设置面板） */}
+      {updateState && (
+        <button
+          onClick={() => onNavClick('tools')}
+          className="nav-button nav-button-update"
+          aria-label={updateState === 'downloaded' ? '更新已就绪，点击安装' : '有可用更新，点击查看'}
+          data-tooltip={updateState === 'downloaded' ? '重启安装更新' : '发现新版本'}
+          style={{ position: 'relative' }}
+        >
+          <ArrowUpCircle size={16} />
+          <span className="nav-update-dot" data-ready={updateState === 'downloaded'} />
+        </button>
+      )}
       <button
         onClick={handleThemeToggle}
         className="nav-button"
