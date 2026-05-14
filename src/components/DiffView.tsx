@@ -276,6 +276,10 @@ function buildSideBySideRows(oldText: string, newText: string): SideBySideRow[] 
     const l = lines[i];
     if (l.type === 'sep') {
       rows.push({ type: 'sep', leftText: l.text });
+      // 跳过的行数需要同步累加到左右行号计数器，否则后续行号会偏低
+      const skipped = parseInt(l.text, 10) || 0;
+      leftLine += skipped;
+      rightLine += skipped;
       i++;
     } else if (l.type === 'ctx') {
       rows.push({ type: 'ctx', leftLine, leftText: l.text, rightLine, rightText: l.text });
