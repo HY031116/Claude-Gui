@@ -439,11 +439,13 @@ ipcMain.handle('notify:send', async (_e, title: string, body: string) => {
 });
 
 // ── 用系统默认编辑器打开文件 ───────────────────────────────────────────────────
-ipcMain.handle('fs:openInEditor', async (_event, filePath: string) => {
+ipcMain.handle('fs:openInEditor', async (_event, filePath: string, line?: number) => {
   try {
     // 优先用 VS Code 打开（code 命令通常在 PATH 中）
+    // 若有行号，使用 --goto filePath:line 精准定位
     const openWithVSCode = () => new Promise<boolean>((resolve) => {
-      const proc = require('child_process').spawn('code', [filePath], {
+      const args = line != null ? ['--goto', `${filePath}:${line}`] : [filePath];
+      const proc = require('child_process').spawn('code', args, {
         shell: true, detached: true, stdio: 'ignore',
       });
       proc.on('error', () => resolve(false));

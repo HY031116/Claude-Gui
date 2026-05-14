@@ -98,8 +98,8 @@ export interface ElectronAPI {
   pluginToggle: (key: string, enabled: boolean) => Promise<{ success: boolean; error?: string }>;
   pluginInstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
   pluginUninstall: (pluginSpec: string) => Promise<{ success: boolean; output: string }>;
-  /** 用系统默认编辑器打开文件 */
-  openInEditor: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+  /** 用系统默认编辑器打开文件；line 不为空时用 VS Code --goto 定位到指定行 */
+  openInEditor: (filePath: string, line?: number) => Promise<{ success: boolean; error?: string }>;
   // 应用自动更新
   checkUpdate: () => Promise<{ success: boolean; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;

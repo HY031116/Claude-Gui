@@ -105,12 +105,23 @@ export function computeLineDiff(oldText: string, newText: string): DiffLine[] {
   return computeLCS(oldLines, newLines);
 }
 
-/** 行级 Diff 展示（红删 / 绿增 / 灰上下文，sep 行显示为折叠分隔符） */
-export function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string }) {
+/** 行级 Diff 展示（红删 / 绿增 / 灰上下文，sep 行显示为折叠分隔符）
+ *  - startLineOld / startLineNew：hunk 在原文件/新文件中的起始行号（1-based），用于计算绝对行号
+ *  - onLineClick：点击行号时回调（传入新文件行号，del 行不触发）
+ */
+export function InlineDiff({ oldStr, newStr, startLineOld = 1, startLineNew = 1, onLineClick }: {
+  oldStr: string; newStr: string;
+  startLineOld?: number; startLineNew?: number;
+  onLineClick?: (lineNum: number) => void;
+}) {
   const lines = computeLineDiff(oldStr, newStr);
   if (lines.length === 0) {
     return <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>内容相同</span>;
   }
+
+  // 在 map 迭代中累计行号（外部变量，渲染期确定性赋值）
+  let oldLine = startLineOld;
+  let newLine = startLineNew;
 
   return (
     <div style={{
@@ -125,6 +136,9 @@ export function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string 
     }}>
       {lines.map((l, i) => {
         if (l.type === 'sep') {
+          const skipped = parseInt(l.text, 10) || 0;
+          oldLine += skipped;
+          newLine += skipped;
           return (
             <div key={i} style={{
               padding: '2px 8px',
@@ -137,15 +151,34 @@ export function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string 
             }}>... {l.text} 行未显示 ...</div>
           );
         }
-        // hunk 起始标记：这行是 del/add，且上一行是 ctx/sep 或是第一行
+        // hunk 起始标记
         const isHunkStart = (l.type === 'del' || l.type === 'add') &&
           (i === 0 || lines[i - 1].type === 'ctx' || lines[i - 1].type === 'sep');
+
+        // 计算显示行号与跳转行号
+        let displayLineNum: number | undefined;
+        let clickLineNum: number | undefined;
+        if (l.type === 'ctx') {
+          displayLineNum = newLine;
+          clickLineNum = newLine;
+          oldLine++; newLine++;
+        } else if (l.type === 'del') {
+          displayLineNum = oldLine++;
+          // 该行已被删除，不提供跳转
+        } else if (l.type === 'add') {
+          displayLineNum = newLine;
+          clickLineNum = newLine;
+          newLine++;
+        }
+
+        const canClick = clickLineNum !== undefined && onLineClick !== undefined;
         return (
           <div
             key={i}
             data-hunk-start={isHunkStart ? 'true' : undefined}
             style={{
-              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'flex-start',
               background:
                 l.type === 'del' ? 'rgba(218,54,51,0.15)' :
                 l.type === 'add' ? 'rgba(35,134,54,0.15)' :
@@ -154,14 +187,36 @@ export function InlineDiff({ oldStr, newStr }: { oldStr: string; newStr: string 
                 l.type === 'del' ? 'var(--error-text)' :
                 l.type === 'add' ? 'var(--success-text)' :
                 'var(--text-secondary)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
             }}
           >
-            <span style={{ userSelect: 'none', opacity: 0.5, marginRight: 8 }}>
+            {/* 行号 gutter */}
+            <span
+              onClick={canClick ? () => onLineClick!(clickLineNum!) : undefined}
+              title={canClick ? `在编辑器中打开第 ${clickLineNum} 行` : undefined}
+              style={{
+                width: 32,
+                minWidth: 32,
+                textAlign: 'right',
+                padding: '0 6px 0 4px',
+                color: 'var(--text-muted)',
+                userSelect: 'none',
+                fontSize: 10,
+                opacity: 0.6,
+                flexShrink: 0,
+                cursor: canClick ? 'pointer' : 'default',
+                transition: 'opacity 0.15s',
+              }}
+            >
+              {displayLineNum ?? ''}
+            </span>
+            {/* +/- 前缀 */}
+            <span style={{ userSelect: 'none', opacity: 0.5, marginRight: 6, flexShrink: 0 }}>
               {l.type === 'del' ? '-' : l.type === 'add' ? '+' : ' '}
             </span>
-            {l.text}
+            {/* 内容 */}
+            <span style={{ flex: 1, minWidth: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', paddingRight: 8 }}>
+              {l.text}
+            </span>
           </div>
         );
       })}
@@ -197,8 +252,11 @@ export function WritePreview({ content }: { content: string }) {
 }
 
 /** Write 工具：原内容 vs 新内容 diff（使用 DiffViewer，支持模式切换） */
-export function WriteDiff({ originalContent, newContent }: { originalContent: string; newContent: string }) {
-  return <DiffViewer oldStr={originalContent} newStr={newContent} />;
+export function WriteDiff({ originalContent, newContent, onLineClick }: {
+  originalContent: string; newContent: string;
+  onLineClick?: (lineNum: number) => void;
+}) {
+  return <DiffViewer oldStr={originalContent} newStr={newContent} onLineClick={onLineClick} />;
 }
 
 // ─── Side-by-Side Diff ────────────────────────────────────────────
@@ -251,8 +309,15 @@ function buildSideBySideRows(oldText: string, newText: string): SideBySideRow[] 
   return rows;
 }
 
-/** Side-by-Side Diff 展示：左列原始，右列修改后 */
-export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: string }) {
+/** Side-by-Side Diff 展示：左列原始，右列修改后
+ *  - startLineOld / startLineNew：偏移量（default 1），叠加到行号显示
+ *  - onLineClick：点击行号时回调（传入新文件行号）
+ */
+export function SideBySideDiff({ oldStr, newStr, startLineOld = 1, startLineNew = 1, onLineClick }: {
+  oldStr: string; newStr: string;
+  startLineOld?: number; startLineNew?: number;
+  onLineClick?: (lineNum: number) => void;
+}) {
   const rows = buildSideBySideRows(oldStr, newStr);
   if (rows.length === 0) {
     return <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>内容相同</span>;
@@ -359,12 +424,19 @@ export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: str
         // 右侧符号
         const rightSym = row.type === 'add' ? '+' : row.type === 'change' ? '+' : ' ';
 
+        // 计算绝对行号（加偏移量）
+        const absLeftLine = row.leftLine !== undefined ? row.leftLine + startLineOld - 1 : undefined;
+        const absRightLine = row.rightLine !== undefined ? row.rightLine + startLineNew - 1 : undefined;
+        // 右侧行可以跳转（ctx / add / change 的新文件行）
+        const canClickRight = absRightLine !== undefined && onLineClick !== undefined &&
+          (row.type === 'ctx' || row.type === 'add' || row.type === 'change');
+
         return (
           <div key={idx} style={{ display: 'flex' }} data-hunk-start={isHunkStart ? 'true' : undefined}>
             {/* 左列 */}
             <div style={cellStyle(leftBg)}>
               <span style={{ ...lineNumStyle, color: leftColor }}>
-                {row.leftLine ?? ''}
+                {absLeftLine ?? ''}
               </span>
               <span style={{ ...contentStyle, color: leftColor }}>
                 <span style={{ userSelect: 'none', opacity: 0.5, marginRight: 6 }}>{leftSym}</span>
@@ -373,8 +445,16 @@ export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: str
             </div>
             {/* 右列 */}
             <div style={{ ...cellStyle(rightBg), borderLeft: '1px solid var(--border-color)' }}>
-              <span style={{ ...lineNumStyle, color: rightColor }}>
-                {row.rightLine ?? ''}
+              <span
+                onClick={canClickRight ? () => onLineClick!(absRightLine!) : undefined}
+                title={canClickRight ? `在编辑器中打开第 ${absRightLine} 行` : undefined}
+                style={{
+                  ...lineNumStyle,
+                  color: rightColor,
+                  cursor: canClickRight ? 'pointer' : 'default',
+                }}
+              >
+                {absRightLine ?? ''}
               </span>
               <span style={{ ...contentStyle, color: rightColor }}>
                 <span style={{ userSelect: 'none', opacity: 0.5, marginRight: 6 }}>{rightSym}</span>
@@ -393,10 +473,13 @@ export function SideBySideDiff({ oldStr, newStr }: { oldStr: string; newStr: str
 type DiffMode = 'unified' | 'split';
 
 /** Diff 可视化组合组件，支持 Unified / Side-by-Side 切换，以及 Chunk 导航 */
-export function DiffViewer({ oldStr, newStr, defaultMode = 'unified' }: {
+export function DiffViewer({ oldStr, newStr, defaultMode = 'unified', startLineOld, startLineNew, onLineClick }: {
   oldStr: string;
   newStr: string;
   defaultMode?: DiffMode;
+  startLineOld?: number;
+  startLineNew?: number;
+  onLineClick?: (lineNum: number) => void;
 }) {
   const [mode, setMode] = useState<DiffMode>(() => {
     try { return (localStorage.getItem('diffViewerMode') as DiffMode) ?? defaultMode; }
@@ -479,8 +562,8 @@ export function DiffViewer({ oldStr, newStr, defaultMode = 'unified' }: {
         <button style={btnStyle(mode === 'split')} onClick={() => handleSetMode('split')}>Side-by-Side</button>
       </div>
       {mode === 'unified'
-        ? <InlineDiff oldStr={oldStr} newStr={newStr} />
-        : <SideBySideDiff oldStr={oldStr} newStr={newStr} />
+        ? <InlineDiff oldStr={oldStr} newStr={newStr} startLineOld={startLineOld} startLineNew={startLineNew} onLineClick={onLineClick} />
+        : <SideBySideDiff oldStr={oldStr} newStr={newStr} startLineOld={startLineOld} startLineNew={startLineNew} onLineClick={onLineClick} />
       }
     </div>
   );

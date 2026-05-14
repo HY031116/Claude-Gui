@@ -4,7 +4,7 @@
  * 展示每个文件的变更次数、操作类型及可展开的 Diff 预览
  */
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers, CheckCheck, RotateCcw, GitCommit } from 'lucide-react';
+import { FileText, ChevronDown, ChevronRight, Edit3, FilePlus, Layers, CheckCheck, RotateCcw, GitCommit, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { ToolCall } from '../types';
 import { DiffViewer, WritePreview, WriteDiff } from './DiffView';
@@ -90,18 +90,28 @@ function summarizeByFile(allChanges: FileChange[]): FileSummary[] {
 }
 
 /** 单个工具调用的内联 diff 展示 */
-function ChangeDetail({ change }: { change: FileChange }) {
+function ChangeDetail({ change, originalContent, onLineClick }: {
+  change: FileChange;
+  originalContent?: string;
+  onLineClick?: (lineNum: number) => void;
+}) {
   const args = change.toolCall.arguments ?? {};
   if (change.changeType === 'write') {
     const content = (args.content ?? args.file_content ?? '') as string;
     const original = change.toolCall.originalContent;
-    if (original !== undefined) return <WriteDiff originalContent={original} newContent={content} />;
+    if (original !== undefined) return <WriteDiff originalContent={original} newContent={content} onLineClick={onLineClick} />;
     return <WritePreview content={content} />;
   }
   if (change.changeType === 'edit') {
     const oldStr = (args.old_string ?? args.old_content ?? '') as string;
     const newStr = (args.new_string ?? args.new_content ?? '') as string;
-    return <DiffViewer oldStr={oldStr} newStr={newStr} />;
+    // 从 originalContent 中计算 old_string 的起始行号（绝对行号）
+    let startLine = 1;
+    if (originalContent && oldStr) {
+      const idx = originalContent.indexOf(oldStr);
+      if (idx !== -1) startLine = originalContent.slice(0, idx).split('\n').length;
+    }
+    return <DiffViewer oldStr={oldStr} newStr={newStr} startLineOld={startLine} startLineNew={startLine} onLineClick={onLineClick} />;
   }
   if (change.changeType === 'multi_edit') {
     const edits = (args.edits ?? []) as Array<{ old_string: string; new_string: string }>;
@@ -114,7 +124,7 @@ function ChangeDetail({ change }: { change: FileChange }) {
                 段落 {i + 1}
               </div>
             )}
-            <DiffViewer oldStr={e.old_string ?? ''} newStr={e.new_string ?? ''} />
+            <DiffViewer oldStr={e.old_string ?? ''} newStr={e.new_string ?? ''} onLineClick={onLineClick} />
           </div>
         ))}
       </div>
@@ -461,6 +471,20 @@ export function ChangeSummaryPanel() {
                 <span style={{ fontSize: 10, color: CHANGE_COLORS[lastChange.changeType] }}>
                   {CHANGE_LABELS[lastChange.changeType]}
                 </span>
+                {/* 在编辑器中打开 */}
+                <button
+                  title="在编辑器中打开文件"
+                  onClick={(e) => { e.stopPropagation(); void window.electronAPI.openInEditor(fs.filePath); }}
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    fontSize: 10, padding: '1px 5px', borderRadius: 3,
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-muted)',
+                    background: 'transparent', cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  <ExternalLink size={10} />
+                </button>
                 {/* 单文件操作按钮 */}
                 <button
                   title="应用该文件所有变更"
@@ -546,7 +570,11 @@ export function ChangeSummaryPanel() {
                         </div>
                         {isDiffExpanded && (
                           <div style={{ margin: '0 14px 8px', border: '1px solid var(--border-color)', borderRadius: 4, overflow: 'hidden' }}>
-                            <ChangeDetail change={change} />
+                            <ChangeDetail
+                              change={change}
+                              originalContent={trackedChanges.find((c) => c.toolCallId === change.toolCall.id)?.originalContent}
+                              onLineClick={(lineNum) => void window.electronAPI.openInEditor(fs.filePath, lineNum)}
+                            />
                           </div>
                         )}
                       </div>
