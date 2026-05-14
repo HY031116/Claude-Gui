@@ -1,5 +1,6 @@
 /**
  * NavRail — 左侧垂直导航栏（56px 固定宽）
+ * 5 个一级导航：对话 / 项目 / 工具 / 配置 / 历史
  * 直接从 Zustand store 读取 activeNavSection / theme，
  * 将 onNavClick 通过 props 传入（handleNavClick 含 toggle 逻辑，保留在 App.tsx）
  */
@@ -8,21 +9,21 @@ import { useAppStore } from '../../stores/useAppStore';
 import {
   MessageSquare,
   FolderOpen,
-  GitCommit,
+  Wrench,
   SlidersHorizontal,
+  Clock,
   Sun,
   Moon,
   Bot,
 } from 'lucide-react';
-
-// NavClick：NavRail 可展发的点击 id
-type NavClick = 'chat' | 'files' | 'changes' | 'settings';
+import type { NavClick } from '../../utils/nav';
 
 const NAV_ITEMS: { id: NavClick; label: string; icon: React.ElementType }[] = [
   { id: 'chat', label: '对话', icon: MessageSquare },
-  { id: 'files', label: '文件', icon: FolderOpen },
-  { id: 'changes', label: '变更', icon: GitCommit },
-  { id: 'settings', label: '设置', icon: SlidersHorizontal },
+  { id: 'project', label: '项目', icon: FolderOpen },
+  { id: 'tools', label: '工具', icon: Wrench },
+  { id: 'config', label: '配置', icon: SlidersHorizontal },
+  { id: 'history', label: '历史', icon: Clock },
 ];
 
 /** 文件修改类工具名称 */
@@ -56,12 +57,14 @@ export function NavRail({ onNavClick }: NavRailProps) {
     return count;
   }, [messages]);
 
-  // 判断导航项是否激活（files/changes 需要匹配 project 子面板状态）
+  // 判断导航项是否激活（点击已激活则折叠，所以用 activeNavSection 直接匹配）
   const isActive = (id: NavClick): boolean => {
-    if (id === 'files') return activeNavSection === 'project' && activeAuxSubPanel === 'files';
-    if (id === 'changes') return activeNavSection === 'project' && activeAuxSubPanel === 'changes';
-    if (id === 'settings') return activeNavSection === 'tools' || activeNavSection === 'config';
     return activeNavSection === id;
+  };
+
+  // 是否显示变更角标（project 且有待处理变更）
+  const showChangeBadge = (id: NavClick): boolean => {
+    return id === 'project' && pendingChangesCount > 0;
   };
 
   const handleThemeToggle = useCallback(() => {
@@ -69,6 +72,9 @@ export function NavRail({ onNavClick }: NavRailProps) {
     setTheme(next);
     window.electronAPI?.setNativeTheme?.(next);
   }, [theme, setTheme]);
+
+  // activeAuxSubPanel 用于 tooltip 显示当前激活子面板（保留以备用）
+  void activeAuxSubPanel;
 
   return (
     <div className="nav-rail">
@@ -84,7 +90,7 @@ export function NavRail({ onNavClick }: NavRailProps) {
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         const active = isActive(item.id);
-        const showBadge = item.id === 'changes' && pendingChangesCount > 0;
+        const showBadge = showChangeBadge(item.id);
         return (
           <button
             key={item.id}
@@ -100,36 +106,26 @@ export function NavRail({ onNavClick }: NavRailProps) {
                 position: 'absolute',
                 top: 4,
                 right: 4,
-                minWidth: 16,
-                height: 16,
-                borderRadius: 8,
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
                 background: 'var(--accent)',
-                color: '#fff',
-                fontSize: 9,
-                fontWeight: 700,
-                lineHeight: '16px',
-                textAlign: 'center',
-                padding: '0 3px',
-                pointerEvents: 'none',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-              }}>
-                {pendingChangesCount > 99 ? '99+' : pendingChangesCount}
-              </span>
+                border: '1.5px solid var(--bg-primary)',
+              }} />
             )}
           </button>
         );
       })}
 
-      <div style={{ flex: 1 }} />
-
-      {/* 暗/亮主题切换 */}
+      {/* 底部区域（主题切换） */}
+      <div className="nav-rail-spacer" />
       <button
         onClick={handleThemeToggle}
         className="nav-button"
-        aria-label={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
-        data-tooltip={theme === 'dark' ? '亮色主题' : '暗色主题'}
+        aria-label={theme === 'dark' ? '切换浅色' : '切换深色'}
+        data-tooltip={theme === 'dark' ? '浅色模式' : '深色模式'}
       >
-        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
       </button>
     </div>
   );

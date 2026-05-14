@@ -3,19 +3,22 @@
  * 从 App.tsx handleNavClick 提取，供测试和多处复用
  */
 
-export type NavSection = 'chat' | 'project' | 'tools' | 'config';
-export type NavClick = 'chat' | 'files' | 'changes' | 'settings';
+export type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
+export type NavClick = 'chat' | 'project' | 'tools' | 'config' | 'history';
 
-/** tools/config 展开时默认激活的子标签 */
-export const SECTION_DEFAULTS: Record<'tools' | 'config', string> = {
+/** tools/config/history 展开时默认激活的子标签 */
+export const SECTION_DEFAULTS: Record<'tools' | 'config' | 'history', string> = {
   tools: 'mcp',
   config: 'settings',
+  history: 'sessions',
 };
 
-/** tools/config 合法子标签（切换 section 时避免残留旧 sub 值） */
-export const SECTION_VALID_SUBS: Record<'tools' | 'config', string[]> = {
+/** 各 section 合法子标签 */
+export const SECTION_VALID_SUBS: Record<'project' | 'tools' | 'config' | 'history', string[]> = {
+  project: ['files', 'git', 'changes', 'context', 'worktrees', 'checkpoints'],
   tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks'],
   config: ['settings', 'rules', 'claude-md', 'mem', 'cost'],
+  history: ['sessions', 'cost', 'mem-search'],
 };
 
 export interface NavTransition {
@@ -27,6 +30,8 @@ export interface NavTransition {
 
 /**
  * 根据当前导航状态 + NavRail 点击 ID，计算下一个状态
+ *
+ * 规则：点击已激活的同一入口 → 折叠回 chat；否则展开对应 section。
  *
  * @param currentSection  当前 activeNavSection
  * @param currentSubPanel 当前 activeAuxSubPanel
@@ -42,37 +47,39 @@ export function computeNavTransition(
     return { section: 'chat' };
   }
 
-  if (click === 'files') {
-    // 已激活 → 折叠回 chat；否则直达 project/files
-    if (currentSection === 'project' && currentSubPanel === 'files') {
-      return { section: 'chat' };
-    }
-    return { section: 'project', subPanel: 'files' };
+  // 点击已激活的 section → 折叠
+  if (currentSection === click) {
+    return { section: 'chat' };
   }
 
-  if (click === 'changes') {
-    // 已激活 → 折叠回 chat；否则直达 project/changes
-    if (currentSection === 'project' && currentSubPanel === 'changes') {
-      return { section: 'chat' };
-    }
-    return { section: 'project', subPanel: 'changes' };
+  // 切换到新 section，需要给出默认子标签
+  if (click === 'project') {
+    const sub = SECTION_VALID_SUBS.project.includes(currentSubPanel)
+      ? currentSubPanel
+      : 'files';
+    return { section: 'project', subPanel: sub };
   }
 
-  // settings：合并 tools + config，点击循环 tools → config → chat
-  if (currentSection === 'tools') {
-    // tools 已激活 → 切到 config
+  if (click === 'tools') {
+    const sub = SECTION_VALID_SUBS.tools.includes(currentSubPanel)
+      ? currentSubPanel
+      : SECTION_DEFAULTS.tools;
+    return { section: 'tools', subPanel: sub };
+  }
+
+  if (click === 'config') {
     const sub = SECTION_VALID_SUBS.config.includes(currentSubPanel)
-      ? undefined
+      ? currentSubPanel
       : SECTION_DEFAULTS.config;
     return { section: 'config', subPanel: sub };
   }
-  if (currentSection === 'config') {
-    // config 已激活 → 折叠
-    return { section: 'chat' };
+
+  if (click === 'history') {
+    const sub = SECTION_VALID_SUBS.history.includes(currentSubPanel)
+      ? currentSubPanel
+      : SECTION_DEFAULTS.history;
+    return { section: 'history', subPanel: sub };
   }
-  // 其他状态 → 进入 tools
-  const sub = SECTION_VALID_SUBS.tools.includes(currentSubPanel)
-    ? undefined
-    : SECTION_DEFAULTS.tools;
-  return { section: 'tools', subPanel: sub };
+
+  return { section: 'chat' };
 }

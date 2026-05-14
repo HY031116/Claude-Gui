@@ -21,6 +21,8 @@ import {
   Brain,
   DollarSign,
   Info,
+  Clock,
+  Search,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { FileExplorer } from '../FileExplorer';
@@ -40,8 +42,9 @@ import { MemoryEditPanel } from '../MemoryEditPanel';
 import { MemSearchPanel } from '../MemSearchPanel';
 import { CostPanel } from '../CostPanel';
 import { ContextPanel } from '../ContextPanel';
+import { HistoryPanel } from '../HistoryPanel';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'config';
+type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
 
 const AUX_TABS: Record<
   Exclude<NavSection, 'chat'>,
@@ -69,6 +72,11 @@ const AUX_TABS: Record<
     { id: 'claude-md', label: 'CLAUDE.md', icon: FileText },
     { id: 'mem', label: '记忆', icon: Brain },
     { id: 'cost', label: '成本', icon: DollarSign },
+  ],
+  history: [
+    { id: 'sessions', label: '历史会话', icon: Clock },
+    { id: 'cost', label: '成本统计', icon: DollarSign },
+    { id: 'mem-search', label: '记忆搜索', icon: Search },
   ],
 };
 
@@ -147,6 +155,10 @@ export function AuxPanel({
           {activeNavSection === 'config' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
           {activeNavSection === 'config' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
           {activeNavSection === 'config' && activeAuxSubPanel === 'cost' && <CostPanel />}
+          {/* history section */}
+          {activeNavSection === 'history' && activeAuxSubPanel === 'sessions' && <HistoryPanel />}
+          {activeNavSection === 'history' && activeAuxSubPanel === 'cost' && <CostPanel />}
+          {activeNavSection === 'history' && activeAuxSubPanel === 'mem-search' && <MemSearchPanel />}
         </div>
       </div>
     </>

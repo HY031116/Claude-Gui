@@ -127,8 +127,8 @@ interface AppState {
 
   // UI — 五级一级导航（Phase 1 重构）
   /** 一级导航区域，决定辅助面板内容；chat 时辅助面板收起 */
-  activeNavSection: 'chat' | 'project' | 'tools' | 'config';
-  setActiveNavSection: (section: 'chat' | 'project' | 'tools' | 'config') => void;
+  activeNavSection: 'chat' | 'project' | 'tools' | 'config' | 'history';
+  setActiveNavSection: (section: 'chat' | 'project' | 'tools' | 'config' | 'history') => void;
   /** 辅助面板内当前子标签（如 'files'、'git'、'settings'） */
   activeAuxSubPanel: string;
   setActiveAuxSubPanel: (sub: string) => void;
