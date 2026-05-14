@@ -1,6 +1,16 @@
 # Changelog
 
-## [3.10.0] - 2026-06-01
+## [3.11.0] - 2026-05-15
+
+### 新增
+- **3.3.7 后台介入通知机制**：权限请求发生在非活跃 Tab 时，自动弹出系统通知（标题/工具名/Tab 名）；点击通知自动切换到对应 Tab 并跳转 Dispatch 视图；`notifySend` IPC 新增可选 `tabId` 参数，`onNotificationClick` IPC 注册点击回调
+- **3.4 Plan Mode 审查视图**：`PlanReviewPanel` 新组件，全面覆盖 `plan_ready` / `executing` / `generating_plan` 三个阶段；`parsePlanSteps` 解析编号计划列表，`buildSkipMessage` 生成跳过协议消息；步骤卡片含风险评级（低/中/高）、工具图标映射、默认勾选逻辑（高风险默认不勾）；工具栏支持全选/取消高风险/重置；可编辑计划 Modal；ChatPanel 完整集成（新消息时重置状态，`message-done` 时检测并进入 plan_ready，`handlePlanConfirm` / `handlePlanCancel` 回调）
+- **3.5.7 Hooks 测试运行器**：HooksPanel 顶部新增「🧪 测试」按钮；`TestRunnerModal` 支持事件选择、模拟环境变量表格（各事件有默认值）、依次运行所有 `command` 类型 Handler、实时展示 stdout/stderr/退出码/耗时；`hook:testRun` IPC（超时 30s，跨平台 shell）
+- **3.6.4 Worktree 对比视图**：WorktreePanel 顶部新增「对比」按钮（需 ≥2 个 worktree）；`WorktreeCompareModal` 支持左右 worktree 选择器、并行获取两侧 `git diff HEAD`、公共/仅左/仅右改动文件摘要、两列并排滚动 diff；`git:worktree:fullDiff` IPC
+
+---
+
+## [3.10.0] - 2026-05-15
 
 ### 新增
 - **Agent Teams 视图（实验性）**：在 AgentsView 新增第三个 Tab「🧪 Agent Teams」，永远可见
@@ -11,7 +21,7 @@
 - **数据类型**：`TeammateState` / `SharedTask` / `AgentTeamState` 前端状态模型（对应 §3.8.2 规格）
 - **CSS**：`.agent-teams-*`, `.at-btn`, `.at-teammate-*`, `.at-task-*`, `.at-badge-*` 等全套样式
 
-## [3.9.0] - 2026-06-01
+## [3.9.0] - 2026-05-15
 
 ### 新增
 - **介入类型 B — 决策卡片**：`message-done` 后检测 assistant 消息是否为决策型问题（以问号结尾 / 包含 Option A/B 列表），触发时在消息流底部显示 `DecisionCard`，支持快捷选项按钮、自定义输入框、"让 Agent 自主决定"三种回复路径
@@ -21,7 +31,7 @@
 - **检测函数（模块级）**：`detectDecisionRequest(text)` / `extractQuickOptions(text)` / `detectFileRequest(text)` / `FILE_REQUEST_PATTERNS`
 - **CSS**：`.intervention-card`, `.intervention-card--decision`, `.intervention-card--file`, `.intervention-long-wait` 及子类，暗色主题 + 蓝/橙/黄色语义配色
 
-## [3.8.0] - 2026-05-15
+## [3.8.0] - 2026-05-14
 
 ### 新增
 - **CommandCenter v3.1 — 5 分组会话看板**：会话按状态分组（📌置顶 / 🟡需要输入 / 📋PR待审查 / ⚙工作中 / ✅已完成），替换旧版网格卡片布局
