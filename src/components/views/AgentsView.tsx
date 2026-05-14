@@ -1,13 +1,14 @@
 /**
  * AgentsView — Agents 舰队视图
- * 展示：Worktree 并行会话 + Subagent 定义管理
+ * 展示：Worktree 并行会话 + Subagent 定义管理 + Agent Teams（实验性）
  */
 import { useState } from 'react';
-import { Bot, Layers, GitBranch } from 'lucide-react';
+import { Bot, Layers, GitBranch, Users } from 'lucide-react';
 import { WorktreePanel } from '../WorktreePanel';
 import { AgentPanel } from '../AgentPanel';
+import { AgentTeamsPanel } from '../AgentTeamsPanel';
 
-type AgentTab = 'worktrees' | 'agents';
+type AgentTab = 'worktrees' | 'agents' | 'teams';
 
 export function AgentsView() {
   const [activeTab, setActiveTab] = useState<AgentTab>('worktrees');
@@ -15,6 +16,7 @@ export function AgentsView() {
   const tabs: { id: AgentTab; label: string; icon: React.ElementType }[] = [
     { id: 'worktrees', label: 'Worktrees（并行会话）', icon: Layers },
     { id: 'agents', label: 'Agent 定义', icon: Bot },
+    { id: 'teams', label: '🧪 Agent Teams', icon: Users },
   ];
 
   return (
@@ -60,6 +62,19 @@ export function AgentsView() {
               </span>
             </div>
             <AgentPanel />
+          </div>
+        )}
+
+        {activeTab === 'teams' && (
+          <div style={{ padding: '0 16px' }}>
+            <div className="view-section-header">
+              <Users size={16} />
+              <span>Agent Teams</span>
+              <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
+                实验性 · Lead + Teammates 协作架构
+              </span>
+            </div>
+            <AgentTeamsPanel />
           </div>
         )}
       </div>

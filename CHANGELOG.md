@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.10.0] - 2026-06-01
+
+### 新增
+- **Agent Teams 视图（实验性）**：在 AgentsView 新增第三个 Tab「🧪 Agent Teams」，永远可见
+- **启用门控**：通过 `loadSettings` 检查 `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1'`；未启用时显示警告横幅 + "立即启用" 一键写入 settings.json 的按钮
+- **团队看板**：Lead 状态卡 + Teammates 列表（显示活跃/等待/完成/错误状态 + 最近日志 + 内联发消息输入框）+ 共享任务列表（显示负责人 + 进度状态）
+- **Teammate 操作**：向 Teammate 发消息（格式化为 `[Send to {id}]: …` 转发给 Lead）、关闭 Teammate（向 Lead 发 stop 指令）
+- **空状态引导**：无活跃团队时显示"让 Claude 创建团队…"按钮跳转 Dispatch，并含开发模式下的示例团队加载按钮
+- **数据类型**：`TeammateState` / `SharedTask` / `AgentTeamState` 前端状态模型（对应 §3.8.2 规格）
+- **CSS**：`.agent-teams-*`, `.at-btn`, `.at-teammate-*`, `.at-task-*`, `.at-badge-*` 等全套样式
+
+## [3.9.0] - 2026-06-01
+
+### 新增
+- **介入类型 B — 决策卡片**：`message-done` 后检测 assistant 消息是否为决策型问题（以问号结尾 / 包含 Option A/B 列表），触发时在消息流底部显示 `DecisionCard`，支持快捷选项按钮、自定义输入框、"让 Agent 自主决定"三种回复路径
+- **介入类型 C — 文件请求卡片**：检测 assistant 请求附加截图/文件，显示 `FileRequestCard`（提示用 Ctrl+V 粘贴或附件按钮），支持"跳过，无需提供"一键回复
+- **介入类型 D — 长时等待横幅**：`isProcessing` 期间每 5 秒轮询，若 45 秒无新 chunk，显示黄色 `intervention-long-wait` 横幅（可手动关闭）
+- **`sendQuickReply`**：ChatPanel 内部快捷回复函数，跳过表单流程直接调用 `cliSendMessage`，供介入卡片使用
+- **检测函数（模块级）**：`detectDecisionRequest(text)` / `extractQuickOptions(text)` / `detectFileRequest(text)` / `FILE_REQUEST_PATTERNS`
+- **CSS**：`.intervention-card`, `.intervention-card--decision`, `.intervention-card--file`, `.intervention-long-wait` 及子类，暗色主题 + 蓝/橙/黄色语义配色
+
+## [3.8.0] - 2026-05-15
+
+### 新增
+- **CommandCenter v3.1 — 5 分组会话看板**：会话按状态分组（📌置顶 / 🟡需要输入 / 📋PR待审查 / ⚙工作中 / ✅已完成），替换旧版网格卡片布局
+- **会话图标系统**：✽（工作中，蓝色旋转动画）/ ✻（等待输入，黄色）/ ∙（已完成，灰色），对齐官方 `claude agents` TUI
+- **Peek 快速预览面板**：点击会话行展开，按组态显示不同内容（工作中显示最近工具/操作 + [查看日志]；待审查显示变更文件列表 + [查看变更]；等待输入显示最后消息 + [去回复]；已完成显示摘要 + [继续对话]），双击直接进入对话
+- **置顶功能**：每条会话行右侧 Pin/PinOff 按钮，置顶 tab 优先展示在 📌 分组
+- **今日统计横幅**：会话数 · 变更数 · 成本 · 节省时间估算（每次文件变更约 2min），替换原 4 格统计卡
+- **store — `pinnedTabIds` + `togglePinTab`**：CommandCenter 置顶状态管理
+- **LaunchPanel**：Dispatch 视图 [A] 态委派表单，支持执行模式（4 种 permission-mode）、Agent 下拉、工作目录选择、内置任务模板、高级选项（模型/成本上限/最大轮次/禁止工具/系统提示词）、Ctrl+Enter 快速提交
+- **IPC extraArgs 链路**：`cliSendMessage` 新增 `extraArgs?: string[]` 参数，贯通 `electron.d.ts` → `preload.ts` → `main.ts` → `cli-service.ts`，供 LaunchPanel 按需传入 `--permission-mode` 等一次性 CLI 参数
+
+### 变更
+- CommandCenter「新建任务」按钮替换旧「委派新任务」，始终触发新建 Tab + 跳转 Dispatch
+- 统计数据从仅当前活跃 tab 扩展为汇总全部 tabs 的 tokenUsage
+
+---
+
 ## [3.7.1] - 2026-05-30
 
 ### 修复

@@ -355,7 +355,7 @@ export class CliService {
    * 每条消息独立启动子进程，流式推送响应到渲染进程
    * @param tabId 发起请求的 tab ID，不同 tab 并行运行互不干扰
    */
-  async sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string): Promise<{ success: boolean; error?: string }> {
+  async sendMessage(message: string, cwd?: string, sessionId?: string, imagePaths?: string[], agentOverride?: string, tabId?: string, extraArgs?: string[]): Promise<{ success: boolean; error?: string }> {
     const tid = tabId ?? 'default';
     // 只停当前 tab 的旧进程，不影响其他 tab
     const existing = this.activeProcesses.get(tid);
@@ -527,6 +527,12 @@ export class CliService {
     const workdir = rawWorkdir.startsWith('~')
       ? path.join(os.homedir(), rawWorkdir.slice(1))
       : rawWorkdir;
+
+    // 追加 per-task 覆盖参数（如 --permission-mode plan，会覆盖 config 中已设置的值）
+    if (extraArgs && extraArgs.length > 0) {
+      args.push(...extraArgs);
+    }
+
     console.log('[CLI] sendMessage: spawning', claudePath, args, 'cwd:', workdir, 'tabId:', tid);
 
     try {

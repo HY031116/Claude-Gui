@@ -186,6 +186,10 @@ interface AppState {
   processingTabs: Record<string, boolean>;
   setTabProcessing: (tabId: string, processing: boolean) => void;
 
+  /** CommandCenter 置顶会话 */
+  pinnedTabIds: string[];
+  togglePinTab: (tabId: string) => void;
+
   /**
    * 对话 ↔ Diff 联动：当前高亮的工具调用 ID
    * ChatPanel 中点击文件变更徽章时设置，ChangeSummaryPanel 订阅并滚动到对应卡片
@@ -424,6 +428,13 @@ export const useAppStore = create<AppState>((set, get) => {
   processingTabs: {},
   setTabProcessing: (tabId, processing) => set((state) => ({
     processingTabs: { ...state.processingTabs, [tabId]: processing },
+  })),
+
+  pinnedTabIds: [],
+  togglePinTab: (tabId) => set((state) => ({
+    pinnedTabIds: state.pinnedTabIds.includes(tabId)
+      ? state.pinnedTabIds.filter((id) => id !== tabId)
+      : [...state.pinnedTabIds, tabId],
   })),
 
   // 对话 ↔ Diff 联动

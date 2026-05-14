@@ -16,6 +16,7 @@ import { useAppStore } from '../../stores/useAppStore';
 import { TerminalPanel } from '../TerminalPanel';
 import { SessionList } from '../SessionList';
 import { TaskView } from '../task/TaskView';
+import { LaunchPanel } from '../task/LaunchPanel';
 import { SettingsPanel } from '../SettingsPanel';
 import { CommandCenter } from '../views/CommandCenter';
 import { AgentsView } from '../views/AgentsView';
@@ -388,45 +389,19 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
             );
           })()}
 
-          {/* dispatch 内始终显示 TaskView；未连接且无消息时额外显示引导卡片 */}
-          {!session.isConnected && messages.length === 0 && (
-            <div style={{
-              padding: '20px 20px 0',
-              display: 'flex',
-              gap: 10,
-              flexShrink: 0,
-            }}>
-              <div style={{
-                flex: 1,
-                border: '1px dashed var(--border-color)',
-                borderRadius: 10,
-                padding: '18px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                background: 'var(--bg-secondary)',
-              }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
-                    委派新任务
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    启动 Claude 后即可在下方输入框开始对话，或在右侧配置任务参数
-                  </div>
-                </div>
-                <button
-                  className="btn-primary btn-sm"
-                  onClick={onStartSession}
-                  style={{ flexShrink: 0 }}
-                >
-                  启动会话
-                </button>
-              </div>
+          {/* ── dispatch 路由：LaunchPanel [A] 或 TaskView [B] ── */}
+          {!session.isConnected && messages.length === 0 ? (
+            /* [A] 委派表单：未连接且无消息时显示结构化委派表单 */
+            <div className="launch-panel-wrap">
+              <LaunchPanel />
             </div>
+          ) : (
+            /* [B] 任务执行视图：已连接或有消息时显示 TaskView + Terminal */
+            <>
+              <TaskView activeTabId={activeTabId} />
+              <TerminalPanel />
+            </>
           )}
-          <TaskView activeTabId={activeTabId} />
-          <TerminalPanel />
         </div>
 
         {/* 右侧可折叠历史侧边栏 */}

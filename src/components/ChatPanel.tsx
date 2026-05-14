@@ -199,6 +199,50 @@ function formatCompactCost(costUsd?: number): string {
   return `$${costUsd.toFixed(4)}`;
 }
 
+// ── 介入检测（类型 B / C）──────────────────────────────────────────────────
+
+/** 检测 assistant 消息是否为需要用户决策的问题（类型 B） */
+function detectDecisionRequest(text: string): boolean {
+  const trimmed = text.trim();
+  // 规则 1：以问号结尾
+  if (/[?？]\s*$/.test(trimmed)) return true;
+  // 规则 2：包含决策关键词 + 枚举列表
+  const keywords = [
+    'which', 'should i', 'do you want', 'do you prefer',
+    'would you like', 'please choose', 'please select',
+    '哪种', '哪个', '你想要', '你希望', '请选择', '请确认',
+    '方案 a', '方案 b', 'option a', 'option b',
+  ];
+  const lc = trimmed.toLowerCase();
+  const hasKw = keywords.some((kw) => lc.includes(kw));
+  const hasList = /\b(option|choice|方案|选项)\s*[A-D1-4][\.\)：:]/i.test(trimmed);
+  return hasKw && hasList;
+}
+
+/** 从消息中提取多选项标签（最多 4 个），供 DecisionCard 按钮使用 */
+function extractQuickOptions(text: string): string[] {
+  const opts: string[] = [];
+  const re = /(?:(?:方案|选项|Option|Choice)\s*([A-D]|[1-4])[\.\)：:\s]+)(.+)/gim;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null && opts.length < 4) {
+    const label = String(m[1]).toUpperCase();
+    const desc = String(m[2]).trim().replace(/\n[\s\S]*/m, '').slice(0, 24);
+    opts.push(`${label}：${desc}`);
+  }
+  return opts;
+}
+
+/** 文件/截图请求检测（类型 C） */
+const FILE_REQUEST_PATTERNS = [
+  /attach(ing)?\s+(a\s+)?(screenshot|image|file)/i,
+  /can you (share|provide|upload|send)\s+(the\s+)?(screenshot|image|file)/i,
+  /please (attach|share|upload)\s+(the\s+)?(screenshot|file)/i,
+  /(上传|分享|提供|截图|附件)/,
+];
+function detectFileRequest(text: string): boolean {
+  return FILE_REQUEST_PATTERNS.some((p) => p.test(text));
+}
+
 /** Slash 命令列表 */
 const SLASH_COMMANDS: { cmd: string; desc: string }[] = [
   { cmd: '/clear',       desc: '清空当前对话' },
@@ -264,6 +308,21 @@ export function ChatPanel() {
   useEffect(() => {
     setTabProcessing(activeTabId, isProcessing);
   }, [isProcessing, activeTabId, setTabProcessing]);
+
+  // 介入类型 D：45 秒无 chunk 时显示长时等待横幅
+  useEffect(() => {
+    if (!isProcessing) {
+      setShowLongWaitBanner(false);
+      return;
+    }
+    lastChunkAtRef.current = Date.now();
+    const interval = setInterval(() => {
+      if (Date.now() - lastChunkAtRef.current > 45_000) {
+        setShowLongWaitBanner(true);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isProcessing]);
   // 历史会话恢复：有 conversationSessionId 时即使 PTY 未连接也可发消息（sendMessage 是独立子进程）
   const canSend = session.isConnected || !!session.conversationSessionId;
   // 工作目录编辑状态
@@ -316,6 +375,14 @@ export function ChatPanel() {
   // Claude Code PermissionRequest hook 触发的真实工具审批请求
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequestEvent[]>([]);
   const [permissionRespondingId, setPermissionRespondingId] = useState<string | null>(null);
+
+  // 介入类型 B：决策问题检测
+  const [pendingDecision, setPendingDecision] = useState<{ text: string; options: string[] } | null>(null);
+  // 介入类型 C：文件/截图请求检测
+  const [pendingFileRequest, setPendingFileRequest] = useState<string | null>(null);
+  // 介入类型 D：长时等待横幅（45 秒无新 chunk）
+  const [showLongWaitBanner, setShowLongWaitBanner] = useState(false);
+  const lastChunkAtRef = useRef<number>(Date.now());
 
   /** 是否处于"继续上次会话"模式（下次发消息时用 --continue） */
   const [continueMode, setContinueMode] = useState(false);
@@ -447,6 +514,8 @@ export function ChatPanel() {
       }
 
       if (event.type === 'message-chunk') {
+        // 每次收到 chunk 就更新时间戳（用于类型 D 长时等待检测）
+        lastChunkAtRef.current = Date.now();
         const lines = event.data.split('\n');
         let hasNewText = false;
 
@@ -629,6 +698,16 @@ export function ChatPanel() {
 
         setIsProcessing(false);
         assistantIdRef.current = null;
+        // 介入检测：类型 B（决策问题）和类型 C（文件/截图请求）
+        const completedText = targetContentRef.current;
+        if (completedText && !pendingToolCallsRef.current.length) {
+          if (detectDecisionRequest(completedText)) {
+            setPendingDecision({ text: completedText, options: extractQuickOptions(completedText) });
+          } else if (detectFileRequest(completedText)) {
+            setPendingFileRequest(completedText);
+          }
+        }
+        setShowLongWaitBanner(false); // 消息结束，隐藏长时等待横幅
         targetContentRef.current = '';
         displayedLengthRef.current = 0;
         stderrErrShownRef.current = false;
@@ -677,7 +756,7 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, appendRawJson, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep, syncCurrentPlanSteps]);
+  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep, syncCurrentPlanSteps]);
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {
@@ -759,7 +838,35 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, canSend, contextFiles, pastedImages, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, continueMode, activeTabId, tabs, renameTab, addMessage, setTokenUsage, clearPlanSteps]);
+  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, continueMode, addMessage, setTokenUsage, clearPlanSteps]);
+
+  /** 快速回复（供介入卡片 B/C 使用）：直接发送文本，不经过表单流程 */
+  const sendQuickReply = useCallback(async (text: string) => {
+    if (!text.trim() || isProcessing) return;
+    setPendingDecision(null);
+    setPendingFileRequest(null);
+    addMessage({ id: `msg-${Date.now()}`, role: 'user', content: text.trim(), timestamp: Date.now() });
+    setIsProcessing(true);
+    setTokenUsage(null);
+    clearPlanSteps();
+    try {
+      const result = await window.electronAPI.cliSendMessage(
+        text.trim(),
+        session.workingDirectory || undefined,
+        session.conversationSessionId || undefined,
+        undefined,
+        localAgent && localAgent !== 'default' ? localAgent : undefined,
+        activeTabId,
+      );
+      if (!result.success) {
+        addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: result.error || '回复发送失败。', timestamp: Date.now() });
+        setIsProcessing(false);
+      }
+    } catch {
+      addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '回复发送失败，请重试。', timestamp: Date.now() });
+      setIsProcessing(false);
+    }
+  }, [isProcessing, session.workingDirectory, session.conversationSessionId, localAgent, activeTabId, addMessage, setTokenUsage, clearPlanSteps]);
 
   /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
   const loadAtDir = useCallback(async (query: string) => {
@@ -1463,6 +1570,33 @@ export function ChatPanel() {
             onDeny={() => handleApprovalAction(req, false)}
           />
         ))}
+
+        {/* 介入类型 B：决策型问题卡片 */}
+        {pendingDecision && (
+          <DecisionCard
+            options={pendingDecision.options}
+            onQuickReply={(opt) => void sendQuickReply(opt)}
+            onAgentDecide={() => void sendQuickReply('Please use your best judgment and proceed.')}
+            onDismiss={() => setPendingDecision(null)}
+            onCustomReply={(txt) => void sendQuickReply(txt)}
+          />
+        )}
+
+        {/* 介入类型 C：文件/截图请求卡片 */}
+        {pendingFileRequest && (
+          <FileRequestCard
+            onSkip={() => void sendQuickReply('I cannot provide that. Please continue without it.')}
+            onDismiss={() => setPendingFileRequest(null)}
+          />
+        )}
+
+        {/* 介入类型 D：长时等待横幅（非阻塞） */}
+        {showLongWaitBanner && (
+          <div className="intervention-long-wait">
+            <span>⏳ Claude 正在处理中，已超过 45 秒无新输出，请耐心等待…</span>
+            <button className="intervention-dismiss-btn" onClick={() => setShowLongWaitBanner(false)}>×</button>
+          </div>
+        )}
         </div>
       </div>
 
@@ -1804,6 +1938,89 @@ const PermissionBannerCard = memo(function PermissionBannerCard({
     </div>
   );
 });
+
+// ── 介入卡片 B：决策型问题 ─────────────────────────────────────────────────
+
+/** 介入类型 B — 决策卡片：供用户快速选择或让 Agent 自主决定 */
+function DecisionCard({
+  options,
+  onQuickReply,
+  onAgentDecide,
+  onDismiss,
+  onCustomReply,
+}: {
+  options: string[];
+  onQuickReply: (opt: string) => void;
+  onAgentDecide: () => void;
+  onDismiss: () => void;
+  onCustomReply: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  return (
+    <div className="intervention-card intervention-card--decision">
+      <div className="intervention-card-header">
+        <span className="intervention-card-icon">💬</span>
+        <span className="intervention-card-title">Claude 等待你的决策</span>
+        <button className="intervention-dismiss-btn" onClick={onDismiss} title="关闭">×</button>
+      </div>
+      {options.length > 0 && (
+        <div className="intervention-quick-opts">
+          {options.map((opt) => (
+            <button key={opt} className="intervention-opt-btn" onClick={() => onQuickReply(opt)}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="intervention-custom-row">
+        <input
+          className="intervention-input"
+          placeholder="或输入自定义回复…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && draft.trim()) { onCustomReply(draft.trim()); setDraft(''); } }}
+        />
+        <button
+          className="intervention-send-btn"
+          disabled={!draft.trim()}
+          onClick={() => { if (draft.trim()) { onCustomReply(draft.trim()); setDraft(''); } }}
+        >发送</button>
+      </div>
+      <div className="intervention-card-footer">
+        <button className="intervention-agent-btn" onClick={onAgentDecide}>
+          让 Agent 自主决定
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── 介入卡片 C：文件/截图请求 ──────────────────────────────────────────────
+
+/** 介入类型 C — 文件请求卡片：提示用户附加文件或直接跳过 */
+function FileRequestCard({
+  onSkip,
+  onDismiss,
+}: {
+  onSkip: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="intervention-card intervention-card--file">
+      <div className="intervention-card-header">
+        <span className="intervention-card-icon">📎</span>
+        <span className="intervention-card-title">Claude 请求文件或截图</span>
+        <button className="intervention-dismiss-btn" onClick={onDismiss} title="关闭">×</button>
+      </div>
+      <p className="intervention-card-hint">
+        你可以在输入框粘贴截图（Ctrl+V）或点击附件图标上传文件后再回复，或直接跳过继续。
+      </p>
+      <div className="intervention-card-footer">
+        <button className="intervention-skip-btn" onClick={onSkip}>跳过，无需提供</button>
+      </div>
+    </div>
+  );
+}
 
 /** Turn 汇总卡片 — 每轮 Claude 执行完成后展示步骤数/token/耗时 */
 const FILE_MODIFY_NAMES_SUMMARY = ['Write', 'write_file', 'Edit', 'edit_file', 'str_replace_editor', 'MultiEdit', 'multiedit', 'str_replace_based_edit_tool'];
@@ -2323,6 +2540,8 @@ const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: 
 
   // Turn 完成前（仍有 pending）不展示
   const isComplete = toolCalls.every(c => c.status !== 'pending');
+  if (!isComplete || reviewable.length === 0) return null;
+
   const allReviewed = reviewable.every(c => c.diffReviewStatus === 'accepted' || c.diffReviewStatus === 'reverted');
 
   // 用 computeLineDiff 统计每个文件的行增删
@@ -2393,8 +2612,6 @@ const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: 
       setBusy(false);
     }
   }, [busy, patchAll, reviewable]);
-
-  if (!isComplete || reviewable.length === 0) return null;
 
   return (
     <div style={{ margin: '2px 16px 6px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
