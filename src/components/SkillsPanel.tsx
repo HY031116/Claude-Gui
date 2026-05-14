@@ -121,12 +121,10 @@ export function SkillsPanel() {
     }
 
     // 3. 全局 ~/.claude/CLAUDE.md（如果存在）
-    const homeClaudeMd = (window as any).__HOME_CLAUDE_MD__ || '';
-    if (homeClaudeMd) {
-      const c = await tryReadFile(homeClaudeMd);
-      if (c !== null) {
-        found.push({ name: '~/.claude/CLAUDE.md', path: homeClaudeMd, category: '全局指令' });
-      }
+    const homeClaudeMd = '~/.claude/CLAUDE.md';
+    const homeClaudeContent = await tryReadFile(homeClaudeMd);
+    if (homeClaudeContent !== null) {
+      found.push({ name: '~/.claude/CLAUDE.md', path: homeClaudeMd, category: '全局指令' });
     }
 
     setFiles(found);
