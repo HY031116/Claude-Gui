@@ -11,7 +11,13 @@ import {
 import { useAppStore } from '../../stores/useAppStore';
 import { WorkspaceSelector } from '../workspace/WorkspaceSelector';
 import type { ConversationRecord, TokenRecord } from '../../types';
-import type { GitFile } from '../../types/electron.d';
+
+// 含本地修改时间的文件记录（扩展自 GitFile）
+interface RecentGitFile {
+  path: string;
+  status: string;
+  mtime?: number;
+}
 
 // ─── 工具函数 ───────────────────────────────────────────────────────────────
 
@@ -61,6 +67,20 @@ function formatPreview(preview: string): string {
   const text = preview.replace(/@\S+/g, '').replace(/```[\s\S]*?```/g, '').trim();
   const line = text.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? text;
   return line.length > 45 ? line.slice(0, 45) + '…' : line || '（空会话）';
+}
+
+/** 格式化文件修改时间 */
+function formatFileTime(mtime: number): string {
+  const d = new Date(mtime);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const hm = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  if (d.toDateString() === today.toDateString()) return `今天 ${hm}`;
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${hm}`;
+  const days = Math.floor((Date.now() - mtime) / 86400000);
+  if (days < 7) return `${days}天前`;
+  return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
 }
 
 /** 文件状态对应颜色 */
@@ -190,13 +210,22 @@ export function HomeView({ onStartSession }: HomeViewProps) {
 
   // 持久化会话列表
   const [persistedSessions, setPersistedSessions] = useState<PersistedSessionSummary[]>([]);
-  // 最近修改文件（Git status）
-  const [recentFiles, setRecentFiles] = useState<GitFile[]>([]);
+  // 最近修改文件（Git status + mtime）
+  const [recentFiles, setRecentFiles] = useState<RecentGitFile[]>([]);
   // Git 分支信息
   const [gitBranch, setGitBranch] = useState('');
   const [gitAhead, setGitAhead] = useState(0);
   const [gitBehind, setGitBehind] = useState(0);
   const [gitLoading, setGitLoading] = useState(false);
+
+  // 本周任务次数
+  const weekSessionCount = useMemo(() => {
+    const start = getDayStart(7);
+    if (persistedSessions.length > 0) {
+      return persistedSessions.filter((s) => s.updatedAt >= start).length;
+    }
+    return conversationHistory.filter((r) => r.lastMessageAt >= start).length;
+  }, [persistedSessions, conversationHistory]);
 
   // 本周费用
   const weekCost = useMemo(() => {
@@ -246,10 +275,34 @@ export function HomeView({ onStartSession }: HomeViewProps) {
         for (const f of (staged ?? [])) fileMap.set(f.path, f.status);
         for (const f of (unstaged ?? [])) if (!fileMap.has(f.path)) fileMap.set(f.path, f.status);
         for (const p of (untracked ?? [])) if (!fileMap.has(p)) fileMap.set(p, '?');
-        const files: GitFile[] = Array.from(fileMap.entries())
+        const files = Array.from(fileMap.entries())
           .map(([path, status]) => ({ path, status }))
           .slice(0, 10);
-        setRecentFiles(files);
+        // 批量获取文件修改时间（按父目录分组调用 listDirectory）
+        const dirSet = new Set<string>();
+        for (const f of files) {
+          const normalized = f.path.replace(/\\/g, '/');
+          const lastSlash = normalized.lastIndexOf('/');
+          dirSet.add(lastSlash >= 0 ? normalized.slice(0, lastSlash) : '');
+        }
+        const mtimeMap = new Map<string, number>();
+        await Promise.all(Array.from(dirSet).map(async (relDir) => {
+          const absDir = relDir ? `${cwd}/${relDir}` : cwd;
+          try {
+            const lr = await window.electronAPI?.listDirectory?.(absDir);
+            if (lr?.success && Array.isArray(lr.entries)) {
+              for (const entry of lr.entries) {
+                const relPath = relDir ? `${relDir}/${entry.name}` : entry.name;
+                if (entry.modified) mtimeMap.set(relPath, new Date(entry.modified).getTime());
+              }
+            }
+          } catch { /* ignore */ }
+        }));
+        const filesWithMtime: RecentGitFile[] = files.map((f) => ({
+          ...f,
+          mtime: mtimeMap.get(f.path.replace(/\\/g, '/')),
+        }));
+        setRecentFiles(filesWithMtime);
       } else {
         setRecentFiles([]);
         setGitBranch('');
@@ -331,8 +384,6 @@ export function HomeView({ onStartSession }: HomeViewProps) {
     }]);
   };
 
-  const sessionCount = persistedSessions.length || conversationHistory.length;
-
   return (
     <div className="home-view">
       {/* ── 左栏：会话列表 ── */}
@@ -397,8 +448,8 @@ export function HomeView({ onStartSession }: HomeViewProps) {
         <div className="home-stat-cards">
           <StatCard
             icon={<Hash size={15} />}
-            value={String(activeWorkspacePath ? (wsSessionCount ?? '—') : (sessionCount || '—'))}
-            label={activeWorkspacePath ? '工作区会话' : '历史会话'}
+            value={String(activeWorkspacePath ? (wsSessionCount ?? '—') : (weekSessionCount || '—'))}
+            label={activeWorkspacePath ? '工作区会话' : '本周任务'}
           />
           <StatCard
             icon={<TrendingUp size={15} />}
@@ -473,6 +524,9 @@ export function HomeView({ onStartSession }: HomeViewProps) {
                     <span className="home-recent-file-dir">
                       {file.path.includes('/') ? file.path.split('/').slice(0, -1).join('/') : ''}
                     </span>
+                    {file.mtime && (
+                      <span className="home-recent-file-time">{formatFileTime(file.mtime)}</span>
+                    )}
                   </div>
                 ))}
               </div>
