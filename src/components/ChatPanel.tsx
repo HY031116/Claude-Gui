@@ -2176,12 +2176,25 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
               <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <FileDiff size={11} /> 多段变更
               </div>
-              {(toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => (
-                <div key={idx} style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
-                  <DiffViewer oldStr={edit.old_string ?? ''} newStr={edit.new_string ?? ''} />
-                </div>
-              ))}
+              {(toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => {
+                // 从 originalContent 中定位每段 old_string 的起始行号
+                let startLine = 1;
+                if (toolCall.originalContent && edit.old_string) {
+                  const pos = toolCall.originalContent.indexOf(edit.old_string);
+                  if (pos !== -1) startLine = toolCall.originalContent.slice(0, pos).split('\n').length;
+                }
+                return (
+                  <div key={idx} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
+                    <DiffViewer
+                      oldStr={edit.old_string ?? ''}
+                      newStr={edit.new_string ?? ''}
+                      startLineOld={startLine}
+                      startLineNew={startLine}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
           {/* Write 工具：有原内容时展示 diff，否则展示新内容预览 */}
