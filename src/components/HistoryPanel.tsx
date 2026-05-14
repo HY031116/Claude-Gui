@@ -74,7 +74,7 @@ interface ProjectGroup {
 }
 
 export function HistoryPanel() {
-  const { conversationHistory, clearConversationHistory, removeConversation, session, setSession, clearMessages, setActivePanel } = useAppStore();
+  const { conversationHistory, clearConversationHistory, removeConversation, session, setSession, clearMessages, setActiveNavSection } = useAppStore();
   const [cliSessions, setCliSessions] = useState<CliSessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -224,9 +224,9 @@ export function HistoryPanel() {
         conversationSessionId: record.sessionId,
         workingDirectory: record.workingDirectory || session.workingDirectory,
       });
-      setActivePanel('chat');
+      setActiveNavSection('chat');
     },
-    [clearMessages, setSession, setActivePanel, session.workingDirectory],
+    [clearMessages, setSession, setActiveNavSection, session.workingDirectory],
   );
 
   /**
@@ -355,7 +355,7 @@ export function HistoryPanel() {
     <div className="history-page">
       {/* 顶部工具栏 */}
       <div className="history-page-toolbar">
-        <button className="history-back-btn" onClick={() => { setActivePanel('chat'); if (batchMode) toggleBatchMode(); }} title="返回对话">
+        <button className="history-back-btn" onClick={() => { setActiveNavSection('chat'); if (batchMode) toggleBatchMode(); }} title="返回对话">
           <ArrowLeft size={15} />
           返回对话
         </button>
