@@ -4,7 +4,7 @@
  * 提供：快速新建任务、快速导航、最近会话入口、本周消费概览、全局统计
  */
 import { useMemo, useEffect, useState } from 'react';
-import { Plus, FolderOpen, Clock, TrendingUp, Zap, GitBranch, SlidersHorizontal, Cpu, Hash, MapPin } from 'lucide-react';
+import { Plus, FolderOpen, Clock, TrendingUp, Zap, GitBranch, SlidersHorizontal, Cpu, Hash, MapPin, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import type { ConversationRecord, TokenRecord } from '../../types';
 
@@ -147,24 +147,34 @@ function WeeklyChart({ records }: { records: TokenRecord[] }) {
 interface SessionCardProps {
   record: ConversationRecord;
   onClick: () => void;
+  onDelete: (e: React.MouseEvent) => void;
 }
 
-function SessionCard({ record, onClick }: SessionCardProps) {
+function SessionCard({ record, onClick, onDelete }: SessionCardProps) {
   const projectName = getProjectName(record.workingDirectory);
   const preview = formatPreview(record.preview);
 
   return (
-    <button className="home-session-card" onClick={onClick} title={record.workingDirectory}>
-      <div className="home-session-project">
-        <FolderOpen size={12} />
-        {projectName}
-      </div>
-      <div className="home-session-preview">{preview}</div>
-      <div className="home-session-time">
-        <Clock size={10} />
-        {formatRelTime(record.lastMessageAt)}
-      </div>
-    </button>
+    <div className="home-session-card-wrap">
+      <button className="home-session-card" onClick={onClick} title={record.workingDirectory}>
+        <div className="home-session-project">
+          <FolderOpen size={12} />
+          {projectName}
+        </div>
+        <div className="home-session-preview">{preview}</div>
+        <div className="home-session-time">
+          <Clock size={10} />
+          {formatRelTime(record.lastMessageAt)}
+        </div>
+      </button>
+      <button
+        className="home-session-delete-btn"
+        title="删除此会话记录"
+        onClick={onDelete}
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
   );
 }
 
@@ -245,6 +255,19 @@ export function HomeView({ onStartSession }: HomeViewProps) {
       .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
       .slice(0, 6);
   }, [conversationHistory, persistedSessions]);
+
+  /** 删除持久化会话 */
+  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    try {
+      await window.electronAPI?.sessionDelete?.(sessionId);
+      // 刷新持久化列表
+      const res = await window.electronAPI?.sessionList?.();
+      if (res?.success && res.sessions) {
+        setPersistedSessions(res.sessions);
+      }
+    } catch { /* 静默失败 */ }
+  };
 
   /** 点击历史会话：优先从持久化加载完整消息 */
   const handleResume = async (record: ConversationRecord) => {
@@ -335,6 +358,7 @@ export function HomeView({ onStartSession }: HomeViewProps) {
                   key={rec.sessionId}
                   record={rec}
                   onClick={() => handleResume(rec)}
+                  onDelete={(e) => handleDelete(e, rec.sessionId)}
                 />
               ))}
             </div>

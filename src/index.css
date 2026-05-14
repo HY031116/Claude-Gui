@@ -4774,6 +4774,11 @@ body.is-resizing .resize-handle::after {
   gap: 10px;
 }
 
+/* 会话卡片外包装：relative 定位，用于放置删除按钮 */
+.home-session-card-wrap {
+  position: relative;
+}
+
 .home-session-card {
   display: flex;
   flex-direction: column;
@@ -4784,12 +4789,39 @@ body.is-resizing .resize-handle::after {
   background: var(--bg-secondary);
   cursor: pointer;
   text-align: left;
+  width: 100%;
   transition: background 0.14s, border-color 0.14s, transform 0.1s;
 }
 .home-session-card:hover {
   background: var(--bg-hover);
   border-color: var(--accent);
   transform: translateY(-1px);
+}
+
+/* 删除按钮：默认隐藏，悬停卡片外包装时显示 */
+.home-session-delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s, background 0.14s, color 0.14s;
+}
+.home-session-card-wrap:hover .home-session-delete-btn {
+  opacity: 1;
+}
+.home-session-delete-btn:hover {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff5050;
 }
 
 .home-session-project {
