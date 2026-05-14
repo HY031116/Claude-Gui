@@ -117,16 +117,30 @@ function ChangeDetail({ change, originalContent, onLineClick }: {
     const edits = (args.edits ?? []) as Array<{ old_string: string; new_string: string }>;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {edits.map((e, i) => (
-          <div key={i}>
-            {edits.length > 1 && (
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 0', marginBottom: 2 }}>
-                段落 {i + 1}
-              </div>
-            )}
-            <DiffViewer oldStr={e.old_string ?? ''} newStr={e.new_string ?? ''} onLineClick={onLineClick} />
-          </div>
-        ))}
+        {edits.map((e, i) => {
+          // 从 originalContent 中定位每段 old_string 的起始行号（与 edit 类型保持一致）
+          let startLine = 1;
+          if (originalContent && e.old_string) {
+            const idx = originalContent.indexOf(e.old_string);
+            if (idx !== -1) startLine = originalContent.slice(0, idx).split('\n').length;
+          }
+          return (
+            <div key={i}>
+              {edits.length > 1 && (
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 0', marginBottom: 2 }}>
+                  段落 {i + 1}
+                </div>
+              )}
+              <DiffViewer
+                oldStr={e.old_string ?? ''}
+                newStr={e.new_string ?? ''}
+                startLineOld={startLine}
+                startLineNew={startLine}
+                onLineClick={onLineClick}
+              />
+            </div>
+          );
+        })}
       </div>
     );
   }
