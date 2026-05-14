@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.7.0] - 2026-05-29
+
+### 新增
+- **MonitorView 历史会话高亮定位**：CommandCenter 近期会话列表点击单条记录，自动切换到 MonitorView → Sessions tab，并将对应行滚动至视图中央，伴随 2s 紫色闪烁动画
+- **diff 行号 gutter + 行内跳转**：InlineDiff（Unified 视图）和 SideBySideDiff（Side-by-Side 视图）均显示绝对行号；可点击的行号（ctx / add 行）直接调用 `code --goto filePath:lineNum` 在 VS Code 中定位到对应行
+- **ChangeSummaryPanel 文件行"在编辑器中打开"按钮**：每个文件行右侧增加 ExternalLink 图标，点击直接用系统编辑器打开文件（VS Code 优先）
+- **edit 类型 diff 起始行号计算**：通过 `originalContent.indexOf(old_string)` 自动计算被修改片段在原文件中的绝对起始行，diff 行号与真实文件行对齐
+
+### 变更
+- `openInEditor` IPC 新增可选 `line?: number` 参数；VS Code 路径使用 `--goto filePath:line` 精准跳转；非 VS Code 回退（notepad / shell.openPath）不支持行号，将直接打开文件
+- `DiffViewer` / `InlineDiff` / `SideBySideDiff` / `WriteDiff` 均新增 `startLineOld?` `startLineNew?` `onLineClick?` props
+
+---
+
 ## [3.3.0] - v3.0 双栏任务中心面板
 
 ### 新增
