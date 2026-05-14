@@ -677,7 +677,7 @@ export function ChatPanel() {
       }
     });
     return unsubscribe;
-  }, [addMessage, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep, syncCurrentPlanSteps]);
+  }, [addMessage, appendRawJson, updateMessage, kickTypewriter, ensureAssistantMessage, setSession, addOrUpdateConversation, setTodoItems, setTokenUsage, addTokenRecord, currentModel, addPlanStep, updatePlanStep, syncCurrentPlanSteps]);
 
   // 工作目录变更时清空 @ 目录缓存
   useEffect(() => {
@@ -759,7 +759,7 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '消息发送失败，请检查设置后重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [input, contextFiles, pastedImages, session.isConnected, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, continueMode, addMessage, setTokenUsage, clearPlanSteps]);
+  }, [input, canSend, contextFiles, pastedImages, session.conversationSessionId, session.workingDirectory, isProcessing, localAgent, continueMode, activeTabId, tabs, renameTab, addMessage, setTokenUsage, clearPlanSteps]);
 
   /** 将 atQuery 的目录部分解析出绝对路径，优先读缓存，缓存未命中则请求 API */
   const loadAtDir = useCallback(async (query: string) => {
@@ -2323,8 +2323,6 @@ const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: 
 
   // Turn 完成前（仍有 pending）不展示
   const isComplete = toolCalls.every(c => c.status !== 'pending');
-  if (!isComplete || reviewable.length === 0) return null;
-
   const allReviewed = reviewable.every(c => c.diffReviewStatus === 'accepted' || c.diffReviewStatus === 'reverted');
 
   // 用 computeLineDiff 统计每个文件的行增删
@@ -2395,6 +2393,8 @@ const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: 
       setBusy(false);
     }
   }, [busy, patchAll, reviewable]);
+
+  if (!isComplete || reviewable.length === 0) return null;
 
   return (
     <div style={{ margin: '2px 16px 6px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>

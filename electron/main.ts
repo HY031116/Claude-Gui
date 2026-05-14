@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, Notification, nativeTheme, session, shell } from 'electron';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { autoUpdater } from 'electron-updater';
@@ -445,7 +446,7 @@ ipcMain.handle('fs:openInEditor', async (_event, filePath: string, line?: number
     // 若有行号，使用 --goto filePath:line 精准定位
     const openWithVSCode = () => new Promise<boolean>((resolve) => {
       const args = line != null ? ['--goto', `${filePath}:${line}`] : [filePath];
-      const proc = require('child_process').spawn('code', args, {
+      const proc = spawn('code', args, {
         shell: true, detached: true, stdio: 'ignore',
       });
       proc.on('error', () => resolve(false));
@@ -456,7 +457,7 @@ ipcMain.handle('fs:openInEditor', async (_event, filePath: string, line?: number
 
     // 回退：Windows 用 notepad，其他系统用 shell.openPath
     if (process.platform === 'win32') {
-      const np = require('child_process').spawn('notepad.exe', [filePath], {
+      const np = spawn('notepad.exe', [filePath], {
         detached: true, stdio: 'ignore',
       });
       (np as any).unref();
