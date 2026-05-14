@@ -44,7 +44,7 @@ import { CostPanel } from '../CostPanel';
 import { ContextPanel } from '../ContextPanel';
 import { HistoryPanel } from '../HistoryPanel';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
+type NavSection = 'chat' | 'project' | 'tools' | 'history';
 
 const AUX_TABS: Record<
   Exclude<NavSection, 'chat'>,
@@ -59,16 +59,14 @@ const AUX_TABS: Record<
     { id: 'checkpoints', label: '快照', icon: Camera },
   ],
   tools: [
+    { id: 'tasks', label: '任务', icon: CheckSquare },
     { id: 'mcp', label: 'MCP', icon: Plug },
     { id: 'agents', label: 'Agents', icon: Bot },
     { id: 'plugins', label: 'Plugins', icon: Package },
     { id: 'hooks', label: 'Hooks', icon: Zap },
     { id: 'skills', label: 'Skills', icon: Sparkles },
-    { id: 'tasks', label: '任务', icon: CheckSquare },
-  ],
-  config: [
     { id: 'settings', label: '设置', icon: Settings },
-    { id: 'rules', label: '权限规则', icon: Shield },
+    { id: 'rules', label: '权限', icon: Shield },
     { id: 'claude-md', label: 'CLAUDE.md', icon: FileText },
     { id: 'mem', label: '记忆', icon: Brain },
     { id: 'cost', label: '成本', icon: DollarSign },
@@ -149,12 +147,12 @@ export function AuxPanel({
           {activeNavSection === 'tools' && activeAuxSubPanel === 'hooks' && <HooksPanel />}
           {activeNavSection === 'tools' && activeAuxSubPanel === 'skills' && <SkillsPanel />}
           {activeNavSection === 'tools' && activeAuxSubPanel === 'tasks' && <TaskPanel />}
-          {/* config section */}
-          {activeNavSection === 'config' && activeAuxSubPanel === 'settings' && <SettingsPanel />}
-          {activeNavSection === 'config' && activeAuxSubPanel === 'rules' && <RulesPanel />}
-          {activeNavSection === 'config' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
-          {activeNavSection === 'config' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
-          {activeNavSection === 'config' && activeAuxSubPanel === 'cost' && <CostPanel />}
+          {/* tools 内的配置子面板（config 已合并入 tools） */}
+          {activeNavSection === 'tools' && activeAuxSubPanel === 'settings' && <SettingsPanel />}
+          {activeNavSection === 'tools' && activeAuxSubPanel === 'rules' && <RulesPanel />}
+          {activeNavSection === 'tools' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
+          {activeNavSection === 'tools' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
+          {activeNavSection === 'tools' && activeAuxSubPanel === 'cost' && <CostPanel />}
           {/* history section */}
           {activeNavSection === 'history' && activeAuxSubPanel === 'sessions' && <HistoryPanel />}
           {activeNavSection === 'history' && activeAuxSubPanel === 'cost' && <CostPanel />}

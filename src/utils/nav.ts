@@ -3,21 +3,19 @@
  * 从 App.tsx handleNavClick 提取，供测试和多处复用
  */
 
-export type NavSection = 'chat' | 'project' | 'tools' | 'config' | 'history';
-export type NavClick = 'chat' | 'project' | 'tools' | 'config' | 'history';
+export type NavSection = 'chat' | 'project' | 'tools' | 'history';
+export type NavClick = 'chat' | 'project' | 'tools' | 'history';
 
-/** tools/config/history 展开时默认激活的子标签 */
-export const SECTION_DEFAULTS: Record<'tools' | 'config' | 'history', string> = {
-  tools: 'mcp',
-  config: 'settings',
+/** tools/history 展开时默认激活的子标签（config 已合并入 tools） */
+export const SECTION_DEFAULTS: Record<'tools' | 'history', string> = {
+  tools: 'tasks',
   history: 'sessions',
 };
 
-/** 各 section 合法子标签 */
-export const SECTION_VALID_SUBS: Record<'project' | 'tools' | 'config' | 'history', string[]> = {
+/** 各 section 合法子标签（config 子标签已合并入 tools） */
+export const SECTION_VALID_SUBS: Record<'project' | 'tools' | 'history', string[]> = {
   project: ['files', 'git', 'changes', 'context', 'worktrees', 'checkpoints'],
-  tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks'],
-  config: ['settings', 'rules', 'claude-md', 'mem', 'cost'],
+  tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks', 'settings', 'rules', 'claude-md', 'mem', 'cost'],
   history: ['sessions', 'cost', 'mem-search'],
 };
 
@@ -65,13 +63,6 @@ export function computeNavTransition(
       ? currentSubPanel
       : SECTION_DEFAULTS.tools;
     return { section: 'tools', subPanel: sub };
-  }
-
-  if (click === 'config') {
-    const sub = SECTION_VALID_SUBS.config.includes(currentSubPanel)
-      ? currentSubPanel
-      : SECTION_DEFAULTS.config;
-    return { section: 'config', subPanel: sub };
   }
 
   if (click === 'history') {

@@ -7,10 +7,9 @@
 import { useCallback, useMemo } from 'react';
 import { useAppStore } from '../../stores/useAppStore';
 import {
-  MessageSquare,
+  Play,
   FolderOpen,
   Wrench,
-  SlidersHorizontal,
   Clock,
   Sun,
   Moon,
@@ -19,10 +18,9 @@ import {
 import type { NavClick } from '../../utils/nav';
 
 const NAV_ITEMS: { id: NavClick; label: string; icon: React.ElementType }[] = [
-  { id: 'chat', label: '对话', icon: MessageSquare },
+  { id: 'chat', label: '任务', icon: Play },
   { id: 'project', label: '项目', icon: FolderOpen },
   { id: 'tools', label: '工具', icon: Wrench },
-  { id: 'config', label: '配置', icon: SlidersHorizontal },
   { id: 'history', label: '历史', icon: Clock },
 ];
 

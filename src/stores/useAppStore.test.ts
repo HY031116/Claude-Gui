@@ -69,8 +69,8 @@ describe('useAppStore - 导航状态', () => {
     const { useAppStore } = await import('../stores/useAppStore');
     const store = useAppStore.getState();
 
-    store.setActiveNavSection('config');
-    expect(useAppStore.getState().activeNavSection).toBe('config');
+    store.setActiveNavSection('tools');
+    expect(useAppStore.getState().activeNavSection).toBe('tools');
   });
 
   it('setActiveAuxSubPanel 更新子标签', async () => {

@@ -498,7 +498,7 @@ export function HomeView({ onStartSession }: HomeViewProps) {
           </button>
           <button
             className="home-quick-link"
-            onClick={() => { setActiveNavSection('config'); setActiveAuxSubPanel('settings'); }}
+            onClick={() => { setActiveNavSection('tools'); setActiveAuxSubPanel('settings'); }}
           >
             <SlidersHorizontal size={12} />
             设置

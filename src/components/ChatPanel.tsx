@@ -305,7 +305,7 @@ export function ChatPanel() {
   const handleGoToSettings = useCallback(() => {
     localStorage.setItem('claude-gui-onboarding-v1', '1');
     setOnboardingDone(true);
-    setActiveNavSection('config');
+    setActiveNavSection('tools');
     setActiveAuxSubPanel('settings');
   }, [setActiveNavSection, setActiveAuxSubPanel]);
   // Agent 快切
