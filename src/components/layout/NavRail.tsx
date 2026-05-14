@@ -1,31 +1,47 @@
 /**
  * NavRail — 左侧垂直导航栏（56px 固定宽）
- * 5 个一级导航：对话 / 项目 / 工具 / 配置 / 历史
- * 直接从 Zustand store 读取 activeNavSection / theme，
- * 将 onNavClick 通过 props 传入（handleNavClick 含 toggle 逻辑，保留在 App.tsx）
+ * Agent 中心设计 v3.0：8 个场景化导航区域
+ * 执行类（指挥/委派/Agents）→ 控制类（审查/产物）→ 配置类（能力/监控）→ 设置
  */
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/useAppStore';
 import {
-  Play,
-  FolderOpen,
+  LayoutDashboard,
+  Zap,
+  Bot,
+  CheckSquare,
+  Package,
   Wrench,
-  Clock,
+  BarChart2,
+  Settings,
   Sun,
   Moon,
-  Bot,
   ArrowUpCircle,
 } from 'lucide-react';
-import type { NavClick } from '../../utils/nav';
+import type { NavSection, NavClick } from '../../utils/nav';
 
-const NAV_ITEMS: { id: NavClick; label: string; icon: React.ElementType }[] = [
-  { id: 'chat', label: '任务', icon: Play },
-  { id: 'project', label: '项目', icon: FolderOpen },
-  { id: 'tools', label: '工具', icon: Wrench },
-  { id: 'history', label: '历史', icon: Clock },
+/** 导航项定义 */
+interface NavItem {
+  id: NavClick;
+  label: string;
+  icon: React.ElementType;
+  group?: 'exec' | 'control' | 'config'; // 分组，用于渲染分隔线
+}
+
+const NAV_ITEMS: NavItem[] = [
+  // 执行类
+  { id: 'command', label: '指挥中心', icon: LayoutDashboard, group: 'exec' },
+  { id: 'dispatch', label: '委派', icon: Zap, group: 'exec' },
+  { id: 'agents', label: 'Agents', icon: Bot, group: 'exec' },
+  // 控制类
+  { id: 'review', label: '审查', icon: CheckSquare, group: 'control' },
+  { id: 'artifacts', label: '产物', icon: Package, group: 'control' },
+  // 配置类
+  { id: 'capabilities', label: '能力配置', icon: Wrench, group: 'config' },
+  { id: 'monitor', label: '监控', icon: BarChart2, group: 'config' },
 ];
 
-/** 文件修改类工具名称 */
+/** 文件修改类工具名称（用于计算待审查数量） */
 const FILE_MODIFY_TOOLS = new Set([
   'Write', 'write_file',
   'Edit', 'edit_file', 'str_replace_editor', 'str_replace_based_edit_tool',
@@ -37,13 +53,13 @@ interface NavRailProps {
 }
 
 export function NavRail({ onNavClick }: NavRailProps) {
-  const activeNavSection = useAppStore((s) => s.activeNavSection);
-  const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
+  const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
   const messages = useAppStore((s) => s.messages);
+  const processingTabs = useAppStore((s) => s.processingTabs);
 
-  // 计算本轮会话中文件修改工具调用（成功且未审阅）数量
+  // 计算待审查变更数量（未审阅的文件修改工具调用）
   const pendingChangesCount = useMemo(() => {
     let count = 0;
     for (const msg of messages) {
@@ -56,15 +72,11 @@ export function NavRail({ onNavClick }: NavRailProps) {
     return count;
   }, [messages]);
 
-  // 判断导航项是否激活（点击已激活则折叠，所以用 activeNavSection 直接匹配）
-  const isActive = (id: NavClick): boolean => {
-    return activeNavSection === id;
-  };
-
-  // 是否显示变更角标（project 且有待处理变更）
-  const showChangeBadge = (id: NavClick): boolean => {
-    return id === 'project' && pendingChangesCount > 0;
-  };
+  // 是否有 Agent 正在处理中
+  const hasProcessingAgent = useMemo(
+    () => Object.values(processingTabs).some(Boolean),
+    [processingTabs],
+  );
 
   const handleThemeToggle = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -72,9 +84,8 @@ export function NavRail({ onNavClick }: NavRailProps) {
     window.electronAPI?.setNativeTheme?.(next);
   }, [theme, setTheme]);
 
-  /** 订阅 autoUpdater 状态，有可用更新时亮角标 */
+  /** 订阅 autoUpdater 状态 */
   const [updateState, setUpdateState] = useState<'available' | 'downloaded' | null>(null);
-
   useEffect(() => {
     if (!window.electronAPI?.onUpdateStatus) return;
     return window.electronAPI.onUpdateStatus((s) => {
@@ -84,56 +95,86 @@ export function NavRail({ onNavClick }: NavRailProps) {
     });
   }, []);
 
-  // activeAuxSubPanel 用于 tooltip 显示当前激活子面板（保留以备用）
-  void activeAuxSubPanel;
+  /** 渲染单个导航按钮 */
+  const renderNavButton = (item: NavItem) => {
+    const Icon = item.icon;
+    const active = activeNavSection === item.id;
+
+    // 各按钮的徽章逻辑
+    let badge: React.ReactNode = null;
+    if (item.id === 'dispatch' && hasProcessingAgent) {
+      // 处理中：蓝色脉冲点
+      badge = (
+        <span style={{
+          position: 'absolute', top: 6, right: 6,
+          width: 7, height: 7, borderRadius: '50%',
+          background: '#3b82f6',
+          border: '1.5px solid var(--bg-primary)',
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }} />
+      );
+    } else if (item.id === 'review' && pendingChangesCount > 0) {
+      // 待审查：红色数字徽章
+      badge = (
+        <span style={{
+          position: 'absolute', top: 4, right: 2,
+          minWidth: 14, height: 14,
+          borderRadius: 7, padding: '0 2px',
+          background: '#ef4444',
+          border: '1.5px solid var(--bg-primary)',
+          color: '#fff', fontSize: 9, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          lineHeight: 1,
+        }}>
+          {pendingChangesCount > 9 ? '9+' : pendingChangesCount}
+        </span>
+      );
+    }
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => onNavClick(item.id)}
+        className={`nav-button${active ? ' active' : ''}`}
+        aria-label={item.label}
+        data-tooltip={item.label}
+        style={{ position: 'relative' }}
+      >
+        <Icon size={18} />
+        {badge}
+      </button>
+    );
+  };
 
   return (
     <div className="nav-rail">
-      {/* 顶部 Logo 区域 */}
+      {/* 顶部 Logo */}
       <div className="nav-rail-logo" title="Claude Code GUI">
         <Bot size={20} />
       </div>
 
-      {/* 分割线 */}
       <div className="nav-rail-divider" />
 
-      {/* 主导航按钮 */}
-      {NAV_ITEMS.map((item) => {
-        const Icon = item.icon;
-        const active = isActive(item.id);
-        const showBadge = showChangeBadge(item.id);
-        return (
-          <button
-            key={item.id}
-            onClick={() => onNavClick(item.id)}
-            className={`nav-button ${active ? 'active' : ''}`}
-            aria-label={item.label}
-            data-tooltip={item.label}
-            style={{ position: 'relative' }}
-          >
-            <Icon size={18} />
-            {showBadge && (
-              <span style={{
-                position: 'absolute',
-                top: 4,
-                right: 4,
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: 'var(--accent)',
-                border: '1.5px solid var(--bg-primary)',
-              }} />
-            )}
-          </button>
-        );
-      })}
+      {/* 执行类导航 */}
+      {NAV_ITEMS.filter((i) => i.group === 'exec').map(renderNavButton)}
 
-      {/* 底部区域（主题切换 + 更新角标） */}
+      <div className="nav-rail-divider" />
+
+      {/* 控制类导航 */}
+      {NAV_ITEMS.filter((i) => i.group === 'control').map(renderNavButton)}
+
+      <div className="nav-rail-divider" />
+
+      {/* 配置类导航 */}
+      {NAV_ITEMS.filter((i) => i.group === 'config').map(renderNavButton)}
+
+      {/* 底部弹性空间 */}
       <div className="nav-rail-spacer" />
-      {/* 更新可用时显示更新按钮（跳转至设置面板） */}
+
+      {/* 更新按钮 */}
       {updateState && (
         <button
-          onClick={() => onNavClick('tools')}
+          onClick={() => onNavClick('settings')}
           className="nav-button nav-button-update"
           aria-label={updateState === 'downloaded' ? '更新已就绪，点击安装' : '有可用更新，点击查看'}
           data-tooltip={updateState === 'downloaded' ? '重启安装更新' : '发现新版本'}
@@ -143,6 +184,18 @@ export function NavRail({ onNavClick }: NavRailProps) {
           <span className="nav-update-dot" data-ready={updateState === 'downloaded'} />
         </button>
       )}
+
+      {/* 设置按钮（置底） */}
+      <button
+        onClick={() => onNavClick('settings')}
+        className={`nav-button${activeNavSection === 'settings' ? ' active' : ''}`}
+        aria-label="设置"
+        data-tooltip="设置"
+      >
+        <Settings size={16} />
+      </button>
+
+      {/* 主题切换 */}
       <button
         onClick={handleThemeToggle}
         className="nav-button"
@@ -154,3 +207,5 @@ export function NavRail({ onNavClick }: NavRailProps) {
     </div>
   );
 }
+
+

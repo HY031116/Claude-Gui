@@ -140,10 +140,10 @@ interface AppState {
   removeConversation: (sessionId: string) => void;
   clearConversationHistory: () => void;
 
-  // UI — 五级一级导航（Phase 1 重构）
-  /** 一级导航区域，决定辅助面板内容；chat 时辅助面板收起 */
-  activeNavSection: 'chat' | 'project' | 'tools' | 'history';
-  setActiveNavSection: (section: 'chat' | 'project' | 'tools' | 'history') => void;
+  // UI — Agent 中心导航（v3.0 重构）
+  /** 一级导航区域：command / dispatch / agents / review / artifacts / capabilities / monitor / settings */
+  activeNavSection: string;
+  setActiveNavSection: (section: string) => void;
   /** 辅助面板内当前子标签（如 'files'、'git'、'settings'） */
   activeAuxSubPanel: string;
   setActiveAuxSubPanel: (sub: string) => void;
@@ -372,7 +372,7 @@ export const useAppStore = create<AppState>((set, get) => {
   }),
 
   // Phase 1 新导航状态
-  activeNavSection: 'chat',
+  activeNavSection: 'command',
   setActiveNavSection: (section) => set({ activeNavSection: section }),
   activeAuxSubPanel: '',
   setActiveAuxSubPanel: (sub) => set({ activeAuxSubPanel: sub }),

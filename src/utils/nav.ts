@@ -1,76 +1,67 @@
 /**
  * 导航状态转换工具（纯函数）
- * 从 App.tsx handleNavClick 提取，供测试和多处复用
+ * Agent 中心设计 v3.0：8 个场景化导航区域
  */
 
-export type NavSection = 'chat' | 'project' | 'tools' | 'history';
-export type NavClick = 'chat' | 'project' | 'tools' | 'history';
+/**
+ * 一级导航区域（Agent 中心范式）
+ * - command:      指挥中心（默认首页，Agent 看板 + 介入队列）
+ * - dispatch:     委派（对话/任务委派入口，含 Chat + Terminal）
+ * - agents:       Agents（舰队管理 + Worktree）
+ * - review:       审查（Diff + Plan + Checkpoint）
+ * - artifacts:    产物（Git + 历史 + 变更）
+ * - capabilities: 能力配置（MCP + Hooks + Skills + Plugins + Rules + Memory）
+ * - monitor:      监控（Token + 成本 + 会话历史）
+ * - settings:     设置
+ */
+export type NavSection =
+  | 'command'
+  | 'dispatch'
+  | 'agents'
+  | 'review'
+  | 'artifacts'
+  | 'capabilities'
+  | 'monitor'
+  | 'settings';
 
-/** tools/history 展开时默认激活的子标签（config 已合并入 tools） */
-export const SECTION_DEFAULTS: Record<'tools' | 'history', string> = {
-  tools: 'tasks',
-  history: 'sessions',
-};
+export type NavClick = NavSection;
 
-/** 各 section 合法子标签（config 子标签已合并入 tools） */
-export const SECTION_VALID_SUBS: Record<'project' | 'tools' | 'history', string[]> = {
-  project: ['files', 'git', 'changes', 'context', 'worktrees', 'checkpoints'],
-  tools: ['mcp', 'agents', 'plugins', 'hooks', 'skills', 'tasks', 'settings', 'rules', 'claude-md', 'mem', 'cost'],
-  history: ['sessions', 'cost', 'mem-search'],
-};
+/** dispatch section 辅助面板默认子标签 */
+export const DISPATCH_AUX_DEFAULT = 'files';
+
+/** dispatch 的辅助面板子标签（右侧上下文工具） */
+export const DISPATCH_AUX_SUBS = ['files', 'git', 'changes', 'context', 'checkpoints'] as const;
 
 export interface NavTransition {
   /** 新的一级导航区域 */
   section: NavSection;
-  /** 新的子标签（undefined = 不变） */
+  /** 新的辅助面板子标签（undefined = 不变） */
   subPanel?: string;
 }
 
 /**
- * 根据当前导航状态 + NavRail 点击 ID，计算下一个状态
+ * 根据当前状态 + NavRail 点击 ID，计算下一个导航状态
  *
- * 规则：点击已激活的同一入口 → 折叠回 chat；否则展开对应 section。
- *
- * @param currentSection  当前 activeNavSection
- * @param currentSubPanel 当前 activeAuxSubPanel
- * @param click           NavRail 按钮 ID
- * @returns 需要更新的状态（section 始终返回，subPanel 仅在需要变更时返回）
+ * 规则：点击已激活的同一入口 → 跳回指挥中心；否则切换到对应 section。
  */
 export function computeNavTransition(
   currentSection: NavSection,
   currentSubPanel: string,
   click: NavClick,
 ): NavTransition {
-  if (click === 'chat') {
-    return { section: 'chat' };
+  // 点击已激活的 section → 跳回指挥中心
+  if (currentSection === click && click !== 'command') {
+    return { section: 'command' };
   }
 
-  // 点击已激活的 section → 折叠
-  if (currentSection === click) {
-    return { section: 'chat' };
-  }
-
-  // 切换到新 section，需要给出默认子标签
-  if (click === 'project') {
-    const sub = SECTION_VALID_SUBS.project.includes(currentSubPanel)
+  // 切换到 dispatch 时，保留或初始化辅助面板子标签
+  if (click === 'dispatch') {
+    const sub = (DISPATCH_AUX_SUBS as readonly string[]).includes(currentSubPanel)
       ? currentSubPanel
-      : 'files';
-    return { section: 'project', subPanel: sub };
+      : DISPATCH_AUX_DEFAULT;
+    return { section: 'dispatch', subPanel: sub };
   }
 
-  if (click === 'tools') {
-    const sub = SECTION_VALID_SUBS.tools.includes(currentSubPanel)
-      ? currentSubPanel
-      : SECTION_DEFAULTS.tools;
-    return { section: 'tools', subPanel: sub };
-  }
-
-  if (click === 'history') {
-    const sub = SECTION_VALID_SUBS.history.includes(currentSubPanel)
-      ? currentSubPanel
-      : SECTION_DEFAULTS.history;
-    return { section: 'history', subPanel: sub };
-  }
-
-  return { section: 'chat' };
+  // 其余 section 直接切换，无需 subPanel
+  return { section: click };
 }

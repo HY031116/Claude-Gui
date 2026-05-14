@@ -122,7 +122,8 @@ function App() {
   }, [activeNavSection, activeAuxSubPanel, setActiveNavSection, setActiveAuxSubPanel]);
 
   // project/tools/config 均展开辅助面板
-  const auxPanelOpen = activeNavSection !== 'chat';
+  // v3.0 Agent 中心：只有 dispatch 视图才展开右侧辅助面板
+  const auxPanelOpen = activeNavSection === 'dispatch';
 
   // 快捷键面板
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -149,7 +150,7 @@ function App() {
       <NavRail onNavClick={handleNavClick as (id: NavClick) => void} />
 
       {/* 对话主区域（永置，不被辅助面板替换）*/}
-      <WorkspaceArea onStartSession={handleStartSession} />
+      <WorkspaceArea onStartSession={handleStartSession} onNavClick={handleNavClick as (id: NavClick) => void} />
 
 
       {/* 辅助面板（右侧，按需展开） */}

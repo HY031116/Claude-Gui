@@ -1,102 +1,43 @@
 /**
- * AuxPanel — 右侧辅助面板（子标签栏 + 内容区）
- * 直接从 store 读取 activeNavSection / activeAuxSubPanel；
- * onStartSession / onStopSession 需要 IPC，由 App.tsx 传入。
+ * AuxPanel — 右侧辅助面板（仅在 dispatch 模式下显示）
+ * Agent 中心设计 v3.0：只有「委派」视图需要右侧上下文工具
+ * 子标签：文件浏览 / Git / 变更 / 上下文 / 检查点
  */
 import {
   FolderOpen,
   GitBranch,
   GitCommit,
-  Layers,
   Camera,
-  Plug,
-  Bot,
-  Package,
-  Zap,
-  Sparkles,
-  CheckSquare,
-  Settings,
-  Shield,
-  FileText,
-  Brain,
-  DollarSign,
   Info,
-  Clock,
-  Search,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { FileExplorer } from '../FileExplorer';
 import { GitPanel } from '../GitPanel';
 import { ChangeSummaryPanel } from '../ChangeSummaryPanel';
-import { WorktreePanel } from '../WorktreePanel';
 import { CheckpointPanel } from '../CheckpointPanel';
-import { McpPanel } from '../McpPanel';
-import { AgentPanel } from '../AgentPanel';
-import PluginPanel from '../PluginPanel';
-import { HooksPanel } from '../HooksPanel';
-import { SkillsPanel } from '../SkillsPanel';
-import { TaskPanel } from '../TaskPanel';
-import { SettingsPanel } from '../SettingsPanel';
-import { RulesPanel } from '../RulesPanel';
-import { MemoryEditPanel } from '../MemoryEditPanel';
-import { MemSearchPanel } from '../MemSearchPanel';
-import { CostPanel } from '../CostPanel';
 import { ContextPanel } from '../ContextPanel';
-import { HistoryPanel } from '../HistoryPanel';
+import type { NavSection } from '../../utils/nav';
 
-type NavSection = 'chat' | 'project' | 'tools' | 'history';
-
-const AUX_TABS: Record<
-  Exclude<NavSection, 'chat'>,
-  { id: string; label: string; icon: React.ElementType }[]
-> = {
-  project: [
-    { id: 'files', label: '文件', icon: FolderOpen },
-    { id: 'git', label: 'Git', icon: GitBranch },
-    { id: 'changes', label: '变更', icon: GitCommit },
-    { id: 'context', label: '上下文', icon: Info },
-    { id: 'worktrees', label: 'Worktree', icon: Layers },
-    { id: 'checkpoints', label: '快照', icon: Camera },
-  ],
-  tools: [
-    { id: 'tasks', label: '任务', icon: CheckSquare },
-    { id: 'mcp', label: 'MCP', icon: Plug },
-    { id: 'agents', label: 'Agents', icon: Bot },
-    { id: 'plugins', label: 'Plugins', icon: Package },
-    { id: 'hooks', label: 'Hooks', icon: Zap },
-    { id: 'skills', label: 'Skills', icon: Sparkles },
-    { id: 'settings', label: '设置', icon: Settings },
-    { id: 'rules', label: '权限', icon: Shield },
-    { id: 'claude-md', label: 'CLAUDE.md', icon: FileText },
-    { id: 'mem', label: '记忆', icon: Brain },
-    { id: 'cost', label: '成本', icon: DollarSign },
-  ],
-  history: [
-    { id: 'sessions', label: '历史会话', icon: Clock },
-    { id: 'cost', label: '成本统计', icon: DollarSign },
-    { id: 'mem-search', label: '记忆搜索', icon: Search },
-  ],
-};
+const DISPATCH_AUX_TABS = [
+  { id: 'files', label: '文件', icon: FolderOpen },
+  { id: 'git', label: 'Git', icon: GitBranch },
+  { id: 'changes', label: '变更', icon: GitCommit },
+  { id: 'context', label: '上下文', icon: Info },
+  { id: 'checkpoints', label: '快照', icon: Camera },
+] as const;
 
 interface AuxPanelProps {
   width: number;
   onResizeMouseDown: (e: React.MouseEvent) => void;
 }
 
-export function AuxPanel({
-  width,
-  onResizeMouseDown,
-}: AuxPanelProps) {
+export function AuxPanel({ width, onResizeMouseDown }: AuxPanelProps) {
   const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const activeAuxSubPanel = useAppStore((s) => s.activeAuxSubPanel);
   const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
 
-  if (activeNavSection === 'chat') return null;
-
-  const tabs = AUX_TABS[activeNavSection as Exclude<NavSection, 'chat'>] ?? [];
-
-  // 防御：section 不在 AUX_TABS 里（旧存储值或 HMR 状态残留）→ 不渲染
-  if (tabs.length === 0) return null;
+  // 只在 dispatch 视图下渲染辅助面板
+  if (activeNavSection !== 'dispatch') return null;
 
   return (
     <>
@@ -114,7 +55,7 @@ export function AuxPanel({
       >
         {/* 子标签栏 */}
         <div className="aux-tab-bar">
-          {tabs.map((tab) => {
+          {DISPATCH_AUX_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeAuxSubPanel === tab.id;
             return (
@@ -133,30 +74,11 @@ export function AuxPanel({
 
         {/* 内容区 */}
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {/* project section */}
-          {activeNavSection === 'project' && activeAuxSubPanel === 'files' && <FileExplorer />}
-          {activeNavSection === 'project' && activeAuxSubPanel === 'git' && <GitPanel />}
-          {activeNavSection === 'project' && activeAuxSubPanel === 'changes' && <ChangeSummaryPanel />}
-          {activeNavSection === 'project' && activeAuxSubPanel === 'context' && <ContextPanel />}
-          {activeNavSection === 'project' && activeAuxSubPanel === 'worktrees' && <WorktreePanel />}
-          {activeNavSection === 'project' && activeAuxSubPanel === 'checkpoints' && <CheckpointPanel />}
-          {/* tools section */}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'mcp' && <McpPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'agents' && <AgentPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'plugins' && <PluginPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'hooks' && <HooksPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'skills' && <SkillsPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'tasks' && <TaskPanel />}
-          {/* tools 内的配置子面板（config 已合并入 tools） */}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'settings' && <SettingsPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'rules' && <RulesPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'claude-md' && <MemoryEditPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'mem' && <MemSearchPanel />}
-          {activeNavSection === 'tools' && activeAuxSubPanel === 'cost' && <CostPanel />}
-          {/* history section */}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'sessions' && <HistoryPanel />}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'cost' && <CostPanel />}
-          {activeNavSection === 'history' && activeAuxSubPanel === 'mem-search' && <MemSearchPanel />}
+          {activeAuxSubPanel === 'files' && <FileExplorer />}
+          {activeAuxSubPanel === 'git' && <GitPanel />}
+          {activeAuxSubPanel === 'changes' && <ChangeSummaryPanel />}
+          {activeAuxSubPanel === 'context' && <ContextPanel />}
+          {activeAuxSubPanel === 'checkpoints' && <CheckpointPanel />}
         </div>
       </div>
     </>

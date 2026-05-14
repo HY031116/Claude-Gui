@@ -1,6 +1,14 @@
 /**
- * WorkspaceArea — 主工作区（topbar + 标签条 + ChatPanel + TerminalPanel + 历史侧边栏）
- * 直接从 Zustand store 读取所需字段，减少 props 层数
+ * WorkspaceArea — 主工作区（Agent 中心路由 v3.0）
+ * 根据 activeNavSection 路由到对应视图：
+ *   command       → CommandCenter（指挥中心）
+ *   dispatch      → 原有 Chat + Terminal 界面
+ *   agents        → AgentsView
+ *   review        → ReviewView
+ *   artifacts     → ArtifactsView
+ *   capabilities  → CapabilitiesView
+ *   monitor       → MonitorView
+ *   settings      → SettingsPanel
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Cpu, PanelRightOpen, PanelRightClose } from 'lucide-react';
@@ -8,15 +16,23 @@ import { useAppStore } from '../../stores/useAppStore';
 import { TerminalPanel } from '../TerminalPanel';
 import { SessionList } from '../SessionList';
 import { TaskView } from '../task/TaskView';
-import { HomeView } from '../task/HomeView';
+import { SettingsPanel } from '../SettingsPanel';
+import { CommandCenter } from '../views/CommandCenter';
+import { AgentsView } from '../views/AgentsView';
+import { ReviewView } from '../views/ReviewView';
+import { ArtifactsView } from '../views/ArtifactsView';
+import { CapabilitiesView } from '../views/CapabilitiesView';
+import { MonitorView } from '../views/MonitorView';
+import type { NavSection, NavClick } from '../../utils/nav';
 
 interface WorkspaceAreaProps {
   onStartSession: () => void;
+  onNavClick: (id: NavClick) => void;
 }
 
-export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
+export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps) {
+  const activeNavSection = useAppStore((s) => s.activeNavSection) as NavSection;
   const session = useAppStore((s) => s.session);
-  const messages = useAppStore((s) => s.messages);
   const setSession = useAppStore((s) => s.setSession);
   const tabs = useAppStore((s) => s.tabs);
   const activeTabId = useAppStore((s) => s.activeTabId);
@@ -119,6 +135,23 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── 非 dispatch 路由：全宽视图 ── */}
+      {activeNavSection === 'command' && (
+        <CommandCenter onNavClick={onNavClick} onStartSession={onStartSession} />
+      )}
+      {activeNavSection === 'agents' && <AgentsView />}
+      {activeNavSection === 'review' && <ReviewView />}
+      {activeNavSection === 'artifacts' && <ArtifactsView />}
+      {activeNavSection === 'capabilities' && <CapabilitiesView />}
+      {activeNavSection === 'monitor' && <MonitorView />}
+      {activeNavSection === 'settings' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+          <SettingsPanel />
+        </div>
+      )}
+
+      {/* ── dispatch 路由：原有 Chat + Terminal 界面 ── */}
+      {activeNavSection === 'dispatch' && (
       <div className="workspace-shell">
         <div className="workspace-main-column">
           {/* 顶栏：项目名 + 状态标签 + 历史切换按钮 */}
@@ -334,12 +367,8 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
             );
           })()}
 
-          {/* 无连接 + 无消息：显示首屏欢迎页 */}
-          {!session.isConnected && messages.length === 0 ? (
-            <HomeView onStartSession={onStartSession} />
-          ) : (
-            <TaskView activeTabId={activeTabId} />
-          )}
+          {/* dispatch 内始终显示 TaskView（无连接时显示欢迎态已移至 CommandCenter） */}
+          <TaskView activeTabId={activeTabId} />
           <TerminalPanel />
         </div>
 
@@ -350,6 +379,7 @@ export function WorkspaceArea({ onStartSession }: WorkspaceAreaProps) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
