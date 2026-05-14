@@ -129,7 +129,6 @@ export function ChangeSummaryPanel() {
   const activeChangeId = useAppStore((s) => s.activeChangeId);
   const setActiveChangeId = useAppStore((s) => s.setActiveChangeId);
   const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
-  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [expandedChanges, setExpandedChanges] = useState<Set<string>>(new Set());
   const [revertBusy, setRevertBusy] = useState(false);
@@ -236,6 +235,47 @@ export function ChangeSummaryPanel() {
   const totalFiles = fileSummaries.length;
   const totalChanges = fileSummaries.reduce((s, f) => s + f.changes.length, 0);
   const canRevertAll = trackedChanges.some((c) => c.originalContent !== undefined && c.diffReviewStatus !== 'reverted');
+
+  /** 应用某个文件的所有待确认变更 */
+  const handleAcceptFile = useCallback((filePath: string) => {
+    const toAccept = new Set(
+      trackedChanges.filter((c) => c.filePath === filePath && !c.diffReviewStatus).map((c) => c.toolCallId)
+    );
+    if (toAccept.size === 0) return;
+    const msgIds = new Set(trackedChanges.filter((c) => toAccept.has(c.toolCallId)).map((c) => c.msgId));
+    for (const msg of messages) {
+      if (!msgIds.has(msg.id) || !msg.toolCalls) continue;
+      updateMessage(msg.id, {
+        toolCalls: msg.toolCalls.map((tc) =>
+          toAccept.has(tc.id) ? { ...tc, diffReviewStatus: 'accepted' as const } : tc
+        ),
+      });
+    }
+  }, [trackedChanges, messages, updateMessage]);
+
+  /** 回滚某个文件的所有变更（使用最早的 originalContent 快照写回磁盘） */
+  const handleRevertFile = useCallback(async (filePath: string) => {
+    const fileChanges = trackedChanges.filter((c) => c.filePath === filePath);
+    const originalContent = fileChanges.find((c) => c.originalContent !== undefined)?.originalContent;
+    if (originalContent === undefined) return;
+    try {
+      await window.electronAPI.writeFile(filePath, originalContent);
+      const toRevert = new Set(
+        fileChanges.filter((c) => c.diffReviewStatus !== 'reverted').map((c) => c.toolCallId)
+      );
+      const msgIds = new Set(fileChanges.filter((c) => toRevert.has(c.toolCallId)).map((c) => c.msgId));
+      for (const msg of messages) {
+        if (!msgIds.has(msg.id) || !msg.toolCalls) continue;
+        updateMessage(msg.id, {
+          toolCalls: msg.toolCalls.map((tc) =>
+            toRevert.has(tc.id) ? { ...tc, diffReviewStatus: 'reverted' as const } : tc
+          ),
+        });
+      }
+    } catch (e) {
+      console.error('单文件回滚失败', e);
+    }
+  }, [trackedChanges, messages, updateMessage]);
 
   /**
    * 对话 ↔ Diff 联动：当 activeChangeId 变化时，
@@ -360,11 +400,8 @@ export function ChangeSummaryPanel() {
           {/* 全部变更已应用时，显示"提交到 Git"快捷入口 */}
           {pendingCount === 0 && acceptedCount > 0 && (
             <button
-              onClick={() => {
-                setActiveNavSection('project');
-                setActiveAuxSubPanel('git');
-              }}
-              title="切换到 Git 面板快速提交这批变更"
+              onClick={() => setActiveNavSection('artifacts')}
+              title="切换到制品视图 Git 面板快速提交这批变更"
               style={{
                 display: 'flex', alignItems: 'center', gap: 4,
                 fontSize: 11, padding: '3px 8px', borderRadius: 4,
@@ -386,6 +423,10 @@ export function ChangeSummaryPanel() {
           const isExpanded = expandedFiles.has(fs.filePath);
           // 主要操作类型（最后一次）
           const lastChange = fs.changes[fs.changes.length - 1];
+          // 当前文件的跟踪变更
+          const fileTracked = trackedChanges.filter((c) => c.filePath === fs.filePath);
+          const filePendingCount = fileTracked.filter((c) => !c.diffReviewStatus).length;
+          const canRevertThisFile = fileTracked.some((c) => c.originalContent !== undefined && c.diffReviewStatus !== 'reverted');
           return (
             <div key={fs.filePath} style={{ borderBottom: '1px solid var(--border-color)' }}>
               {/* 文件行 */}
@@ -420,6 +461,35 @@ export function ChangeSummaryPanel() {
                 <span style={{ fontSize: 10, color: CHANGE_COLORS[lastChange.changeType] }}>
                   {CHANGE_LABELS[lastChange.changeType]}
                 </span>
+                {/* 单文件操作按钮 */}
+                <button
+                  title="应用该文件所有变更"
+                  disabled={filePendingCount === 0}
+                  onClick={(e) => { e.stopPropagation(); handleAcceptFile(fs.filePath); }}
+                  style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 3,
+                    border: '1px solid var(--accent-success, #22c55e)',
+                    color: filePendingCount === 0 ? 'var(--text-muted)' : 'var(--accent-success, #22c55e)',
+                    background: 'transparent', cursor: filePendingCount === 0 ? 'not-allowed' : 'pointer',
+                    opacity: filePendingCount === 0 ? 0.4 : 1, flexShrink: 0,
+                  }}
+                >
+                  ✓ 应用
+                </button>
+                <button
+                  title="将该文件回滚到修改前"
+                  disabled={!canRevertThisFile}
+                  onClick={(e) => { e.stopPropagation(); void handleRevertFile(fs.filePath); }}
+                  style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 3,
+                    border: '1px solid var(--accent-danger, #ef4444)',
+                    color: !canRevertThisFile ? 'var(--text-muted)' : 'var(--accent-danger, #ef4444)',
+                    background: 'transparent', cursor: !canRevertThisFile ? 'not-allowed' : 'pointer',
+                    opacity: !canRevertThisFile ? 0.4 : 1, flexShrink: 0,
+                  }}
+                >
+                  ↩ 回滚
+                </button>
               </div>
 
               {/* 展开的变更详情 */}
@@ -431,6 +501,8 @@ export function ChangeSummaryPanel() {
                   {fs.changes.map((change, idx) => {
                     const key = `${fs.filePath}-${idx}`;
                     const isDiffExpanded = expandedChanges.has(key);
+                    // 查找该工具调用的审阅状态
+                    const reviewStatus = trackedChanges.find((c) => c.toolCallId === change.toolCall.id)?.diffReviewStatus;
                     return (
                       <div key={key} style={{ margin: '4px 0' }}>
                         <div
@@ -455,6 +527,22 @@ export function ChangeSummaryPanel() {
                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                             操作 {idx + 1}
                           </span>
+                          {/* 审阅状态徽章 */}
+                          {reviewStatus === 'accepted' && (
+                            <span style={{ fontSize: 10, color: 'var(--accent-success, #22c55e)', marginLeft: 'auto' }}>
+                              ✓ 已应用
+                            </span>
+                          )}
+                          {reviewStatus === 'reverted' && (
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                              ↩ 已回滚
+                            </span>
+                          )}
+                          {!reviewStatus && (
+                            <span style={{ fontSize: 10, color: 'var(--accent-warning, #f59e0b)', marginLeft: 'auto' }}>
+                              待确认
+                            </span>
+                          )}
                         </div>
                         {isDiffExpanded && (
                           <div style={{ margin: '0 14px 8px', border: '1px solid var(--border-color)', borderRadius: 4, overflow: 'hidden' }}>
