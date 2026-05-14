@@ -4,6 +4,25 @@
 
 ---
 
+## [3.0.0] - 2026-05-19
+
+### 新增
+- **5 项一级导航**：NavRail 从 4 项扩展为 5 项，对齐 v2.0 设计文档
+  - 对话（chat）：主聊天区
+  - 项目（project）：文件 / Git / 变更 / 上下文 / Worktree / 检查点 六个子面板
+  - 工具（tools）：MCP / Agents / Plugins / Hooks / Skills / 任务 六个子面板
+  - 配置（config）：设置 / 权限规则 / CLAUDE.md / 记忆 / 成本 五个子面板
+  - **历史（history）（新增）**：历史会话 / 成本统计 / 记忆搜索 三个子面板
+- **HomeView 两栏布局**：左栏 260px 继续任务列表，右栏自适应概览（统计卡 / 周 Token 趋势图 / 最近修改文件 / 快速链接）
+- **会话持久化 Phase 1**：会话列表持久化到 Electron userData，支持删除和恢复
+
+### 变更
+- NavRail "变更角标"从旧"变更"项改为挂在"项目"上（父级聚合）
+- `computeNavTransition`：点击已激活 section 折叠至 chat，点击不同 section 直接展开，逻辑统一
+- `useAppStore` NavSection 类型增加 `'history'`
+
+---
+
 ## [2.2.0] - 2026-05-13
 
 ### 新增
