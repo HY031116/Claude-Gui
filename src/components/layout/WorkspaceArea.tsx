@@ -46,6 +46,7 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
   const reorderTab = useAppStore((s) => s.reorderTab);
   const currentModel = useAppStore((s) => s.currentModel);
   const processingTabs = useAppStore((s) => s.processingTabs);
+  const tabInterventionStatus = useAppStore((s) => s.tabInterventionStatus);
 
   // 标签内联重命名本地状态（仅 WorkspaceArea 使用）
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -291,16 +292,32 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
                   />
                 ) : (
                   <span className="session-tab-label" title="双击重命名">
-                    {/* 状态点：处理中=蓝脉冲 / 已连接=绿 / 未连接=灰 */}
+                    {/* 状态点：介入阻塞=红 / 长时等待=黄 / 处理中=蓝脉冲 / 已连接=绿 / 未连接=灰 */}
                     {(() => {
                       const snap = tabSnapshots[tab.id];
                       const isConnected = snap?.session?.isConnected;
                       const isProcessing = processingTabs[tab.id];
+                      const intervention = tabInterventionStatus[tab.id];
+                      const dotClass = intervention === 'blocked'
+                        ? 'session-tab-status-dot blocked'
+                        : intervention === 'warning'
+                          ? 'session-tab-status-dot warning'
+                          : isProcessing
+                            ? 'session-tab-status-dot processing'
+                            : isConnected
+                              ? 'session-tab-status-dot connected'
+                              : 'session-tab-status-dot';
+                      const dotTitle = intervention === 'blocked'
+                        ? '需要你的介入'
+                        : intervention === 'warning'
+                          ? '等待时间较长'
+                          : isProcessing
+                            ? '处理中'
+                            : isConnected
+                              ? '已连接'
+                              : '未连接';
                       return (
-                        <span
-                          className={`session-tab-status-dot${isProcessing ? ' processing' : isConnected ? ' connected' : ''}`}
-                          title={isProcessing ? '处理中' : isConnected ? '已连接' : '未连接'}
-                        />
+                        <span className={dotClass} title={dotTitle} />
                       );
                     })()}
                     {/* 标签显示：用户自定义名称；若未改名则尝试显示第一条用户消息前22字 */}

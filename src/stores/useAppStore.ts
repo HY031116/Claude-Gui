@@ -186,6 +186,10 @@ interface AppState {
   processingTabs: Record<string, boolean>;
   setTabProcessing: (tabId: string, processing: boolean) => void;
 
+  /** 按 tabId 记录介入状态：blocked=🔴阻塞型(A/B/C) / warning=🟡非阻塞型(D) / null=无介入 */
+  tabInterventionStatus: Record<string, 'blocked' | 'warning' | null>;
+  setTabInterventionStatus: (tabId: string, status: 'blocked' | 'warning' | null) => void;
+
   /** CommandCenter 置顶会话 */
   pinnedTabIds: string[];
   togglePinTab: (tabId: string) => void;
@@ -428,6 +432,11 @@ export const useAppStore = create<AppState>((set, get) => {
   processingTabs: {},
   setTabProcessing: (tabId, processing) => set((state) => ({
     processingTabs: { ...state.processingTabs, [tabId]: processing },
+  })),
+
+  tabInterventionStatus: {},
+  setTabInterventionStatus: (tabId, status) => set((state) => ({
+    tabInterventionStatus: { ...state.tabInterventionStatus, [tabId]: status },
   })),
 
   pinnedTabIds: [],

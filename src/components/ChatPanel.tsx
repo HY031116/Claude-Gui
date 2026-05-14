@@ -294,6 +294,7 @@ export function ChatPanel() {
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
   const appendRawJson = useAppStore((s) => s.appendRawJson);
   const setTabProcessing = useAppStore((s) => s.setTabProcessing);
+  const setTabInterventionStatus = useAppStore((s) => s.setTabInterventionStatus);
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
   const [input, setInput] = useState('');
@@ -323,6 +324,7 @@ export function ChatPanel() {
     }, 5000);
     return () => clearInterval(interval);
   }, [isProcessing]);
+
   // 历史会话恢复：有 conversationSessionId 时即使 PTY 未连接也可发消息（sendMessage 是独立子进程）
   const canSend = session.isConnected || !!session.conversationSessionId;
   // 工作目录编辑状态
@@ -383,6 +385,14 @@ export function ChatPanel() {
   // 介入类型 D：长时等待横幅（45 秒无新 chunk）
   const [showLongWaitBanner, setShowLongWaitBanner] = useState(false);
   const lastChunkAtRef = useRef<number>(Date.now());
+
+  // 介入状态联动 TabBar 状态点颜色
+  // blocked(🔴) = 有工具审批/决策问题/文件请求；warning(🟡) = 长时等待；null = 无
+  useEffect(() => {
+    const hasBlocked = permissionRequests.length > 0 || !!pendingDecision || !!pendingFileRequest;
+    const status = hasBlocked ? 'blocked' : showLongWaitBanner ? 'warning' : null;
+    setTabInterventionStatus(activeTabId, status);
+  }, [permissionRequests, pendingDecision, pendingFileRequest, showLongWaitBanner, activeTabId, setTabInterventionStatus]);
 
   /** 是否处于"继续上次会话"模式（下次发消息时用 --continue） */
   const [continueMode, setContinueMode] = useState(false);
