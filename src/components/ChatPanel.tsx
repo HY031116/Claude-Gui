@@ -243,12 +243,11 @@ export function ChatPanel() {
   const activeTabIdRef = useRef<string>(activeTabId);
   useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
   const activePlanSteps = useAppStore((s) => s.activePlanSteps);
-  const setActivePanel = useAppStore((s) => s.setActivePanel);
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const addPlanStep = useAppStore((s) => s.addPlanStep);
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
-  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
-  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
   const appendRawJson = useAppStore((s) => s.appendRawJson);
   const setTabProcessing = useAppStore((s) => s.setTabProcessing);
   const tabs = useAppStore((s) => s.tabs);
@@ -1297,17 +1296,17 @@ export function ChatPanel() {
                 : wdDisplayPath}
             </span>
           </div>
-          <button className="run-overview-metric" onClick={() => setActivePanel('tasks')} title="打开任务面板">
+          <button className="run-overview-metric" onClick={() => { setActiveNavSection('tools'); setActiveAuxSubPanel('tasks'); }} title="打开任务面板">
             <ListChecks size={12} />
             <span>任务</span>
             <strong>{runOverview.todoSummary}</strong>
           </button>
-          <button className="run-overview-metric" onClick={() => setActivePanel('tools')} title="打开工具调用">
+          <button className="run-overview-metric" onClick={() => { setActiveNavSection('tools'); setActiveAuxSubPanel('tasks'); }} title="打开工具调用">
             <Wrench size={12} />
             <span>工具</span>
             <strong>{runOverview.toolSummary}</strong>
           </button>
-          <button className="run-overview-metric" onClick={() => setActivePanel('cost')} title="打开成本面板">
+          <button className="run-overview-metric" onClick={() => { setActiveNavSection('history'); setActiveAuxSubPanel('cost'); }} title="打开成本面板">
             <CircleDollarSign size={12} />
             <span>成本</span>
             <strong>{runOverview.tokenSummary}</strong>
@@ -1914,7 +1913,8 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
   const messages = useAppStore((s) => s.messages);
   const updateMessage = useAppStore((s) => s.updateMessage);
   const setActiveChangeId = useAppStore((s) => s.setActiveChangeId);
-  const setActivePanel = useAppStore((s) => s.setActivePanel);
+  const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+  const setActiveAuxSubPanel = useAppStore((s) => s.setActiveAuxSubPanel);
 
   const isBash = toolCall.name === 'Bash' || toolCall.name === 'bash';
   const bashCommand = isBash
@@ -2143,7 +2143,8 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
             onClick={(e) => {
               e.stopPropagation();
               setActiveChangeId(toolCall.id);
-              setActivePanel('changes');
+              setActiveNavSection('project');
+              setActiveAuxSubPanel('changes');
             }}
             title="在变更面板中查看"
             style={{ fontSize: 10, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3, marginRight: 2, color: 'var(--accent-color)' }}
