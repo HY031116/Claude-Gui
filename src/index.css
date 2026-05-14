@@ -4962,6 +4962,40 @@ body.is-resizing .resize-handle::after {
   gap: 9px;
 }
 
+/* ─── 工作区横幅（替代问候语） ─── */
+.home-workspace-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb, 99,102,241), 0.08);
+  border: 1px solid rgba(var(--accent-rgb, 99,102,241), 0.2);
+}
+
+.home-workspace-icon { color: var(--accent); flex-shrink: 0; }
+
+.home-workspace-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.home-workspace-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.home-workspace-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home-greeting-icon {
   color: var(--accent);
 }

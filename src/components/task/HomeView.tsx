@@ -205,6 +205,26 @@ export function HomeView({ onStartSession }: HomeViewProps) {
     [tokenHistory]
   );
 
+  // 工作区级统计（activeWorkspacePath 为空则不计算）
+  const wsSessionCount = useMemo(() => {
+    if (!activeWorkspacePath) return null;
+    if (persistedSessions.length > 0) {
+      return persistedSessions.filter((s) => s.workingDirectory === activeWorkspacePath).length;
+    }
+    return conversationHistory.filter((r) => r.workingDirectory === activeWorkspacePath).length;
+  }, [activeWorkspacePath, persistedSessions, conversationHistory]);
+
+  const wsTotalCost = useMemo(() => {
+    if (!activeWorkspacePath) return 0;
+    return tokenHistory.filter((r) => r.workingDirectory === activeWorkspacePath)
+      .reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+  }, [activeWorkspacePath, tokenHistory]);
+
+  const wsTokenHistory = useMemo(() => {
+    if (!activeWorkspacePath) return tokenHistory;
+    return tokenHistory.filter((r) => r.workingDirectory === activeWorkspacePath);
+  }, [activeWorkspacePath, tokenHistory]);
+
   useEffect(() => {
     // 加载持久化会话列表
     window.electronAPI?.sessionList?.().then((res) => {
@@ -329,24 +349,37 @@ export function HomeView({ onStartSession }: HomeViewProps) {
 
       {/* ── 右栏：概览面板 ── */}
       <div className="home-right">
-        {/* 问候语 */}
-        <div className="home-greeting-row">
-          <Zap size={17} className="home-greeting-icon" />
-          <span className="home-greeting-text">{getGreeting()}，准备好了吗？</span>
-        </div>
+        {/* 工作区横幅卡片（激活工作区时显示） */}
+        {activeWorkspacePath ? (
+          <div className="home-workspace-banner">
+            <FolderOpen size={15} className="home-workspace-icon" />
+            <div className="home-workspace-info">
+              <span className="home-workspace-name">{getProjectName(activeWorkspacePath)}</span>
+              <span className="home-workspace-path">{activeWorkspacePath}</span>
+            </div>
+          </div>
+        ) : (
+          /* 无工作区时显示问候语 */
+          <div className="home-greeting-row">
+            <Zap size={17} className="home-greeting-icon" />
+            <span className="home-greeting-text">{getGreeting()}，准备好了吗？</span>
+          </div>
+        )}
 
         {/* 3 个统计卡片 */}
         <div className="home-stat-cards">
           <StatCard
             icon={<Hash size={15} />}
-            value={String(sessionCount || '—')}
-            label="历史会话"
+            value={String(activeWorkspacePath ? (wsSessionCount ?? '—') : (sessionCount || '—'))}
+            label={activeWorkspacePath ? '工作区会话' : '历史会话'}
           />
           <StatCard
             icon={<TrendingUp size={15} />}
-            value={weekCost > 0 ? formatCost(weekCost) : '—'}
-            label="本周消费"
-            accent={weekCost > 0}
+            value={activeWorkspacePath
+              ? (wsTotalCost > 0 ? formatCost(wsTotalCost) : '—')
+              : (weekCost > 0 ? formatCost(weekCost) : '—')}
+            label={activeWorkspacePath ? '工作区消耗' : '本周消费'}
+            accent={activeWorkspacePath ? wsTotalCost > 0 : weekCost > 0}
           />
           <StatCard
             icon={<FileText size={15} />}
@@ -356,16 +389,16 @@ export function HomeView({ onStartSession }: HomeViewProps) {
         </div>
 
         {/* 本周消费柱状图 */}
-        {tokenHistory.length > 0 && (
+        {wsTokenHistory.length > 0 && (
           <div className="home-section">
             <div className="home-section-header">
               <TrendingUp size={12} />
-              <span>本周消费趋势</span>
-              {totalCost > 0 && (
-                <span className="home-section-meta">累计 {formatCost(totalCost)}</span>
+              <span>{activeWorkspacePath ? '工作区消费趋势' : '本周消费趋势'}</span>
+              {(activeWorkspacePath ? wsTotalCost : totalCost) > 0 && (
+                <span className="home-section-meta">累计 {formatCost(activeWorkspacePath ? wsTotalCost : totalCost)}</span>
               )}
             </div>
-            <WeeklyChart records={tokenHistory} />
+            <WeeklyChart records={wsTokenHistory} />
           </div>
         )}
 
