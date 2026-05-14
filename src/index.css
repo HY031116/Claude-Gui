@@ -5281,3 +5281,195 @@ body.is-resizing .resize-handle::after {
   border-radius: 2px;
 }
 
+/* ══════════════════════════════════════════════════════════
+   TaskTimeline — v3.0 执行时序面板
+   ══════════════════════════════════════════════════════════ */
+
+.task-timeline {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.task-timeline.collapsed {
+  max-height: 36px;
+}
+
+/* 标题栏 */
+.task-timeline-header {
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+  min-height: 30px;
+  background: var(--bg-secondary);
+}
+
+.task-timeline.collapsed .task-timeline-header {
+  border-bottom: none;
+}
+
+.task-timeline-header:hover {
+  background: var(--bg-hover);
+}
+
+.task-timeline-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.task-timeline-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.task-timeline-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.task-timeline-badge-err {
+  color: var(--error-text, #ef4444);
+}
+
+/* 运行中指示点 */
+.task-timeline-running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  flex-shrink: 0;
+  animation: timelinePulse 1.4s ease-in-out infinite;
+}
+
+.task-timeline-running-label {
+  font-size: 10px;
+  color: var(--accent-color);
+  animation: timelinePulse 1.4s ease-in-out infinite;
+}
+
+/* 折叠按钮 */
+.task-timeline-collapse-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.task-timeline-collapse-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* 时序列表主体 */
+.task-timeline-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 3px 0;
+}
+
+/* 单行：status + 工具名 + 路径 */
+.task-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 12px;
+  min-height: 22px;
+}
+
+.task-timeline-row:hover {
+  background: var(--bg-hover);
+}
+
+/* 状态图标区域 */
+.task-timeline-status {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-timeline-status.done {
+  color: var(--success-text, #3fb950);
+}
+
+.task-timeline-status.error {
+  color: var(--error-text, #ef4444);
+}
+
+.task-timeline-status.running {
+  color: var(--accent-color);
+}
+
+/* 工具名区域（图标 + 文字） */
+.task-timeline-tool {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 58px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  overflow: hidden;
+}
+
+/* 路径/命令摘要 */
+.task-timeline-path {
+  flex: 1;
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+}
+
+.task-timeline-path.error {
+  color: var(--error-text, #ef4444);
+}
+
+.task-timeline-path.muted {
+  color: var(--text-muted);
+}
+
+/* 旋转动画（Loader2 图标） */
+@keyframes spin-anim {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin-anim {
+  animation: spin-anim 0.8s linear infinite;
+}
+
+/* 执行时序脉冲动画 */
+@keyframes timelinePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
