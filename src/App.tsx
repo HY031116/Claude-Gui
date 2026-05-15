@@ -223,10 +223,15 @@ function App() {
 
   // FIX[BUG-006][v4.3.0] 工作区切换时清空全局 questionRequests 和介入中心状态。
   // permissionRequestsPerTab 已由 switchWorkspace 在 store 内清空，此处无需重复。
+  // FIX[RISK-101][v4.4.0] 同时终止旧工作区所有 CLI 进程，防止僵尸进程持续向新工作区介入中心发送事件。
   useEffect(() => {
     setQuestionRequests([]);
     setShowInterventionCenter(false);
     setActiveQuestionRequestId(null);
+    // 停止所有旧工作区进程（不传 tabId = 全部停止），activeWorkspacePath 为空时跳过（初始化阶段）
+    if (activeWorkspacePath) {
+      void window.electronAPI?.cliStopMessage?.();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkspacePath]);
 
@@ -234,6 +239,12 @@ function App() {
   useEffect(() => {
     if (!window.electronAPI?.onCliOutput) return;
     const unsubscribe = window.electronAPI.onCliOutput((event) => {
+      // FIX[RISK-101][v4.4.0] 过滤非当前工作区 tabId 的事件（防止旧工作区僵尸进程污染）
+      if (event.tabId) {
+        const { tabs } = useAppStore.getState();
+        if (!tabs.some((t) => t.id === event.tabId)) return;
+      }
+
       if (event.type === 'permission-request') {
         try {
           const req = JSON.parse(event.data) as PermissionRequestEvent;

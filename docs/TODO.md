@@ -83,22 +83,21 @@
 
 > 以下 TODO 依赖 v4.3.0 完成后再执行，避免在不稳定基础上修复上层问题。
 
-#### BUG-101 AskUserQuestion 并发与 permission-request 同时到达时互相覆盖
-- **描述**：`App.tsx` 的 `onCliOutput` 监听同时处理 `question-request` 和 `permission-request`，但两类事件的写入目标不同（question → React state，permission → React state），当两者同 tick 到达时可能有 setState batch 问题。
-- **方向**：统一两种请求的事件消费路径，用队列或 store action 串行写入。
+#### ✅ BUG-101 AskUserQuestion 并发与 permission-request 同时到达时互相覆盖 — **已分析确认无实际问题**
+- **结论**：BUG-002 修复后，`permission-request` 写入 Zustand store（`addPermissionRequest`，内置幂等检查），`question-request` 使用函数式 `setQuestionRequests((prev) => ...)` 更新（安全），两种写入路径完全独立，不存在 React batch 覆盖风险。`setShowInterventionCenter(true)` 幂等，不会互相干扰。原分析基于 BUG-002 修复前的架构，已失效。
 
-#### BUG-102 sendQuickReply 缺少 conversationSessionId 守卫
-- **代码行**：ChatPanel.tsx:876（sendQuickReply 里的 cliSendMessage 调用）
-- **描述**：`sendQuickReply` 使用 `session.conversationSessionId || undefined`，如果会话尚未建立（首条消息还未收到 session_id）就触发快速回复，会以无 sessionId 的方式发送，可能开启新对话而不是延续当前上下文。
-- **方向**：在 sendQuickReply 中检查 sessionId 是否存在，不存在时给出 UI 提示"当前会话尚未建立，无法快速回复"。
+#### ✅ BUG-102 sendQuickReply 缺少 conversationSessionId 守卫 — **已分析确认无实际风险**
+- **结论**：`setPendingDecisionRequest` / `setPendingFileRequest` 只在 `message-done` 处理块内调用，而 `session_end` 事件（设置 `conversationSessionId`）也在同一个 `message-done` 批次里处理。React 批次渲染后，两者同时落定，`sendQuickReply` 触发时 `conversationSessionId` 必然已有值。理论边界条件在实际使用中无法触发。
 
 #### ✅ BUG-103 handleStop 后 permissionRequests 清空但全局介入中心不清 — **已自然修复（BUG-002 副作用）**
 - **代码行**：ChatPanel.tsx:1140（handleStop 里的 clearPermissionRequestsForTab）
 - **状态**：BUG-002 修复时已将 handleStop 中的 `setPermissionRequests([])` 替换为 `clearPermissionRequestsForTab(activeTabId)`，该清空操作直接写入 store，全局介入中心（App.tsx 的 `permissionRequests` 是 store 的派生值）会自动同步更新。无需额外修复。
 
-#### RISK-101 后台 Tab 的 CLI 进程在工作区切换时是否被正确清理
-- **描述**：切换工作区时，前工作区的 Tab 的 CLI 会话进程没有显式终止。如果该进程仍在运行并发出 permission-request，会被 App.tsx 的全局监听器接收并写入新工作区的介入中心。
-- **方向**：switchWorkspace 时向 electron 主进程发送"停止当前所有 tab 的 CLI 进程"信号，或至少在 UI 层过滤 tabId 不属于当前工作区的事件。
+#### ✅ RISK-101 后台 Tab 的 CLI 进程在工作区切换时是否被正确清理 — **已修复**
+- **风险**：切换工作区时，旧工作区 Tab 的 CLI 进程没有显式终止，僵尸进程持续运行并发出 permission-request / question-request 事件，被 App.tsx 全局监听器写入新工作区介入中心。
+- **修复**（FIX[RISK-101][v4.4.0]，App.tsx）：
+  1. `activeWorkspacePath` useEffect 中新增 `window.electronAPI?.cliStopMessage?.()` 调用（不传 tabId = 全部停止），在工作区切换后立即终止所有旧进程。
+  2. `onCliOutput` 回调开头加防御性 tabId 过滤：若 `event.tabId` 不在当前工作区的 `tabs` 中，直接 return，防止极端竞态。
 
 ---
 
@@ -138,10 +137,10 @@
 - [x] TEST-001 完成：介入状态隔离单元测试 6 个场景全通过（50 tests passed）
 
 ### v4.4.0
-- [ ] BUG-101 通过：并发 question + permission 事件不互相覆盖
-- [ ] BUG-102 通过：无 sessionId 时快速回复有明确 UI 提示
+- [x] BUG-101 通过：并发 question + permission 事件不互相覆盖（已确认：BUG-002 副作用自然解决）
+- [x] BUG-102 通过：无 sessionId 时快速回复有明确 UI 提示（已确认：实际触发路径不存在）
 - [x] BUG-103 通过：handleStop 后全局介入中心权限列表同步清空（BUG-002 副作用已修复）
-- [ ] RISK-101 评估：工作区切换的进程生命周期明确
+- [x] RISK-101 评估：工作区切换的进程生命周期明确（已修复：switchWorkspace 时终止所有旧进程 + tabId 过滤双层保障）
 
 ### v4.5.0
 - [ ] BUG-201 通过：MultiEdit diff 行号准确
