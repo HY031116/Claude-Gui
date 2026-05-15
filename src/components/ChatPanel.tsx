@@ -6,7 +6,6 @@ import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import type { Message, PlanStep, ToolCall } from '../types';
 import { PlanReviewPanel, parsePlanSteps } from './PlanReviewPanel';
-import type { PermissionRequestEvent } from '../types/electron';
 import { DiffViewer, WritePreview, WriteDiff, computeLineDiff } from './DiffView';
 
 // 配置 marked：GFM + 换行符转 <br> + highlight.js 语法高亮
@@ -302,6 +301,9 @@ export function ChatPanel() {
   const setPendingFileRequest = useAppStore((s) => s.setPendingFileRequest);
   const pendingQuickReply = useAppStore((s) => s.pendingQuickReplies[activeTabId] ?? null);
   const setPendingQuickReply = useAppStore((s) => s.setPendingQuickReply);
+  // FIX[BUG-002][v4.3.0] permissionRequests 从 store 读取（单一数据源），不再使用本地 state。
+  const permissionRequests = useAppStore((s) => s.permissionRequestsPerTab[activeTabId] ?? []);
+  const clearPermissionRequestsForTab = useAppStore((s) => s.clearPermissionRequestsForTab);
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
   const planReview = useAppStore((s) => s.planReview);
@@ -386,11 +388,7 @@ export function ChatPanel() {
   const [customAgentNames, setCustomAgentNames] = useState<string[]>([]);
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
-  // Claude Code PermissionRequest hook 触发的真实工具审批请求
-  // TODO[BUG-002][v4.3.0] permissionRequests 仍是本地 state，切换 Tab 时会被清空，
-  // 导致 tabInterventionStatus 计算错误且介入中心与 ChatPanel 状态不同步。
-  // 修复：提升到 store（类似 pendingDecisionRequests），统一由 store 管理每个 tabId 的权限列表。
-  const [permissionRequests, setPermissionRequests] = useState<PermissionRequestEvent[]>([]);
+  // FIX[BUG-002][v4.3.0] permissionRequests 已提升到 store，本地 state 已移除。
   // 介入类型 D：长时等待横幅（45 秒无新 chunk）
   // FIX[BUG-004][v4.3.0] showLongWaitBanner 在 Tab 切换时重置，防止跨 Tab 误显示。
   const [showLongWaitBanner, setShowLongWaitBanner] = useState(false);
@@ -515,27 +513,9 @@ export function ChatPanel() {
           event.type === 'message-stderr' || event.type === 'message-error') {
         if (event.tabId && event.tabId !== activeTabIdRef.current) return;
       }
-      if (event.type === 'permission-request') {
-        try {
-          const request = JSON.parse(event.data) as PermissionRequestEvent;
-          setPermissionRequests((prev) => (
-            prev.some((item) => item.id === request.id) ? prev : [...prev, request]
-          ));
-        } catch {
-          addMessage({ id: `msg-${Date.now()}-permission`, role: 'system', content: '权限审批请求解析失败。', timestamp: Date.now() });
-        }
-        return;
-      }
-
-      if (event.type === 'permission-resolved') {
-        try {
-          const resolved = JSON.parse(event.data) as { id?: string };
-          if (resolved.id) {
-            setPermissionRequests((prev) => prev.filter((item) => item.id !== resolved.id));
-          }
-        } catch { /* 忽略解析失败 */ }
-        return;
-      }
+      // FIX[BUG-002][v4.3.0] permission-request / permission-resolved 事件已由
+      // App.tsx 的全局监听器统一写入 store（permissionRequestsPerTab），
+      // ChatPanel 不再重复监听，避免双状态源问题。
 
       if (event.type === 'message-chunk') {
         // 每次收到 chunk 就更新时间戳（用于类型 D 长时等待检测）
@@ -750,7 +730,7 @@ export function ChatPanel() {
         stderrErrShownRef.current = false;
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
-        setPermissionRequests([]);
+        clearPermissionRequestsForTab(activeTabIdRef.current); // FIX[BUG-002]
 
       } else if (event.type === 'message-stderr') {
         const stderrText = event.data;
@@ -787,7 +767,7 @@ export function ChatPanel() {
         stderrErrShownRef.current = false;
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
-        setPermissionRequests([]);
+        clearPermissionRequestsForTab(activeTabIdRef.current); // FIX[BUG-002]
       }
     });
     return unsubscribe;
@@ -1153,8 +1133,8 @@ export function ChatPanel() {
     stderrErrShownRef.current = false;
     pendingToolCallsRef.current = [];
     currentPlanStepsRef.current = [];
-    setPermissionRequests([]);
-  }, [updateMessage, addMessage]);
+    clearPermissionRequestsForTab(activeTabId); // FIX[BUG-002] / FIX[BUG-103]
+  }, [updateMessage, addMessage, clearPermissionRequestsForTab, activeTabId]);
 
   /** 开始编辑工作目录 */
   const handleWdEdit = useCallback(() => {

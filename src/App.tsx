@@ -45,6 +45,10 @@ function App() {
   const setPendingQuickReply = useAppStore((s) => s.setPendingQuickReply);
   // FIX[BUG-006][v4.3.0] 订阅 activeWorkspacePath，工作区切换时清空全局介入状态。
   const activeWorkspacePath = useAppStore((s) => s.activeWorkspacePath);
+  // FIX[BUG-002][v4.3.0] 订阅 store 中的权限请求（单一数据源）。
+  const permissionRequestsPerTab = useAppStore((s) => s.permissionRequestsPerTab);
+  const addPermissionRequest = useAppStore((s) => s.addPermissionRequest);
+  const removePermissionRequest = useAppStore((s) => s.removePermissionRequest);
 
   // 可拖拽侧边栏
   const { sidebarWidth, handleResizeMouseDown } = useResizableSidebar();
@@ -161,17 +165,21 @@ function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
   const handleShowShortcutsFromPalette = useCallback(() => setShowShortcuts(true), []);
-  // TODO[BUG-006][v4.3.0] questionRequests 和 permissionRequests 是 React 本地 state，
-  // 工作区切换（switchWorkspace）无法触发其重置，旧工作区的待处理项会残留在介入中心。
-  // 修复方向 A：提升到 store（与 BUG-002 联动）；
-  // 修复方向 B：在 activeWorkspacePath 变化的 useEffect 中手动 setState([])。
+  // FIX[BUG-006][v4.3.0] questionRequests 仍是本地 state（提升到 store 的改动更大），
+  // 通过监听 activeWorkspacePath 变化来重置。
   const [questionRequests, setQuestionRequests] = useState<PendingQuestionItem[]>([]);
   const [questionRespondingId, setQuestionRespondingId] = useState<string | null>(null);
   const [activeQuestionRequestId, setActiveQuestionRequestId] = useState<string | null>(null);
-  // TODO[BUG-002][v4.3.0] permissionRequests 在 App.tsx（全局）和 ChatPanel.tsx（本地）
-  // 各维护一份，双状态源导致切换 Tab 时 tabInterventionStatus 计算错位。
-  // 修复：将 permissionRequests 统一提升到 store，按 tabId 隔离存储。
-  const [permissionRequests, setPermissionRequests] = useState<PendingPermissionItem[]>([]);
+  // FIX[BUG-002][v4.3.0] permissionRequests 从 store 的 permissionRequestsPerTab 派生，
+  // 单一数据源，切换 Tab 不丢失、handleStop 后同步清空、工作区切换后随 store 清空。
+  const permissionRequests = useMemo<PendingPermissionItem[]>(() =>
+    Object.entries(permissionRequestsPerTab).flatMap(([tabId, requests]) =>
+      requests.map((req) => ({
+        request: req,
+        tabId,
+        tabLabel: resolveTabLabel(tabId),
+      }))
+    ), [permissionRequestsPerTab]);
   const [permissionRespondingId, setPermissionRespondingId] = useState<string | null>(null);
   const [showInterventionCenter, setShowInterventionCenter] = useState(false);
 
@@ -213,12 +221,10 @@ function App() {
     }
   }, [pendingInterventionCount]);
 
-  // FIX[BUG-006][v4.3.0] 工作区切换时清空全局介入状态（questionRequests / permissionRequests），
-  // 防止旧工作区的待处理项残留在介入中心并误操作到错误的 CLI 进程。
-  // activeWorkspacePath 变化说明 switchWorkspace 已完成，此时旧介入全部作废。
+  // FIX[BUG-006][v4.3.0] 工作区切换时清空全局 questionRequests 和介入中心状态。
+  // permissionRequestsPerTab 已由 switchWorkspace 在 store 内清空，此处无需重复。
   useEffect(() => {
     setQuestionRequests([]);
-    setPermissionRequests([]);
     setShowInterventionCenter(false);
     setActiveQuestionRequestId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,12 +237,9 @@ function App() {
       if (event.type === 'permission-request') {
         try {
           const req = JSON.parse(event.data) as PermissionRequestEvent;
-          const nextItem: PendingPermissionItem = {
-            request: req,
-            tabId: event.tabId,
-            tabLabel: resolveTabLabel(event.tabId),
-          };
-          setPermissionRequests((prev) => prev.some((item) => item.request.id === req.id) ? prev : [...prev, nextItem]);
+          if (!event.tabId) return;
+          // FIX[BUG-002][v4.3.0] 写入 store（单一数据源），不再维护本地 state。
+          addPermissionRequest(event.tabId, req);
           setShowInterventionCenter(true);
         } catch { /* 忽略解析失败 */ }
       }
@@ -245,7 +248,8 @@ function App() {
         try {
           const resolved = JSON.parse(event.data) as { id?: string };
           if (resolved.id) {
-            setPermissionRequests((prev) => prev.filter((item) => item.request.id !== resolved.id));
+            // FIX[BUG-002][v4.3.0] 从 store 中移除（event.tabId 精确定位）。
+            if (event.tabId) removePermissionRequest(event.tabId, resolved.id);
             setPermissionRespondingId((current) => current === resolved.id ? null : current);
           }
         } catch { /* 忽略解析失败 */ }
@@ -291,6 +295,8 @@ function App() {
       } catch { /* 忽略解析失败 */ }
     });
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // addPermissionRequest / removePermissionRequest 是 Zustand 稳定 action，无需加入依赖
   }, []);
 
   const handleQuestionSubmit = useCallback(async (requestId: string, answers: Record<string, AskQuestionAnswer>) => {
@@ -331,9 +337,17 @@ function App() {
       setPermissionRespondingId(null);
       return;
     }
-    setPermissionRequests((prev) => prev.filter((item) => item.request.id !== request.id));
+    // FIX[BUG-002][v4.3.0] 从 store 中找到该请求所属的 tabId 并移除。
+    // permission-resolved 事件也会到来，但主动移除可以让 UI 即时响应。
+    const { permissionRequestsPerTab: perTab } = useAppStore.getState();
+    for (const [tabId, reqs] of Object.entries(perTab)) {
+      if (reqs.some((r) => r.id === request.id)) {
+        removePermissionRequest(tabId, request.id);
+        break;
+      }
+    }
     setPermissionRespondingId(null);
-  }, [addMessage]);
+  }, [addMessage, removePermissionRequest]);
 
   const handleFocusQuestion = useCallback((requestId: string, tabId?: string) => {
     setActiveQuestionRequestId(requestId);

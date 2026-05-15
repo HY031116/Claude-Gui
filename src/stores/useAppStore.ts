@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord, Workspace, PlanReviewState, PendingDecisionRequest, PendingFileRequest, PendingQuickReply } from '../types';
+import type { PermissionRequestEvent } from '../types/electron';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
@@ -219,6 +220,12 @@ interface AppState {
   pendingFileRequests: Record<string, PendingFileRequest | null>;
   setPendingFileRequest: (tabId: string, request: PendingFileRequest | null) => void;
 
+  /** 全局可见的权限审批请求（按 tab 保存，单一数据源） */
+  permissionRequestsPerTab: Record<string, PermissionRequestEvent[]>;
+  addPermissionRequest: (tabId: string, req: PermissionRequestEvent) => void;
+  removePermissionRequest: (tabId: string, reqId: string) => void;
+  clearPermissionRequestsForTab: (tabId: string) => void;
+
   /** 由全局介入中心下发到具体对话的快速回复动作 */
   pendingQuickReplies: Record<string, PendingQuickReply | null>;
   setPendingQuickReply: (tabId: string, reply: PendingQuickReply | null) => void;
@@ -300,13 +307,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const restSnapshots = { ...state.tabSnapshots };
       delete restSnapshots[tabId];
       // FIX[BUG-001][v4.3.0] 关闭 Tab 时同步清理介入孤儿状态，
-      // 防止介入中心显示已关闭 Tab 的决策/文件/快速回复请求。
+      // 防止介入中心显示已关闭 Tab 的决策/文件/权限/快速回复请求。
       const restDecisions = { ...state.pendingDecisionRequests };
       const restFileReqs = { ...state.pendingFileRequests };
       const restQuickReplies = { ...state.pendingQuickReplies };
+      const restPermissions = { ...state.permissionRequestsPerTab };
       delete restDecisions[tabId];
       delete restFileReqs[tabId];
       delete restQuickReplies[tabId];
+      delete restPermissions[tabId];
       set({
         tabs: newTabs,
         activeTabId: newActiveId,
@@ -320,6 +329,7 @@ export const useAppStore = create<AppState>((set, get) => {
         pendingDecisionRequests: restDecisions,
         pendingFileRequests: restFileReqs,
         pendingQuickReplies: restQuickReplies,
+        permissionRequestsPerTab: restPermissions,
       });
     } else {
       const restSnapshots = { ...state.tabSnapshots };
@@ -328,15 +338,18 @@ export const useAppStore = create<AppState>((set, get) => {
       const restDecisions = { ...state.pendingDecisionRequests };
       const restFileReqs = { ...state.pendingFileRequests };
       const restQuickReplies = { ...state.pendingQuickReplies };
+      const restPermissions = { ...state.permissionRequestsPerTab };
       delete restDecisions[tabId];
       delete restFileReqs[tabId];
       delete restQuickReplies[tabId];
+      delete restPermissions[tabId];
       set({
         tabs: newTabs,
         tabSnapshots: restSnapshots,
         pendingDecisionRequests: restDecisions,
         pendingFileRequests: restFileReqs,
         pendingQuickReplies: restQuickReplies,
+        permissionRequestsPerTab: restPermissions,
       });
     }
   },
@@ -551,6 +564,23 @@ export const useAppStore = create<AppState>((set, get) => {
     pendingFileRequests: { ...state.pendingFileRequests, [tabId]: request },
   })),
 
+  // FIX[BUG-002][v4.3.0] 权限审批请求集中到 store，按 tabId 隔离存储，单一数据源。
+  permissionRequestsPerTab: {},
+  addPermissionRequest: (tabId, req) => set((state) => {
+    const existing = state.permissionRequestsPerTab[tabId] ?? [];
+    if (existing.some((r) => r.id === req.id)) return {}; // 去重
+    return { permissionRequestsPerTab: { ...state.permissionRequestsPerTab, [tabId]: [...existing, req] } };
+  }),
+  removePermissionRequest: (tabId, reqId) => set((state) => ({
+    permissionRequestsPerTab: {
+      ...state.permissionRequestsPerTab,
+      [tabId]: (state.permissionRequestsPerTab[tabId] ?? []).filter((r) => r.id !== reqId),
+    },
+  })),
+  clearPermissionRequestsForTab: (tabId) => set((state) => ({
+    permissionRequestsPerTab: { ...state.permissionRequestsPerTab, [tabId]: [] },
+  })),
+
   pendingQuickReplies: {},
   setPendingQuickReply: (tabId, reply) => set((state) => ({
     pendingQuickReplies: { ...state.pendingQuickReplies, [tabId]: reply },
@@ -668,10 +698,9 @@ export const useAppStore = create<AppState>((set, get) => {
       pendingDecisionRequests: {},
       pendingFileRequests: {},
       pendingQuickReplies: {},
-      // TODO[BUG-006][v4.3.0] App.tsx 的 questionRequests / permissionRequests 是
-      // React 本地 state，switchWorkspace 无法触发其重置。
-      // 修复方向 A：将两者提升到 store（BUG-002 连带修复）；
-      // 修复方向 B：App.tsx 监听 activeWorkspacePath 变化时手动 setState([])。
+      permissionRequestsPerTab: {},
+      // TODO[BUG-006][v4.3.0] App.tsx 的 questionRequests 是 React 本地 state，
+      // switchWorkspace 无法触发其重置，已通过 activeWorkspacePath useEffect 修复（BUG-006）。
     });
   },
 

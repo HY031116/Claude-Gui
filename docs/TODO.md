@@ -13,12 +13,12 @@
 - **文件**：`src/stores/useAppStore.ts` — `closeTab` `switchWorkspace`
 - **修复内容**：`closeTab` 现在在删快照的同时删除三个 map 的对应 key；`switchWorkspace` 的 set block 追加了 `pendingDecisionRequests: {}`、`pendingFileRequests: {}`、`pendingQuickReplies: {}`。
 
-#### BUG-002 permissionRequests 双状态源 — ChatPanel 本地 vs 全局介入中心 *(v4.3.0 后续 PR)*
-- **文件**：`src/components/ChatPanel.tsx`（L383–384） · `src/App.tsx`（L165–166）
-- **根因**：`permissionRequests` 同时存在于 ChatPanel 本地 `useState` 和 App.tsx 的 React state，两者都监听 `permission-request` 事件。当前台 Tab 收到审批请求时，两处都会更新；但 ChatPanel 本地状态不随 Tab 切换保留，导致切换 Tab 后介入中心里的权限条目仍在但 ChatPanel 本地已重置，执行审批后状态不同步。
-- **后果**：切换 Tab 再切回来 → ChatPanel 的 permissionRequests 被清空 → `tabInterventionStatus` 计算出错 → Tab 徽章状态与介入中心实际显示不一致。
-- **修复方向**：将 `permissionRequests` 提升到 store（类似 `pendingDecisionRequests`），ChatPanel 改为从 store 读取当前 Tab 的权限列表，`App.tsx` 全局监听后也写入 store。
-- **代码行**：ChatPanel.tsx:390 · App.tsx:165 · useAppStore.ts:211–213
+#### ✅ BUG-002 permissionRequests 双状态源 — **已修复**
+- **修复内容**：
+  - `useAppStore` 新增 `permissionRequestsPerTab: Record<string, PermissionRequestEvent[]>` + `addPermissionRequest` / `removePermissionRequest` / `clearPermissionRequestsForTab` 三个操作
+  - `App.tsx` 的 `permission-request` 事件改为写入 store；`permissionRequests` 改为从 store 用 `useMemo` 派生的 `PendingPermissionItem[]`；`handleApprovalAction` 改为调用 store 的 `removePermissionRequest`
+  - `ChatPanel.tsx` 移除本地 `useState<PermissionRequestEvent[]>`；移除本地 `permission-request` / `permission-resolved` 事件监听；`permissionRequests` 改为 `useAppStore((s) => s.permissionRequestsPerTab[activeTabId] ?? [])`；`setPermissionRequests([])` 全部替换为 `clearPermissionRequestsForTab`
+  - `closeTab` / `switchWorkspace` 也同步清理 `permissionRequestsPerTab`
 
 #### ✅ BUG-003 pendingQuickReply 在 isProcessing=true 时的行为 — **已分析确认无误**
 - **结论**：useEffect 依赖 `isProcessing`，当 Claude 生成结束后 isProcessing 变 false，effect 重新运行并自动触发快速回复，**不存在静默丢弃**。原分析为误判，已更正代码注释。
@@ -127,7 +127,7 @@
 
 ### v4.3.0
 - [x] BUG-001 通过：关闭 Tab / 切换工作区后，介入中心不再显示孤儿条目
-- [ ] BUG-002 通过：permissionRequests 提升到 store，切换 Tab 不丢失审批状态 *(下一 PR)*
+- [x] BUG-002 通过：permissionRequests 提升到 store，切换 Tab 不丢失审批状态
 - [x] BUG-003 通过：确认 pendingQuickReply 等待机制正常，不存在静默丢弃
 - [x] BUG-004 通过：切换 Tab 后 showLongWaitBanner 不跨 Tab 残留
 - [x] BUG-005 通过：通过介入中心跳转后目标 Tab 未读计数正确清零
