@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.18.0] - 2026-05-17
+
+### 新增
+- **成本趋势图多时间范围**：CostPanel 头部新增 7/14/30 天切换按钮，手动选择趋势分析周期
+- **按项目成本分布（Top 5）**：CostPanel 新增工作目录维度成本聚合，显示花费最高的 5 个项目及其成本水平条
+- **全局快速搜索历史会话 (Ctrl+Shift+F)**：任意界面触发，自动跳转到监控页 > 会话列表，并自动聚焦搜索框
+  - `src/stores/useAppStore.ts`：新增 `historySearchTrigger` 信号 + `triggerHistorySearch` action
+  - `src/App.tsx`：全局 keydown 监听 Ctrl+Shift+F → 切换导航到 monitor + 切换到 sessions tab + 触发搜索
+  - `src/components/HistoryPanel.tsx`：接收信号，使用 `useRef` 聚焦搜索框
+- **快捷键面板更新**：ShortcutsModal 加入 Ctrl+Shift+F 说明
+
+### 技术
+- `aggregateByProject` 函数：按工作目录聚合 Top N 项目成本
+- CostPanel `chartDays` 状态控制时间范围，动态重算 `aggregateByDay`
+
 ## [3.17.0] - 2026-05-17
 
 ### 新增

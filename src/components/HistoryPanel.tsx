@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { MessageSquare, Trash2, FolderOpen, ArrowLeft, Clock, RefreshCw, Search, ArrowUpDown } from 'lucide-react';
 import type { ConversationRecord, CliSessionRecord } from '../types';
@@ -78,6 +78,7 @@ export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
   onHighlightConsumed?: () => void;
 } = {}) {
   const { conversationHistory, clearConversationHistory, removeConversation, session, setSession, clearMessages, setActiveNavSection } = useAppStore();
+  const historySearchTrigger = useAppStore((s) => s.historySearchTrigger);
   const [cliSessions, setCliSessions] = useState<CliSessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -95,6 +96,17 @@ export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
   const [sortAsc, setSortAsc] = useState(false);
   /** 当前高亮的 sessionId（闪烁后清除） */
   const [flashingId, setFlashingId] = useState<string | null>(null);
+  /** 搜索框 ref，用于全局快速搜索聚焦 */
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  /** 监听全局快速搜索触发信号，聚焦搜索框 */
+  useEffect(() => {
+    if (historySearchTrigger === 0) return; // 初始值，忽略
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }, 80);
+  }, [historySearchTrigger]);
 
   /** 当外部传入 highlightSessionId 时，自动定位到对应项目分组并滚动高亮 */
   useEffect(() => {
@@ -439,6 +451,7 @@ export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
           className="history-search-input"
           type="text"
           placeholder="搜索项目或对话内容..."
+          ref={searchInputRef}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />

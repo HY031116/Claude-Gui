@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../stores/useAppStore';
-import { DollarSign, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { DollarSign, Trash2, ChevronDown, ChevronUp, Clock, FolderOpen } from 'lucide-react';
 import type { TokenRecord } from '../types';
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────
@@ -128,12 +128,28 @@ function aggregateByModel(records: TokenRecord[]): ModelStat[] {
   return [...map.values()].sort((a, b) => b.costUsd - a.costUsd);
 }
 
+/** 按工作目录聚合（Top N） */
+interface ProjectStat { dir: string; displayName: string; count: number; costUsd: number; }
+
+function aggregateByProject(records: TokenRecord[], topN = 5): ProjectStat[] {
+  const map = new Map<string, ProjectStat>();
+  for (const r of records) {
+    const key = r.workingDirectory || '未知项目';
+    const displayName = key === '未知项目' ? key : (key.replace(/[\\/]+$/, '').replace(/.*[\\/]/, '') || key);
+    const prev = map.get(key) ?? { dir: key, displayName, count: 0, costUsd: 0 };
+    map.set(key, { ...prev, count: prev.count + 1, costUsd: prev.costUsd + (r.costUsd ?? 0) });
+  }
+  return [...map.values()].sort((a, b) => b.costUsd - a.costUsd).slice(0, topN);
+}
+
 export function CostPanel() {
   const tokenHistory = useAppStore((s) => s.tokenHistory);
   const clearTokenHistory = useAppStore((s) => s.clearTokenHistory);
   const [showClear, setShowClear] = useState(false);
   const [pageSize] = useState(50);
   const [page, setPage] = useState(0);
+  /** 趋势图时间范围（天） */
+  const [chartDays, setChartDays] = useState<7 | 14 | 30>(7);
 
   // 汇总统计
   const todayStart = getDayStart(0);
@@ -142,12 +158,27 @@ export function CostPanel() {
   const totalInputTokens = tokenHistory.reduce((sum, r) => sum + r.inputTokens, 0);
   const totalOutputTokens = tokenHistory.reduce((sum, r) => sum + r.outputTokens, 0);
 
-  // 7 天聚合
-  const chartData = aggregateByDay(tokenHistory, 7);
+  // 趋势图数据（按选定天数聚合）
+  const chartData = aggregateByDay(tokenHistory, chartDays);
 
   // 分页
   const totalPages = Math.ceil(tokenHistory.length / pageSize);
   const pageRecords = tokenHistory.slice(page * pageSize, (page + 1) * pageSize);
+
+  /** 时间范围选择按钮 */
+  const rangeBtn = (d: 7 | 14 | 30, label: string) => (
+    <button
+      key={d}
+      onClick={() => setChartDays(d)}
+      style={{
+        padding: '2px 8px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer',
+        background: chartDays === d ? 'var(--accent)' : 'var(--bg-tertiary)',
+        color: chartDays === d ? '#fff' : 'var(--text-secondary)',
+        fontWeight: chartDays === d ? 600 : 400,
+        transition: 'background 0.15s',
+      }}
+    >{label}</button>
+  );
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -192,9 +223,15 @@ export function CostPanel() {
               ))}
             </div>
 
-            {/* 7 天柱状图 */}
+            {/* 趋势柱状图（含时间范围切换） */}
             <div style={{ margin: '0 16px 16px', padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 500 }}>近 7 天成本分布</div>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                <Clock size={12} style={{ color: 'var(--text-muted)', marginRight: 5 }} />
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, flex: 1 }}>成本趋势</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {rangeBtn(7, '7天')}{rangeBtn(14, '14天')}{rangeBtn(30, '30天')}
+                </div>
+              </div>
               <CostChart data={chartData} />
             </div>
 
@@ -214,6 +251,32 @@ export function CostPanel() {
                       </div>
                       <div style={{ height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
                         <div style={{ height: '100%', background: 'var(--accent)', width: `${(m.costUsd / maxModelCost) * 100}%`, borderRadius: 3, opacity: 0.8 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* 按项目统计（Top 5） */}
+            {(() => {
+              const projectStats = aggregateByProject(tokenHistory, 5);
+              if (projectStats.length === 0) return null;
+              const maxProjCost = Math.max(...projectStats.map((p) => p.costUsd), 0.0001);
+              return (
+                <div style={{ margin: '0 16px 16px', padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <FolderOpen size={12} style={{ color: 'var(--text-muted)' }} />
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>按项目统计（Top 5）</span>
+                  </div>
+                  {projectStats.map((p) => (
+                    <div key={p.dir} style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '55%' }} title={p.dir}>{p.displayName}</span>
+                        <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{p.count} 次 · <strong style={{ color: 'var(--accent)' }}>{formatCost(p.costUsd)}</strong></span>
+                      </div>
+                      <div style={{ height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: 'linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%)', width: `${(p.costUsd / maxProjCost) * 100}%`, borderRadius: 3, opacity: 0.75 }} />
                       </div>
                     </div>
                   ))}

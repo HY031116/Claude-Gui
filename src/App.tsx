@@ -27,6 +27,8 @@ function App() {
   const accentColor = useAppStore((s) => s.accentColor);
   const fontSize = useAppStore((s) => s.fontSize);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
+  const triggerHistorySearch = useAppStore((s) => s.triggerHistorySearch);
+  const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
 
   // 可拖拽侧边栏
   const { sidebarWidth, handleResizeMouseDown } = useResizableSidebar();
@@ -189,6 +191,15 @@ function App() {
         return;
       }
 
+      // Ctrl+Shift+F：全局快速搜索历史会话
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        handleNavClick('monitor' as NavClick);
+        setPendingMonitorTab('sessions');
+        triggerHistorySearch();
+        return;
+      }
+
       // Ctrl+1~7：NavRail 快速跳转
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
         const NAV_KEYS: Record<string, NavSection> = {
@@ -210,7 +221,7 @@ function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleNavClick]);
+  }, [handleNavClick, triggerHistorySearch, setPendingMonitorTab]);
 
   return (
     <>

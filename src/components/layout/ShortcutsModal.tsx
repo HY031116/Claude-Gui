@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 
 const SHORTCUTS = [
   { key: 'Ctrl+K', desc: '打开命令面板（搜索所有功能）' },
+  { key: 'Ctrl+Shift+F', desc: '全局快速搜索历史会话' },
   { key: 'Ctrl+F', desc: '搜索消息' },
   { key: 'Ctrl+O', desc: '全局展开/折叠 Thinking' },
   { key: 'Ctrl+T', desc: '新建会话标签' },
