@@ -227,8 +227,8 @@ export function NavRail({ onNavClick }: NavRailProps) {
         </button>
       )}
 
-      {/* 在浏览器中打开（仅 Electron 环境显示） */}
-      {typeof window.electronAPI !== 'undefined' && (
+      {/* 在浏览器中打开（仅原生 Electron 环境显示，Web 模式下 openInBrowser 为 undefined） */}
+      {typeof window.electronAPI?.openInBrowser === 'function' && (
         <button
           onClick={() => window.electronAPI?.openInBrowser?.()}
           className="nav-button"

@@ -189,7 +189,7 @@ export const webAPI: ElectronAPI = {
   onUpdateStatus: () => () => {}, // Web 模式下无自动更新
 
   // ── Web 模式无此功能，提供空实现 ──
-  openInBrowser: () => Promise.resolve({ success: true }),
+  // Web 模式下无需"在浏览器中打开"，不实现该方法
 };
 
 /**
