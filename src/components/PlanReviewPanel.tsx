@@ -25,7 +25,7 @@ function inferToolType(text: string): string {
   return 'Unknown';
 }
 
-function inferRiskLevel(toolType: string, _text: string): PlanRiskLevel {
+function inferRiskLevel(toolType: string): PlanRiskLevel {
   if (['Bash', 'Delete', 'API'].includes(toolType)) return 'high';
   if (toolType === 'Edit' || toolType === 'Write') return 'medium';
   return 'low';
@@ -76,7 +76,7 @@ export function parsePlanSteps(rawText: string): ReviewablePlanStep[] {
   return lines.map((line, idx) => {
     const text = line.replace(/^\d+[.)]\s*/, '').trim();
     const toolType = inferToolType(text);
-    const riskLevel = inferRiskLevel(toolType, text);
+    const riskLevel = inferRiskLevel(toolType);
     return {
       id: `plan-step-${idx}`,
       index: idx + 1,

@@ -216,14 +216,14 @@ function detectDecisionRequest(text: string): boolean {
   ];
   const lc = trimmed.toLowerCase();
   const hasKw = keywords.some((kw) => lc.includes(kw));
-  const hasList = /\b(option|choice|方案|选项)\s*[A-D1-4][\.\)：:]/i.test(trimmed);
+  const hasList = /\b(option|choice|方案|选项)\s*[A-D1-4][.)：:]/i.test(trimmed);
   return hasKw && hasList;
 }
 
 /** 从消息中提取多选项标签（最多 4 个），供 DecisionCard 按钮使用 */
 function extractQuickOptions(text: string): string[] {
   const opts: string[] = [];
-  const re = /(?:(?:方案|选项|Option|Choice)\s*([A-D]|[1-4])[\.\)：:\s]+)(.+)/gim;
+  const re = /(?:(?:方案|选项|Option|Choice)\s*([A-D]|[1-4])[.)：:\s]+)(.+)/gim;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null && opts.length < 4) {
     const label = String(m[1]).toUpperCase();
@@ -2590,9 +2590,6 @@ const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: 
 
   // Turn 完成前（仍有 pending）不展示
   const isComplete = toolCalls.every(c => c.status !== 'pending');
-  if (!isComplete || reviewable.length === 0) return null;
-
-  const allReviewed = reviewable.every(c => c.diffReviewStatus === 'accepted' || c.diffReviewStatus === 'reverted');
 
   // 用 computeLineDiff 统计每个文件的行增删
   const fileStats = useMemo(() => {
@@ -2662,6 +2659,11 @@ const ChangeSummaryCard = memo(function ChangeSummaryCard({ toolCalls, msgId }: 
       setBusy(false);
     }
   }, [busy, patchAll, reviewable]);
+
+  // 所有 Hooks 调用完毕后，再做早期返回检查（符合 Rules of Hooks）
+  if (!isComplete || reviewable.length === 0) return null;
+
+  const allReviewed = reviewable.every(c => c.diffReviewStatus === 'accepted' || c.diffReviewStatus === 'reverted');
 
   return (
     <div style={{ margin: '2px 16px 6px 40px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', overflow: 'hidden' }}>
