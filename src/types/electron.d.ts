@@ -35,6 +35,10 @@ export interface ElectronAPI {
   cliRespondPermission: (requestId: string, allow: boolean) => Promise<{ success: boolean; error?: string }>;
   onCliOutput: (callback: (event: CliOutputEvent) => void) => () => void;
   listDirectory: (path: string) => Promise<{ success: boolean; entries?: any[]; error?: string }>;
+  /** 递归 fuzzy 搜索工作目录内的文件，最多返回 20 条 */
+  listFilesInDir: (cwd: string, query: string) => Promise<{ success: boolean; files?: string[]; error?: string }>;
+  /** 列出全局和局部可用 Skills */
+  listSkills: (cwd?: string) => Promise<{ success: boolean; skills?: Array<{ name: string; source: 'global' | 'local' }>; error?: string }>;
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
   writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
   /** 读取 ~/.claude/projects/ 下所有历史会话文件 */

@@ -5,13 +5,15 @@
 import { useEffect } from 'react';
 
 const SHORTCUTS = [
+  { key: 'Ctrl+K', desc: '打开命令面板（搜索所有功能）' },
   { key: 'Ctrl+F', desc: '搜索消息' },
   { key: 'Ctrl+O', desc: '全局展开/折叠 Thinking' },
   { key: 'Ctrl+T', desc: '新建会话标签' },
   { key: 'Ctrl+W', desc: '关闭当前标签' },
+  { key: 'Ctrl+1~7', desc: '快速跳转 NavRail 各区域' },
   { key: 'Ctrl+V', desc: '粘贴截图为附件' },
   { key: 'Enter', desc: '发送消息（Shift+Enter 换行）' },
-  { key: 'Esc', desc: '关闭搜索/弹窗' },
+  { key: 'Esc', desc: '关闭搜索/弹窗/命令面板' },
   { key: '?', desc: '显示此快捷键面板' },
 ];
 

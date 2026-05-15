@@ -1,6 +1,22 @@
 # Changelog
 
-## [3.15.0] - 2026-05-15
+## [3.16.0] - 2026-05-16
+
+### 新增
+- **@文件引用自动补全**：任务描述框中输入 `@` 触发文件搜索弹窗，支持 fuzzy 匹配，键盘 ↑↓/Enter/Esc 导航，选中后自动展开为完整路径
+  - `electron/file-service.ts`：`listFilesInDir(cwd, query)` — 递归遍历工作目录，排除 node_modules/.git 等，fuzzy 匹配返回最多 20 条
+  - `src/components/task/FileSearchDropdown.tsx`：@引用弹窗组件，支持键盘导航和点击外部关闭
+- **Skills 注入**：高级选项新增 Skills 多选标签区，加载 `~/.claude/skills/` 和 `.claude/skills/` 中的 `.md` 文件，选中后以 `/skill-name` 形式前置到任务消息
+  - `electron/file-service.ts`：`listSkills(cwd?)` — 读取全局/局部 Skills 目录
+- **任务模板保存**：模板区新增「保存当前」按钮，支持将当前表单（任务描述+执行模式+Agent）保存为自定义模板，存入 `localStorage`；自定义模板支持独立删除
+- **Web 端工作目录适配**：Web 模式下工作目录改为手动文本输入（对话框不可用），支持路径验证、`~` 展开、历史记录下拉（最近 10 条）
+- **Web 模式横幅**：`WebModeBanner` 组件，非 Electron 环境顶部显示连接状态提示，可关闭（sessionStorage 记忆）
+- **StatusBar Web 标识**：Web 模式下状态栏显示蓝色「🌐 Web 模式」标识
+
+### 技术
+- `electron/main.ts`：注册 `fs:listFiles` / `fs:listSkills` IPC handler
+- `electron/web-server.ts`：switch-case 添加两个新 channel 转发
+- `electron/preload.ts` / `src/types/electron.d.ts` / `src/lib/transport.ts`：同步添加新方法类型和 webAPI 实现
 
 ### 新增
 - **Web 端支持**：Electron 内嵌本地 Web 服务器（`127.0.0.1:5175`），同机浏览器可访问完整 GUI，无需任何额外安装

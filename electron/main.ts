@@ -200,6 +200,16 @@ ipcMain.handle('fs:list', async (_, dirPath: string) => {
   return fileService.listDirectory(dirPath);
 });
 
+// 工作目录内 fuzzy 文件搜索（@文件引用自动补全）
+ipcMain.handle('fs:listFiles', async (_, cwd: string, query: string) => {
+  return fileService.listFilesInDir(cwd, query);
+});
+
+// 列出可用 Skills（委派表单 Skills 注入）
+ipcMain.handle('fs:listSkills', async (_, cwd?: string) => {
+  return fileService.listSkills(cwd);
+});
+
 ipcMain.handle('fs:read', async (_, filePath: string) => {
   return fileService.readFile(filePath);
 });

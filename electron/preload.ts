@@ -29,6 +29,8 @@ export interface ElectronAPI {
   cliRespondPermission: (requestId: string, allow: boolean) => Promise<{ success: boolean; error?: string }>;
   onCliOutput: (callback: (event: CliOutputEvent) => void) => () => void;
   listDirectory: (path: string) => Promise<{ success: boolean; entries?: any[]; error?: string }>;
+  listFilesInDir: (cwd: string, query: string) => Promise<{ success: boolean; files?: string[]; error?: string }>;
+  listSkills: (cwd?: string) => Promise<{ success: boolean; skills?: Array<{ name: string; source: 'global' | 'local' }>; error?: string }>;
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
   writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
   /** 读取 ~/.claude/projects/ 下所有历史会话文件 */
@@ -142,6 +144,8 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener('cli:output', handler);
   },
   listDirectory: (path) => ipcRenderer.invoke('fs:list', path),
+  listFilesInDir: (cwd, query) => ipcRenderer.invoke('fs:listFiles', cwd, query),
+  listSkills: (cwd) => ipcRenderer.invoke('fs:listSkills', cwd),
   readFile: (path) => ipcRenderer.invoke('fs:read', path),
   writeFile: (path, content) => ipcRenderer.invoke('fs:write', path, content),
   loadCliHistory: () => ipcRenderer.invoke('cli:history'),

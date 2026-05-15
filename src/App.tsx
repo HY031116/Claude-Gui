@@ -5,7 +5,9 @@ import { WorkspaceArea } from './components/layout/WorkspaceArea';
 import { AuxPanel } from './components/layout/AuxPanel';
 import { StatusBar } from './components/layout/StatusBar';
 import { ShortcutsModal } from './components/layout/ShortcutsModal';
+import { CommandPalette } from './components/layout/CommandPalette';
 import { UpdateBanner } from './components/UpdateBanner';
+import { WebModeBanner } from './components/WebModeBanner';
 import { useResizableSidebar } from './hooks/useResizableSidebar';
 import { useCliOutput } from './hooks/useCliOutput';
 import { computeNavTransition } from './utils/nav';
@@ -129,6 +131,11 @@ function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const handleCloseShortcuts = useCallback(() => setShowShortcuts(false), []);
 
+  // 命令面板（Ctrl+K）
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
+  const handleShowShortcutsFromPalette = useCallback(() => setShowShortcuts(true), []);
+
   // 3.3.7：监听后台 tab 的 permission-request 事件，触发系统通知
   useEffect(() => {
     if (!window.electronAPI?.onCliOutput) return;
@@ -166,6 +173,28 @@ function App() {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Ctrl+K：打开命令面板（优先于输入框的 Ctrl+K 行为）
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowCommandPalette((v) => !v);
+        return;
+      }
+
+      // Ctrl+1~7：NavRail 快速跳转
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        const NAV_KEYS: Record<string, NavSection> = {
+          '1': 'command', '2': 'dispatch', '3': 'agents',
+          '4': 'review',  '5': 'artifacts', '6': 'capabilities', '7': 'monitor',
+        };
+        const target = NAV_KEYS[e.key];
+        if (target) {
+          e.preventDefault();
+          handleNavClick(target as NavClick);
+          return;
+        }
+      }
+
       if (e.key === '?' && !inInput && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setShowShortcuts((v) => !v);
@@ -173,11 +202,12 @@ function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [handleNavClick]);
 
   return (
     <>
     <UpdateBanner />
+    <WebModeBanner />
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }} data-aux-panel={auxPanelOpen ? 'open' : 'closed'}>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
       {/* 左侧导航栏 */}
@@ -202,6 +232,16 @@ function App() {
 
       {/* 快捷键一览 Modal（fixed 浮层，挂在 body 级别） */}
       {showShortcuts && <ShortcutsModal onClose={handleCloseShortcuts} />}
+
+      {/* 命令面板（Ctrl+K，fixed 浮层） */}
+      {showCommandPalette && (
+        <CommandPalette
+          onClose={handleCloseCommandPalette}
+          onNavClick={handleNavClick as (id: NavClick) => void}
+          onStartSession={handleStartSession}
+          onShowShortcuts={handleShowShortcutsFromPalette}
+        />
+      )}
     </>
   );
 }

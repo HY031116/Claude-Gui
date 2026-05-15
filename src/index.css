@@ -5595,6 +5595,203 @@ body.is-resizing .resize-handle::after {
   background: var(--bg-hover);
 }
 
+/* ── v3.16 新增样式 ── */
+
+/* Web 模式横幅 */
+.web-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 32px;
+  background: #1a3a5c;
+  color: #90caf9;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.web-mode-banner-text { flex: 1; }
+.web-mode-banner-dismiss {
+  background: none;
+  border: none;
+  color: #90caf9;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 0;
+  opacity: 0.7;
+}
+.web-mode-banner-dismiss:hover { opacity: 1; }
+
+/* StatusBar Web 标识 */
+.status-dot.status-web { background: #42a5f5; }
+.status-item--web { color: #42a5f5; }
+
+/* Web 模式目录输入 */
+.lp-web-dir-group { display: flex; flex-direction: column; gap: 4px; }
+.lp-web-dir-row { display: flex; gap: 6px; }
+.lp-web-dir-input { flex: 1; min-width: 0; }
+.lp-btn--ok { border-color: var(--success, #4caf50) !important; color: var(--success, #4caf50) !important; }
+.lp-dir-history {
+  list-style: none;
+  margin: 0; padding: 4px 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.lp-dir-history-item {
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-dir-history-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 任务描述 textarea 包裹层（定位弹窗用） */
+.lp-textarea-wrap { position: relative; }
+
+/* @文件引用自动补全弹窗 */
+.file-search-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  z-index: 200;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.file-search-dropdown-hint {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.file-search-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.file-search-dropdown-item:hover,
+.file-search-dropdown-item.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.file-search-icon { opacity: 0.5; flex-shrink: 0; }
+.file-search-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Skills 注入区域 */
+.lp-skills-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.lp-skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.lp-skill-tag:hover { border-color: var(--accent); color: var(--text-primary); }
+.lp-skill-tag--active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb, 59,130,246), 0.12);
+  color: var(--accent);
+}
+.lp-skill-local {
+  font-size: 9px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 3px;
+  padding: 0 3px;
+  letter-spacing: 0.3px;
+}
+
+/* 模板区域 header */
+.lp-templates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.lp-btn--ghost {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.lp-btn--ghost:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.lp-save-template-btn { font-size: 11px; }
+
+/* 自定义模板（含删除按钮） */
+.lp-template-custom { position: relative; display: inline-flex; }
+.lp-template-btn--custom { padding-right: 22px !important; }
+.lp-template-delete {
+  position: absolute;
+  right: 3px; top: 50%; transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  line-height: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.lp-template-custom:hover .lp-template-delete { opacity: 1; }
+.lp-template-delete:hover { color: var(--error, #f44336); }
+
+/* 保存模板 Modal */
+.lp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.lp-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+}
+.lp-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.lp-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ── 通用工具类 ── */
 .empty-state-card {
   padding: 28px;

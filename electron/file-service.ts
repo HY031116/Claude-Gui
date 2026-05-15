@@ -28,6 +28,25 @@ export interface CliSessionRecord {
   workingDirectory?: string;
 }
 
+/** 自定义 Agent 的完整字段集 */
+export type AgentData = {
+  name: string;
+  model: string;
+  description: string;
+  prompt: string;
+  permission_mode: string;
+  max_turns: number | null;
+  effort: string;
+  allowed_tools: string[];
+  disallowed_tools: string[];
+  skills: string[];
+  memory_type: string;
+  isolation: string;
+  background: boolean;
+  initial_prompt: string;
+  color: string;
+};
+
 export class FileService {
   async listDirectory(dirPath: string): Promise<{ success: boolean; entries?: DirEntry[]; error?: string }> {
     try {
@@ -754,26 +773,56 @@ export class FileService {
   }
 
   /** 解析 agent Markdown 文件，提取 frontmatter 和 system prompt */
-  private parseAgentFile(content: string): { name: string; model: string; description: string; prompt: string } {
+  private parseAgentFile(content: string): AgentData {
     const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
-    if (!fmMatch) return { name: '', model: '', description: '', prompt: content.trim() };
+    const emptyData: AgentData = {
+      name: '', model: '', description: '', prompt: content.trim(),
+      permission_mode: '', max_turns: null, effort: '',
+      allowed_tools: [], disallowed_tools: [], skills: [],
+      memory_type: '', isolation: '', background: false, initial_prompt: '', color: '',
+    };
+    if (!fmMatch) return emptyData;
     const fm = fmMatch[1];
     const prompt = fmMatch[2].trim();
-    const get = (key: string) => { const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm')); return m ? m[1].trim() : ''; };
-    return { name: get('name'), model: get('model'), description: get('description'), prompt };
+    const get = (key: string): string => { const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, 'm')); return m ? m[1].trim() : ''; };
+    const getArr = (key: string): string[] => {
+      const val = get(key); if (!val) return [];
+      try { const p = JSON.parse(val); if (Array.isArray(p)) return p.map(String); } catch { /* fall through */ }
+      return val.split(',').map((s) => s.trim()).filter(Boolean);
+    };
+    const getInt = (key: string): number | null => { const val = get(key); if (!val) return null; const n = parseInt(val, 10); return isNaN(n) ? null : n; };
+    const getBool = (key: string): boolean => get(key) === 'true';
+    return {
+      name: get('name'), model: get('model'), description: get('description'), prompt,
+      permission_mode: get('permission_mode'), max_turns: getInt('max_turns'), effort: get('effort'),
+      allowed_tools: getArr('allowed_tools'), disallowed_tools: getArr('disallowed_tools'),
+      skills: getArr('skills'), memory_type: get('memory_type'), isolation: get('isolation'),
+      background: getBool('background'), initial_prompt: get('initial_prompt'), color: get('color'),
+    };
   }
 
   /** 序列化 agent 到 Markdown frontmatter 格式 */
-  private serializeAgent(a: { name: string; model: string; description: string; prompt: string }): string {
+  private serializeAgent(a: AgentData): string {
     const lines = ['---', `name: ${a.name}`];
     if (a.model) lines.push(`model: ${a.model}`);
     if (a.description) lines.push(`description: ${a.description}`);
+    if (a.permission_mode) lines.push(`permission_mode: ${a.permission_mode}`);
+    if (a.max_turns != null) lines.push(`max_turns: ${a.max_turns}`);
+    if (a.effort) lines.push(`effort: ${a.effort}`);
+    if (a.allowed_tools?.length) lines.push(`allowed_tools: ${JSON.stringify(a.allowed_tools)}`);
+    if (a.disallowed_tools?.length) lines.push(`disallowed_tools: ${JSON.stringify(a.disallowed_tools)}`);
+    if (a.skills?.length) lines.push(`skills: ${JSON.stringify(a.skills)}`);
+    if (a.memory_type) lines.push(`memory_type: ${a.memory_type}`);
+    if (a.isolation) lines.push(`isolation: ${a.isolation}`);
+    if (a.background) lines.push('background: true');
+    if (a.initial_prompt) lines.push(`initial_prompt: ${a.initial_prompt}`);
+    if (a.color) lines.push(`color: ${a.color}`);
     lines.push('---', '', a.prompt);
     return lines.join('\n');
   }
 
   /** 列出所有自定义 agents */
-  async listCustomAgents(): Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }> {
+  async listCustomAgents(): Promise<{ success: boolean; agents?: Array<{ filename: string } & AgentData>; error?: string }> {
     try {
       await fs.mkdir(this.agentsDir, { recursive: true });
       const entries = await fs.readdir(this.agentsDir);
@@ -799,7 +848,7 @@ export class FileService {
   }
 
   /** 写入/覆盖一个自定义 agent（filename 如 my-agent.md） */
-  async writeCustomAgent(filename: string, data: { name: string; model: string; description: string; prompt: string }): Promise<{ success: boolean; error?: string }> {
+  async writeCustomAgent(filename: string, data: AgentData): Promise<{ success: boolean; error?: string }> {
     // 安全校验：仅允许文件名（禁止路径穿越）
     if (path.basename(filename) !== filename || !filename.endsWith('.md') || filename.includes('..')) {
       return { success: false, error: '非法文件名' };
@@ -1080,6 +1129,98 @@ export class FileService {
         await fs.unlink(path.join(this.sessionsDir, file)).catch(() => {});
       }
     } catch { /* 静默失败 */ }
+  }
+
+  /**
+   * 递归列出工作目录内的文件，按 fuzzy 匹配 query 排序，最多返回 20 条
+   * 安全约束：仅遍历 cwd 内部，忽略 .git、node_modules 等目录
+   */
+  async listFilesInDir(
+    cwd: string,
+    query: string,
+  ): Promise<{ success: boolean; files?: string[]; error?: string }> {
+    const IGNORE_DIRS = new Set([
+      'node_modules', '.git', '.svn', 'dist', 'build', 'out', '.next', '.nuxt',
+      '__pycache__', '.venv', 'venv', '.cache', 'coverage', '.dart_tool',
+    ]);
+    const MAX_WALK = 5000;
+    const MAX_RESULTS = 20;
+    const expanded = this.expandTilde(cwd);
+    const collected: string[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+      if (collected.length >= MAX_WALK) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let entries: any[];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true }) as any[];
+      } catch { return; }
+      for (const entry of entries) {
+        if (collected.length >= MAX_WALK) return;
+        if (entry.isDirectory()) {
+          if (IGNORE_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+          await walk(path.join(dir, entry.name));
+        } else if (entry.isFile()) {
+          // 统一用 / 分隔符，便于跨平台展示
+          collected.push(path.relative(expanded, path.join(dir, entry.name)).replace(/\\/g, '/'));
+        }
+      }
+    };
+
+    try {
+      await walk(expanded);
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+
+    // Fuzzy 匹配：query 的每个字符都必须按序出现在路径中
+    const lower = query.toLowerCase();
+    const scored = collected
+      .map((f) => {
+        const fl = f.toLowerCase();
+        let qi = 0; let score = 0; let consecutive = 0;
+        for (let i = 0; i < fl.length && qi < lower.length; i++) {
+          if (fl[i] === lower[qi]) {
+            qi++; consecutive++;
+            score += consecutive * consecutive;
+          } else {
+            consecutive = 0;
+          }
+        }
+        return { file: f, match: qi === lower.length, score };
+      })
+      .filter((x) => x.match)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_RESULTS)
+      .map((x) => x.file);
+
+    return { success: true, files: scored };
+  }
+
+  /**
+   * 列出全局（~/.claude/skills/）和局部（.claude/skills/）可用 Skills
+   * Skills 为 .md 文件，文件名去掉后缀即为 skill 名称
+   */
+  async listSkills(cwd?: string): Promise<{ success: boolean; skills?: Array<{ name: string; source: 'global' | 'local' }>; error?: string }> {
+    const globalDir = path.join(os.homedir(), '.claude', 'skills');
+    const localDir = cwd ? path.join(this.expandTilde(cwd), '.claude', 'skills') : null;
+    const skills: Array<{ name: string; source: 'global' | 'local' }> = [];
+
+    const readDir = async (dir: string, source: 'global' | 'local') => {
+      try {
+        const entries = await fs.readdir(dir);
+        for (const entry of entries) {
+          if (entry.endsWith('.md')) {
+            skills.push({ name: entry.replace(/\.md$/, ''), source });
+          }
+        }
+      } catch { /* 目录不存在则忽略 */ }
+    };
+
+    await readDir(globalDir, 'global');
+    if (localDir) await readDir(localDir, 'local');
+
+    return { success: true, skills };
   }
 }
 

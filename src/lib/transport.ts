@@ -85,6 +85,8 @@ export const webAPI: ElectronAPI = {
 
   // ── 文件系统 ──
   listDirectory: (path) => webInvoke('fs:list', path),
+  listFilesInDir: (cwd, query) => webInvoke('fs:listFiles', cwd, query),
+  listSkills: (cwd) => webInvoke('fs:listSkills', cwd),
   readFile: (path) => webInvoke('fs:read', path),
   writeFile: (path, content) => webInvoke('fs:write', path, content),
   loadCliHistory: () => webInvoke('cli:history'),

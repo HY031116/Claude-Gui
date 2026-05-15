@@ -18,6 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
+import { DISPATCH_AUX_SUBS, DISPATCH_AUX_DEFAULT } from '../../utils/nav';
 import type { NavClick } from '../../utils/nav';
 import type { Message, PlanStep } from '../../types';
 
@@ -76,7 +77,7 @@ function isNeedsInput(snap: EffectiveSnap, isProcessing: boolean): boolean {
   const text = typeof lastMsg.content === 'string' ? lastMsg.content : '';
   const endsWithQuestion = /[?？]\s*$/.test(text.trim());
   const hasKeyword = DECISION_KEYWORDS.some((kw) => text.toLowerCase().includes(kw));
-  const hasOptionList = /\b(option|choice|方案|选项)\s*[A-D1-4][\.\)：:]/i.test(text);
+  const hasOptionList = /\b(option|choice|方案|选项)\s*[A-D1-4][.)：:]/i.test(text);
   return endsWithQuestion || (hasKeyword && hasOptionList);
 }
 
@@ -248,9 +249,16 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
   const handleGoToTab = useCallback(
     (tabId: string) => {
       setActiveTab(tabId);
-      onNavClick('dispatch');
+      // 直接读取最新 store 状态进行导航，避免 onNavClick 闭包捕获旧 activeNavSection
+      // 导致 computeNavTransition 误认为已在 dispatch 而 toggle 回 command
+      const store = useAppStore.getState();
+      const sub = (DISPATCH_AUX_SUBS as readonly string[]).includes(store.activeAuxSubPanel)
+        ? store.activeAuxSubPanel
+        : DISPATCH_AUX_DEFAULT;
+      store.setActiveNavSection('dispatch');
+      store.setActiveAuxSubPanel(sub);
     },
-    [setActiveTab, onNavClick],
+    [setActiveTab],
   );
 
   const handleGoToSessions = useCallback(

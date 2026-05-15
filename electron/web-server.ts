@@ -161,6 +161,14 @@ export function startWebServer(services: WebServerServices): http.Server {
         case 'fs:write':
           result = await fileService.writeFile(args[0] as string, args[1] as string);
           break;
+        // @文件引用自动补全：fuzzy 搜索工作目录内文件
+        case 'fs:listFiles':
+          result = await fileService.listFilesInDir(args[0] as string, args[1] as string);
+          break;
+        // Skills 注入：列出可用 Skills
+        case 'fs:listSkills':
+          result = await fileService.listSkills(args[0] as string | undefined);
+          break;
         case 'fs:saveTempImage': {
           const { randomUUID } = await import('crypto');
           const ext = (args[1] as string) ?? 'png';
