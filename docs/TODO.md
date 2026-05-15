@@ -61,18 +61,21 @@
 
 ### 🟢 优先级 P2：技术债 / 可观测性（本版可选，下版必选）
 
-#### DEBT-001 Tab 介入状态计算依赖 ChatPanel 副作用，不是单一来源
-- **描述**：`tabInterventionStatus` 由 ChatPanel 的 useEffect 写入（L397–401），同时又要读 `permissionRequests`（本地 state）、`pendingDecision`（store）、`pendingFileRequest`（store）、`showLongWaitBanner`（本地 state），混合两种来源。
-- **影响**：当 Tab 切换导致 ChatPanel 重新挂载或数据清空，这个 useEffect 可能算出"无介入"而误清除实际存在的介入状态。
-- **方向**：将 `tabInterventionStatus` 的计算逻辑收到 store 的 derived state 或 selector，由 store 自己根据 `pendingDecisionRequests` 、`pendingFileRequests`、`processingTabs` 等单一数据源推导。
+#### ✅ DEBT-001 Tab 介入状态计算依赖 ChatPanel 副作用 — **已修复**
+- **修复内容**：将 `showLongWaitBanner` 从 ChatPanel 本地 `useState` 提升为 store 中的 `longWaitBanners: Record<string, boolean>`，新增 `setLongWaitBanner(tabId, show)` action。ChatPanel 中的 interval 定时器、`message-done` 回调、dismiss 按钮均改为写入 store。`closeTab`/`switchWorkspace` 同步清理 `longWaitBanners`。`tabInterventionStatus` 的 useEffect 现在全部四个输入（permissionRequests、pendingDecision、pendingFileRequest、showLongWaitBanner）均来自 store，消除了本地 state 对计算的干扰。
 
 #### DEBT-002 permissionRequests 的清理时机分散在 5 处
 - **代码行**：ChatPanel.tsx:744（message-done）· L781（message-error）· L1144（handleStop）· L556 + L563（permission-resolved 事件）
 - **描述**：权限请求的清理分布在 5 个地方，任何一处遗漏都可能残留。提升到 store 后可统一管理清理逻辑。
 
-#### TEST-001 缺少 Tab 切换后状态验证测试
-- **位置**：`src/test/` 或 `src/stores/useAppStore.test.ts`
-- **描述**：当前测试文件存在但覆盖面不清楚，需要补充：Tab 切换后各 pendingXxx 状态是否正确隔离；关闭 Tab 后孤儿状态是否清除；工作区切换后是否不带入旧介入。
+#### ✅ TEST-001 介入状态隔离测试 — **已完成**
+- **补充内容**（`src/stores/useAppStore.test.ts`）：
+  - `addPermissionRequest` Tab 隔离测试
+  - `removePermissionRequest` 移除后列表为空
+  - `closeTab` 活跃 Tab 关闭后权限请求 + longWaitBanners 被清除
+  - `closeTab` 非活跃 Tab 关闭同样清理
+  - `setLongWaitBanner` 按 Tab 隔离
+  - `setActiveTab` 切换后未读计数自动清零（验证 BUG-005 修复）
 
 ---
 
@@ -132,6 +135,8 @@
 - [x] BUG-004 通过：切换 Tab 后 showLongWaitBanner 不跨 Tab 残留
 - [x] BUG-005 通过：通过介入中心跳转后目标 Tab 未读计数正确清零
 - [x] BUG-006 通过：切换工作区后介入中心不残留旧工作区待处理项
+- [x] DEBT-001 完成：tabInterventionStatus 四个输入均来自 store，无本地 state 混用
+- [x] TEST-001 完成：介入状态隔离单元测试 6 个场景全通过（50 tests passed）
 
 ### v4.4.0
 - [ ] BUG-101 通过：并发 question + permission 事件不互相覆盖

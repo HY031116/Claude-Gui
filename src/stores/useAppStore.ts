@@ -226,6 +226,10 @@ interface AppState {
   removePermissionRequest: (tabId: string, reqId: string) => void;
   clearPermissionRequestsForTab: (tabId: string) => void;
 
+  /** DEBT-001[v4.3.0] 长时等待横幅状态（按 tab 保存，从 ChatPanel 本地 state 提升到 store） */
+  longWaitBanners: Record<string, boolean>;
+  setLongWaitBanner: (tabId: string, show: boolean) => void;
+
   /** 由全局介入中心下发到具体对话的快速回复动作 */
   pendingQuickReplies: Record<string, PendingQuickReply | null>;
   setPendingQuickReply: (tabId: string, reply: PendingQuickReply | null) => void;
@@ -312,10 +316,12 @@ export const useAppStore = create<AppState>((set, get) => {
       const restFileReqs = { ...state.pendingFileRequests };
       const restQuickReplies = { ...state.pendingQuickReplies };
       const restPermissions = { ...state.permissionRequestsPerTab };
+      const restLongWait1 = { ...state.longWaitBanners };
       delete restDecisions[tabId];
       delete restFileReqs[tabId];
       delete restQuickReplies[tabId];
       delete restPermissions[tabId];
+      delete restLongWait1[tabId];
       set({
         tabs: newTabs,
         activeTabId: newActiveId,
@@ -330,6 +336,7 @@ export const useAppStore = create<AppState>((set, get) => {
         pendingFileRequests: restFileReqs,
         pendingQuickReplies: restQuickReplies,
         permissionRequestsPerTab: restPermissions,
+        longWaitBanners: restLongWait1,
       });
     } else {
       const restSnapshots = { ...state.tabSnapshots };
@@ -339,10 +346,12 @@ export const useAppStore = create<AppState>((set, get) => {
       const restFileReqs = { ...state.pendingFileRequests };
       const restQuickReplies = { ...state.pendingQuickReplies };
       const restPermissions = { ...state.permissionRequestsPerTab };
+      const restLongWait2 = { ...state.longWaitBanners };
       delete restDecisions[tabId];
       delete restFileReqs[tabId];
       delete restQuickReplies[tabId];
       delete restPermissions[tabId];
+      delete restLongWait2[tabId];
       set({
         tabs: newTabs,
         tabSnapshots: restSnapshots,
@@ -350,6 +359,7 @@ export const useAppStore = create<AppState>((set, get) => {
         pendingFileRequests: restFileReqs,
         pendingQuickReplies: restQuickReplies,
         permissionRequestsPerTab: restPermissions,
+        longWaitBanners: restLongWait2,
       });
     }
   },
@@ -581,6 +591,12 @@ export const useAppStore = create<AppState>((set, get) => {
     permissionRequestsPerTab: { ...state.permissionRequestsPerTab, [tabId]: [] },
   })),
 
+  // DEBT-001[v4.3.0] longWaitBanners 提升到 store，消除 ChatPanel 本地 state 对 tabInterventionStatus 计算的干扰。
+  longWaitBanners: {},
+  setLongWaitBanner: (tabId, show) => set((state) => ({
+    longWaitBanners: { ...state.longWaitBanners, [tabId]: show },
+  })),
+
   pendingQuickReplies: {},
   setPendingQuickReply: (tabId, reply) => set((state) => ({
     pendingQuickReplies: { ...state.pendingQuickReplies, [tabId]: reply },
@@ -699,6 +715,7 @@ export const useAppStore = create<AppState>((set, get) => {
       pendingFileRequests: {},
       pendingQuickReplies: {},
       permissionRequestsPerTab: {},
+      longWaitBanners: {},
       // TODO[BUG-006][v4.3.0] App.tsx 的 questionRequests 是 React 本地 state，
       // switchWorkspace 无法触发其重置，已通过 activeWorkspacePath useEffect 修复（BUG-006）。
     });

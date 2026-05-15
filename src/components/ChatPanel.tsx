@@ -323,18 +323,21 @@ export function ChatPanel() {
   }, [isProcessing, activeTabId, setTabProcessing]);
 
   // 介入类型 D：45 秒无 chunk 时显示长时等待横幅
+  // DEBT-001[v4.3.0] setLongWaitBanner 写入 store（使用 ref 避免 interval 闭包捕获旧 tabId）。
   useEffect(() => {
     if (!isProcessing) {
-      setShowLongWaitBanner(false);
+      setLongWaitBanner(activeTabIdRef.current, false);
       return;
     }
     lastChunkAtRef.current = Date.now();
     const interval = setInterval(() => {
       if (Date.now() - lastChunkAtRef.current > 45_000) {
-        setShowLongWaitBanner(true);
+        setLongWaitBanner(activeTabIdRef.current, true);
       }
     }, 5000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // setLongWaitBanner 是 Zustand 稳定 action；activeTabIdRef 通过 ref 访问无需加入依赖。
   }, [isProcessing]);
 
   // 历史会话恢复：有 conversationSessionId 时即使 PTY 未连接也可发消息（sendMessage 是独立子进程）
@@ -389,18 +392,19 @@ export function ChatPanel() {
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
   // FIX[BUG-002][v4.3.0] permissionRequests 已提升到 store，本地 state 已移除。
-  // 介入类型 D：长时等待横幅（45 秒无新 chunk）
-  // FIX[BUG-004][v4.3.0] showLongWaitBanner 在 Tab 切换时重置，防止跨 Tab 误显示。
-  const [showLongWaitBanner, setShowLongWaitBanner] = useState(false);
+  // DEBT-001[v4.3.0] showLongWaitBanner 提升到 store，消除对 tabInterventionStatus 计算的本地状态干扰。
+  const showLongWaitBanner = useAppStore((s) => s.longWaitBanners[activeTabId] ?? false);
+  const setLongWaitBanner = useAppStore((s) => s.setLongWaitBanner);
   const lastChunkAtRef = useRef<number>(Date.now());
 
-  // FIX[BUG-004][v4.3.0] 监听 activeTabId 变化，切换 Tab 时重置长时等待横幅。
+  // DEBT-001[v4.3.0] Tab 切换时重置新活跃 Tab 的长时等待横幅（防止跨 Tab 误显示）。
   useEffect(() => {
-    setShowLongWaitBanner(false);
-  }, [activeTabId]);
+    setLongWaitBanner(activeTabId, false);
+  }, [activeTabId, setLongWaitBanner]);
 
   // 介入状态联动 TabBar 状态点颜色
   // blocked(🔴) = 有工具审批/决策问题/文件请求；warning(🟡) = 长时等待；null = 无
+  // DEBT-001[v4.3.0] 全部四个输入均来自 store，tabInterventionStatus 计算已无本地 state 依赖。
   useEffect(() => {
     const hasBlocked = permissionRequests.length > 0 || !!pendingDecision || !!pendingFileRequest;
     const status = hasBlocked ? 'blocked' : showLongWaitBanner ? 'warning' : null;
@@ -724,7 +728,7 @@ export function ChatPanel() {
             });
           }
         }
-        setShowLongWaitBanner(false); // 消息结束，隐藏长时等待横幅
+        setLongWaitBanner(activeTabIdRef.current, false); // 消息结束，隐藏长时等待横幅
         targetContentRef.current = '';
         displayedLengthRef.current = 0;
         stderrErrShownRef.current = false;
@@ -1616,7 +1620,7 @@ export function ChatPanel() {
         {showLongWaitBanner && (
           <div className="intervention-long-wait">
             <span>⏳ Claude 正在处理中，已超过 45 秒无新输出，请耐心等待…</span>
-            <button className="intervention-dismiss-btn" onClick={() => setShowLongWaitBanner(false)}>×</button>
+            <button className="intervention-dismiss-btn" onClick={() => setLongWaitBanner(activeTabId, false)}>×</button>
           </div>
         )}
         </div>
