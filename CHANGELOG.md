@@ -1,5 +1,47 @@
 # Changelog
 
+## [3.15.0] - 2026-05-15
+
+### 新增
+- **Web 端支持**：Electron 内嵌本地 Web 服务器（`127.0.0.1:5175`），同机浏览器可访问完整 GUI，无需任何额外安装
+  - `electron/web-server.ts`：HTTP + SSE 服务器，提供静态文件 + 全量 API 代理（cli/fs/settings/git/plugin/session 等所有 IPC 通道）
+  - `electron/cli-service.ts`：新增 `addOutputListener` 接口，CLI 输出通过 SSE 广播给浏览器客户端
+  - `src/lib/transport.ts`：通信适配器，Electron 环境用原生 IPC，浏览器环境自动降级为 HTTP fetch + SSE
+  - `src/main.tsx`：Web 模式下将 `webAPI` 注入为 `window.electronAPI`，现有代码零修改
+  - NavRail Globe 按钮（仅原生 Electron 环境显示）：点击在默认浏览器打开 `http://127.0.0.1:5175`
+
+### 修复
+- **ChatPanel — React Hooks 条件调用**：`ChangeSummaryCard` 组件将早期 `return null` 移至所有 `useMemo`/`useCallback` 之后，修复 6 处违反 Rules of Hooks 的 ESLint error
+- **ChatPanel — 正则无效转义**：字符类 `[\.\)]` 改为 `[.)]`，修复 2 处 `no-useless-escape` ESLint error
+- **PlanReviewPanel — 未使用参数**：`inferRiskLevel(_text)` 移除未使用的 `_text` 参数
+- **electron/main.ts — require 样式 import**：4 处内联 `require('child_process')` 改为顶层静态 `import { spawnSync, spawn }`，消除所有 ESLint error（lint 错误从 16 降至 0）
+
+---
+
+## [3.14.0] - 2026-05-15
+### 修复
+- **指挥中心「继续对话」按钮导航失效**：`handleGoToTab` 改为直接读写 zustand store（`useAppStore.getState()`），绕过 `onNavClick` prop 闭包可能捕获旧 `activeNavSection` 导致 `computeNavTransition` 误判已在 dispatch 并 toggle 回 command 的问题；同时移除 `hasOptionList` 正则中多余转义字符（ESLint `no-useless-escape`）。
+
+## [3.13.0] - 2026-05-15
+### 新增
+- Subagent 完整字段编辑器：AgentPanel 扩展支持所有官方 frontmatter 字段
+  - 基础信息：名称、颜色选择盘（9色）、描述（多行）、模型选择
+  - 执行配置（折叠）：权限模式（6选项）、最大轮次、Effort 级别
+  - 工具访问（折叠）：11个工具复选框（allowed_tools）、禁止工具文本输入（disallowed_tools）
+  - 高级配置（折叠）：Skills预加载、持久记忆（4选项）、隔离模式（2选项）、后台运行复选框、初始提示词
+  - System Prompt 区域保持在表单末尾
+- electron/file-service.ts：parseAgentFile / serializeAgent 支持所有新 frontmatter 字段（含 JSON 数组解析）
+- 全量类型签名同步：electron.d.ts / preload.ts / main.ts 统一更新
+
+## [3.12.0] - 2026-05-15
+
+### 新增
+- **命令面板（Ctrl+K）**：全局命令面板，支持模糊搜索所有功能入口；麻雀匹配算法（包含则高分、序列匹配则得分）；5 分组命令（导航 / 标签 / 会话 / 能力配置 / 系统）；键盘导航（↑↓ / Enter / Esc）；快捷键提示显示；关键字删除按钮。
+- **Ctrl+1~7 NavRail 快捷跳转**：Ctrl+1=指挥中心、Ctrl+2=委派、Ctrl+3=Agents、Ctrl+4=审查、Ctrl+5=产物、Ctrl+6=能力配置、Ctrl+7=监控，全局键盘监听，不与输入框冲突。
+- **快捷键面板更新**：ShortcutsModal 新增 Ctrl+K 和 Ctrl+1~7 条目。
+
+---
+
 ## [3.11.0] - 2026-05-15
 
 ### 新增
