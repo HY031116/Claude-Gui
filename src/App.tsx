@@ -16,6 +16,7 @@ import { computeNavTransition } from './utils/nav';
 import type { NavSection, NavClick } from './utils/nav';
 import type { AskQuestionAnswer, AskQuestionRequestEvent, PermissionRequestEvent } from './types/electron';
 import type { PendingPermissionItem, PendingQuestionItem } from './components/layout/InterventionCenter';
+import type { PendingDecisionItem, PendingFileItem } from './components/layout/InterventionCenter';
 
 function resolveTabLabel(tabId?: string): string {
   if (!tabId) return '当前任务';
@@ -39,6 +40,9 @@ function App() {
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
   const triggerHistorySearch = useAppStore((s) => s.triggerHistorySearch);
   const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
+  const pendingDecisionRequests = useAppStore((s) => s.pendingDecisionRequests);
+  const pendingFileRequests = useAppStore((s) => s.pendingFileRequests);
+  const setPendingQuickReply = useAppStore((s) => s.setPendingQuickReply);
 
   // 可拖拽侧边栏
   const { sidebarWidth, handleResizeMouseDown } = useResizableSidebar();
@@ -155,18 +159,50 @@ function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
   const handleShowShortcutsFromPalette = useCallback(() => setShowShortcuts(true), []);
+  // TODO[BUG-006][v4.3.0] questionRequests 和 permissionRequests 是 React 本地 state，
+  // 工作区切换（switchWorkspace）无法触发其重置，旧工作区的待处理项会残留在介入中心。
+  // 修复方向 A：提升到 store（与 BUG-002 联动）；
+  // 修复方向 B：在 activeWorkspacePath 变化的 useEffect 中手动 setState([])。
   const [questionRequests, setQuestionRequests] = useState<PendingQuestionItem[]>([]);
   const [questionRespondingId, setQuestionRespondingId] = useState<string | null>(null);
   const [activeQuestionRequestId, setActiveQuestionRequestId] = useState<string | null>(null);
+  // TODO[BUG-002][v4.3.0] permissionRequests 在 App.tsx（全局）和 ChatPanel.tsx（本地）
+  // 各维护一份，双状态源导致切换 Tab 时 tabInterventionStatus 计算错位。
+  // 修复：将 permissionRequests 统一提升到 store，按 tabId 隔离存储。
   const [permissionRequests, setPermissionRequests] = useState<PendingPermissionItem[]>([]);
   const [permissionRespondingId, setPermissionRespondingId] = useState<string | null>(null);
   const [showInterventionCenter, setShowInterventionCenter] = useState(false);
 
-  const pendingInterventionCount = questionRequests.length + permissionRequests.length;
+  const pendingDecisionItems = useMemo<PendingDecisionItem[]>(() => Object.entries(pendingDecisionRequests)
+    .filter(([, request]) => Boolean(request))
+    .map(([tabId, request]) => ({
+      tabId,
+      tabLabel: resolveTabLabel(tabId),
+      request: request!,
+    })), [pendingDecisionRequests]);
+
+  const pendingFileItems = useMemo<PendingFileItem[]>(() => Object.entries(pendingFileRequests)
+    .filter(([, request]) => Boolean(request))
+    .map(([tabId, request]) => ({
+      tabId,
+      tabLabel: resolveTabLabel(tabId),
+      request: request!,
+    })), [pendingFileRequests]);
+
+  const pendingInterventionCount = questionRequests.length + permissionRequests.length + pendingDecisionItems.length + pendingFileItems.length;
   const selectedQuestionRequest = useMemo(() => {
     if (questionRequests.length === 0) return null;
     return questionRequests.find((item) => item.request.id === activeQuestionRequestId) ?? questionRequests[0];
   }, [questionRequests, activeQuestionRequestId]);
+
+  const previousInterventionCountRef = useRef(0);
+
+  useEffect(() => {
+    if (pendingInterventionCount > previousInterventionCountRef.current) {
+      setShowInterventionCenter(true);
+    }
+    previousInterventionCountRef.current = pendingInterventionCount;
+  }, [pendingInterventionCount]);
 
   useEffect(() => {
     if (pendingInterventionCount === 0) {
@@ -295,6 +331,21 @@ function App() {
     setActiveNavSection('dispatch');
   }, [setActiveNavSection]);
 
+  const handleFocusTab = useCallback((tabId?: string) => {
+    if (!tabId) return;
+    const store = useAppStore.getState();
+    store.setActiveTab(tabId);
+    setActiveNavSection('dispatch');
+  }, [setActiveNavSection]);
+
+  const handleQuickReplyAction = useCallback((tabId: string, text: string) => {
+    const store = useAppStore.getState();
+    store.setActiveTab(tabId);
+    setActiveNavSection('dispatch');
+    setPendingQuickReply(tabId, { text, createdAt: Date.now() });
+    setShowInterventionCenter(false);
+  }, [setActiveNavSection, setPendingQuickReply]);
+
   // 3.3.7：点击系统通知 → 切换到对应 tab 并跳到 dispatch 视图
   useEffect(() => {
     if (!window.electronAPI?.onNotificationClick) return;
@@ -404,10 +455,15 @@ function App() {
         isOpen={showInterventionCenter}
         pendingQuestions={questionRequests}
         pendingPermissions={permissionRequests}
+        pendingDecisions={pendingDecisionItems}
+        pendingFiles={pendingFileItems}
         activeQuestionId={selectedQuestionRequest?.request.id ?? null}
         permissionRespondingId={permissionRespondingId}
         onClose={() => setShowInterventionCenter(false)}
         onFocusQuestion={handleFocusQuestion}
+        onFocusTab={handleFocusTab}
+        onDecisionReply={handleQuickReplyAction}
+        onFileSkip={handleQuickReplyAction}
         onApprovePermission={(request) => void handleApprovalAction(request, true)}
         onDenyPermission={(request) => void handleApprovalAction(request, false)}
       />

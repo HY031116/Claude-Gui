@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord, Workspace, PlanReviewState } from '../types';
+import type { Message, DirEntry, TerminalLine, SessionState, ConversationRecord, PlanStep, TokenRecord, Workspace, PlanReviewState, PendingDecisionRequest, PendingFileRequest, PendingQuickReply } from '../types';
 
 /** localStorage 键名 */
 const HISTORY_KEY = 'claude-gui-conversation-history';
@@ -211,6 +211,18 @@ interface AppState {
   tabInterventionStatus: Record<string, 'blocked' | 'warning' | null>;
   setTabInterventionStatus: (tabId: string, status: 'blocked' | 'warning' | null) => void;
 
+  /** 全局可见的决策型介入请求（按 tab 保存） */
+  pendingDecisionRequests: Record<string, PendingDecisionRequest | null>;
+  setPendingDecisionRequest: (tabId: string, request: PendingDecisionRequest | null) => void;
+
+  /** 全局可见的文件请求型介入（按 tab 保存） */
+  pendingFileRequests: Record<string, PendingFileRequest | null>;
+  setPendingFileRequest: (tabId: string, request: PendingFileRequest | null) => void;
+
+  /** 由全局介入中心下发到具体对话的快速回复动作 */
+  pendingQuickReplies: Record<string, PendingQuickReply | null>;
+  setPendingQuickReply: (tabId: string, reply: PendingQuickReply | null) => void;
+
   /** CommandCenter 置顶会话 */
   pinnedTabIds: string[];
   togglePinTab: (tabId: string) => void;
@@ -287,6 +299,10 @@ export const useAppStore = create<AppState>((set, get) => {
       const snapshot = state.tabSnapshots[newActiveId] ?? DEFAULT_SNAPSHOT;
       const restSnapshots = { ...state.tabSnapshots };
       delete restSnapshots[tabId];
+      // TODO[BUG-001][v4.3.0] 关闭 Tab 时未清理对应 tabId 的介入孤儿状态：
+      // pendingDecisionRequests、pendingFileRequests、pendingQuickReplies 未被删除，
+      // 导致介入中心仍显示已关闭 Tab 的决策/文件请求。
+      // 修复：在 set() 中额外传入三个 map 删除 tabId 后的副本。
       set({
         tabs: newTabs,
         activeTabId: newActiveId,
@@ -301,6 +317,7 @@ export const useAppStore = create<AppState>((set, get) => {
     } else {
       const restSnapshots = { ...state.tabSnapshots };
       delete restSnapshots[tabId];
+      // TODO[BUG-001][v4.3.0] 非活跃 Tab 关闭时同样需要清理孤儿介入状态。
       set({ tabs: newTabs, tabSnapshots: restSnapshots });
     }
   },
@@ -308,6 +325,9 @@ export const useAppStore = create<AppState>((set, get) => {
   setActiveTab: (tabId: string) => {
     const state = get();
     if (state.activeTabId === tabId) return;
+    // TODO[BUG-005][v4.3.0] setActiveTab 不自动 markTabRead，
+    // 通过介入中心/通知跳转时目标 Tab 的未读计数不会被清零。
+    // 修复：在此处调用 get().markTabRead(tabId)，移除对 WorkspaceArea UI 点击的依赖。
     // 保存当前 tab 快照
     const snapshot: TabSnapshot = {
       messages: state.messages,
@@ -501,6 +521,21 @@ export const useAppStore = create<AppState>((set, get) => {
     tabInterventionStatus: { ...state.tabInterventionStatus, [tabId]: status },
   })),
 
+  pendingDecisionRequests: {},
+  setPendingDecisionRequest: (tabId, request) => set((state) => ({
+    pendingDecisionRequests: { ...state.pendingDecisionRequests, [tabId]: request },
+  })),
+
+  pendingFileRequests: {},
+  setPendingFileRequest: (tabId, request) => set((state) => ({
+    pendingFileRequests: { ...state.pendingFileRequests, [tabId]: request },
+  })),
+
+  pendingQuickReplies: {},
+  setPendingQuickReply: (tabId, reply) => set((state) => ({
+    pendingQuickReplies: { ...state.pendingQuickReplies, [tabId]: reply },
+  })),
+
   pinnedTabIds: [],
   togglePinTab: (tabId) => set((state) => ({
     pinnedTabIds: state.pinnedTabIds.includes(tabId)
@@ -609,6 +644,13 @@ export const useAppStore = create<AppState>((set, get) => {
       processingTabs: {},
       tabInterventionStatus: {},
       tabUnreadCounts: {},
+      // TODO[BUG-001][v4.3.0] 工作区切换时未清理 pendingDecisionRequests /
+      // pendingFileRequests / pendingQuickReplies，孤儿介入条目跨工作区残留。
+      // 修复：此处追加 pendingDecisionRequests: {}, pendingFileRequests: {}, pendingQuickReplies: {}
+      // TODO[BUG-006][v4.3.0] App.tsx 的 questionRequests / permissionRequests 是
+      // React 本地 state，switchWorkspace 无法触发其重置。
+      // 修复方向 A：将两者提升到 store（BUG-002 连带修复）。
+      // 修复方向 B：App.tsx 监听 activeWorkspacePath 变化时手动 setState([])。
     });
   },
 

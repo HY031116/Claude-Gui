@@ -296,6 +296,12 @@ export function ChatPanel() {
   const appendRawJson = useAppStore((s) => s.appendRawJson);
   const setTabProcessing = useAppStore((s) => s.setTabProcessing);
   const setTabInterventionStatus = useAppStore((s) => s.setTabInterventionStatus);
+  const pendingDecision = useAppStore((s) => s.pendingDecisionRequests[activeTabId] ?? null);
+  const setPendingDecisionRequest = useAppStore((s) => s.setPendingDecisionRequest);
+  const pendingFileRequest = useAppStore((s) => s.pendingFileRequests[activeTabId] ?? null);
+  const setPendingFileRequest = useAppStore((s) => s.setPendingFileRequest);
+  const pendingQuickReply = useAppStore((s) => s.pendingQuickReplies[activeTabId] ?? null);
+  const setPendingQuickReply = useAppStore((s) => s.setPendingQuickReply);
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
   const planReview = useAppStore((s) => s.planReview);
@@ -381,14 +387,14 @@ export function ChatPanel() {
   // 拖拽上传
   const [isDragging, setIsDragging] = useState(false);
   // Claude Code PermissionRequest hook 触发的真实工具审批请求
+  // TODO[BUG-002][v4.3.0] permissionRequests 仍是本地 state，切换 Tab 时会被清空，
+  // 导致 tabInterventionStatus 计算错误且介入中心与 ChatPanel 状态不同步。
+  // 修复：提升到 store（类似 pendingDecisionRequests），统一由 store 管理每个 tabId 的权限列表。
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequestEvent[]>([]);
-  const [permissionRespondingId, setPermissionRespondingId] = useState<string | null>(null);
-
-  // 介入类型 B：决策问题检测
-  const [pendingDecision, setPendingDecision] = useState<{ text: string; options: string[] } | null>(null);
-  // 介入类型 C：文件/截图请求检测
-  const [pendingFileRequest, setPendingFileRequest] = useState<string | null>(null);
   // 介入类型 D：长时等待横幅（45 秒无新 chunk）
+  // TODO[BUG-004][v4.3.0] showLongWaitBanner 是本地 state 且所有 Tab 共享同一 ChatPanel 实例，
+  // 切换 Tab 时横幅不重置，会误显示在无关 Tab 上。
+  // 修复：监听 activeTabId 变化的 useEffect 中重置此 state。
   const [showLongWaitBanner, setShowLongWaitBanner] = useState(false);
   const lastChunkAtRef = useRef<number>(Date.now());
 
@@ -523,7 +529,6 @@ export function ChatPanel() {
           const resolved = JSON.parse(event.data) as { id?: string };
           if (resolved.id) {
             setPermissionRequests((prev) => prev.filter((item) => item.id !== resolved.id));
-            setPermissionRespondingId((current) => current === resolved.id ? null : current);
           }
         } catch { /* 忽略解析失败 */ }
         return;
@@ -724,9 +729,16 @@ export function ChatPanel() {
               setPlanReview({ phase: 'plan_ready', rawPlanText: completedText, parsedSteps: steps });
             }
           } else if (detectDecisionRequest(completedText)) {
-            setPendingDecision({ text: completedText, options: extractQuickOptions(completedText) });
+            setPendingDecisionRequest(activeTabIdRef.current, {
+              text: completedText,
+              options: extractQuickOptions(completedText),
+              createdAt: Date.now(),
+            });
           } else if (detectFileRequest(completedText)) {
-            setPendingFileRequest(completedText);
+            setPendingFileRequest(activeTabIdRef.current, {
+              text: completedText,
+              createdAt: Date.now(),
+            });
           }
         }
         setShowLongWaitBanner(false); // 消息结束，隐藏长时等待横幅
@@ -736,7 +748,6 @@ export function ChatPanel() {
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
         setPermissionRequests([]);
-        setPermissionRespondingId(null);
 
       } else if (event.type === 'message-stderr') {
         const stderrText = event.data;
@@ -774,7 +785,6 @@ export function ChatPanel() {
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
         setPermissionRequests([]);
-        setPermissionRespondingId(null);
       }
     });
     return unsubscribe;
@@ -866,8 +876,8 @@ export function ChatPanel() {
   /** 快速回复（供介入卡片 B/C 使用）：直接发送文本，不经过表单流程 */
   const sendQuickReply = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return;
-    setPendingDecision(null);
-    setPendingFileRequest(null);
+    setPendingDecisionRequest(activeTabId, null);
+    setPendingFileRequest(activeTabId, null);
     addMessage({ id: `msg-${Date.now()}`, role: 'user', content: text.trim(), timestamp: Date.now() });
     setIsProcessing(true);
     setTokenUsage(null);
@@ -889,7 +899,17 @@ export function ChatPanel() {
       addMessage({ id: `msg-${Date.now()}-system`, role: 'system', content: '回复发送失败，请重试。', timestamp: Date.now() });
       setIsProcessing(false);
     }
-  }, [isProcessing, session.workingDirectory, session.conversationSessionId, localAgent, activeTabId, addMessage, setTokenUsage, clearPlanSteps]);
+  }, [isProcessing, session.workingDirectory, session.conversationSessionId, localAgent, activeTabId, addMessage, setTokenUsage, clearPlanSteps, setPendingDecisionRequest, setPendingFileRequest]);
+
+  // TODO[BUG-003][v4.3.0] isProcessing=true 时 pendingQuickReply 被静默丢弃（直接 return），
+  // 用户从介入中心下发快速回复但 Claude 恰好在生成中时，动作消失无任何反馈。
+  // 修复方向：不丢弃，等待 isProcessing 变 false 后自动触发；
+  // 或在介入中心 UI 上显示"等待 Claude 完成后自动回复"的提示状态。
+  useEffect(() => {
+    if (!pendingQuickReply || isProcessing) return;
+    setPendingQuickReply(activeTabId, null);
+    void sendQuickReply(pendingQuickReply.text);
+  }, [pendingQuickReply, isProcessing, activeTabId, sendQuickReply, setPendingQuickReply]);
 
   /** 3.4 Plan Mode：用户确认执行计划（带跳过注入协议） */
   const handlePlanConfirm = useCallback(async (skipMessage: string) => {
@@ -1132,26 +1152,7 @@ export function ChatPanel() {
     pendingToolCallsRef.current = [];
     currentPlanStepsRef.current = [];
     setPermissionRequests([]);
-    setPermissionRespondingId(null);
   }, [updateMessage, addMessage]);
-
-  /** 输入框上方横幅的真实 PermissionRequest 审批操作 */
-  const handleApprovalAction = useCallback(async (request: PermissionRequestEvent, allow: boolean) => {
-    setPermissionRespondingId(request.id);
-    const result = await window.electronAPI.cliRespondPermission(request.id, allow);
-    if (!result.success) {
-      addMessage({
-        id: `msg-${Date.now()}-permission`,
-        role: 'system',
-        content: result.error || '权限审批响应失败。',
-        timestamp: Date.now(),
-      });
-      setPermissionRespondingId(null);
-      return;
-    }
-    setPermissionRequests((prev) => prev.filter((item) => item.id !== request.id));
-    setPermissionRespondingId(null);
-  }, [addMessage]);
 
   /** 开始编辑工作目录 */
   const handleWdEdit = useCallback(() => {
@@ -1600,17 +1601,6 @@ export function ChatPanel() {
 
         <div ref={messagesEndRef} />
 
-        {/* 权限审批横幅 — 内联于消息流，等待用户 Allow/Deny */}
-        {permissionRequests.map((req) => (
-          <PermissionBannerCard
-            key={req.id}
-            request={req}
-            responding={permissionRespondingId === req.id}
-            onAllow={() => handleApprovalAction(req, true)}
-            onDeny={() => handleApprovalAction(req, false)}
-          />
-        ))}
-
         {/* 3.4 Plan Mode 审查视图：在 plan_ready / executing / generating_plan 阶段显示 */}
         {planReview.phase !== 'idle' && planReview.phase !== 'done' && planReview.phase !== 'cancelled' && (
           <div style={{ margin: '8px 0' }}>
@@ -1627,7 +1617,7 @@ export function ChatPanel() {
             options={pendingDecision.options}
             onQuickReply={(opt) => void sendQuickReply(opt)}
             onAgentDecide={() => void sendQuickReply('Please use your best judgment and proceed.')}
-            onDismiss={() => setPendingDecision(null)}
+            onDismiss={() => setPendingDecisionRequest(activeTabId, null)}
             onCustomReply={(txt) => void sendQuickReply(txt)}
           />
         )}
@@ -1636,7 +1626,7 @@ export function ChatPanel() {
         {pendingFileRequest && (
           <FileRequestCard
             onSkip={() => void sendQuickReply('I cannot provide that. Please continue without it.')}
-            onDismiss={() => setPendingFileRequest(null)}
+            onDismiss={() => setPendingFileRequest(activeTabId, null)}
           />
         )}
 
@@ -1951,43 +1941,6 @@ export function ChatPanel() {
     </div>
   );
 }
-
-/** 权限审批横幅卡片 — 内联于消息流底部，等待用户 Allow/Deny */
-const PermissionBannerCard = memo(function PermissionBannerCard({
-  request,
-  responding,
-  onAllow,
-  onDeny,
-}: {
-  request: PermissionRequestEvent;
-  responding: boolean;
-  onAllow: () => void;
-  onDeny: () => void;
-}) {
-  const preview = (request.inputPreview || JSON.stringify(request.toolInput)).slice(0, 200);
-  return (
-    <div className="permission-banner-card">
-      <div className="permission-banner-header">
-        <span className="permission-banner-icon">🔐</span>
-        <span className="permission-banner-tool">{request.toolName}</span>
-        <span className="permission-banner-label">等待审批</span>
-      </div>
-      <pre className="permission-banner-preview">{preview}</pre>
-      <div className="permission-banner-actions">
-        <button
-          className="btn-approve"
-          disabled={responding}
-          onClick={onAllow}
-        >✓ 允许</button>
-        <button
-          className="btn-deny"
-          disabled={responding}
-          onClick={onDeny}
-        >✗ 拒绝</button>
-      </div>
-    </div>
-  );
-});
 
 // ── 介入卡片 B：决策型问题 ─────────────────────────────────────────────────
 
