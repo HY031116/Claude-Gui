@@ -203,6 +203,10 @@ interface AppState {
   processingTabs: Record<string, boolean>;
   setTabProcessing: (tabId: string, processing: boolean) => void;
 
+  /** 跨 Tab 未读计数：当后台 Tab 的 Agent 完成任务时递增，切换到该 Tab 时清零 */
+  tabUnreadCounts: Record<string, number>;
+  markTabRead: (tabId: string) => void;
+
   /** 按 tabId 记录介入状态：blocked=🔴阻塞型(A/B/C) / warning=🟡非阻塞型(D) / null=无介入 */
   tabInterventionStatus: Record<string, 'blocked' | 'warning' | null>;
   setTabInterventionStatus: (tabId: string, status: 'blocked' | 'warning' | null) => void;
@@ -469,8 +473,23 @@ export const useAppStore = create<AppState>((set, get) => {
   resetPlanReview: () => set({ planReview: DEFAULT_PLAN_REVIEW }),
 
   processingTabs: {},
-  setTabProcessing: (tabId, processing) => set((state) => ({
-    processingTabs: { ...state.processingTabs, [tabId]: processing },
+  setTabProcessing: (tabId, processing) => set((state) => {
+    // 后台 Tab 完成任务时，自动添加未读标记
+    const unreadUpdate: Record<string, number> = {};
+    if (!processing && tabId !== state.activeTabId) {
+      unreadUpdate[tabId] = (state.tabUnreadCounts[tabId] ?? 0) + 1;
+    }
+    return {
+      processingTabs: { ...state.processingTabs, [tabId]: processing },
+      tabUnreadCounts: Object.keys(unreadUpdate).length > 0
+        ? { ...state.tabUnreadCounts, ...unreadUpdate }
+        : state.tabUnreadCounts,
+    };
+  }),
+
+  tabUnreadCounts: {},
+  markTabRead: (tabId) => set((state) => ({
+    tabUnreadCounts: { ...state.tabUnreadCounts, [tabId]: 0 },
   })),
 
   tabInterventionStatus: {},

@@ -47,6 +47,8 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
   const currentModel = useAppStore((s) => s.currentModel);
   const processingTabs = useAppStore((s) => s.processingTabs);
   const tabInterventionStatus = useAppStore((s) => s.tabInterventionStatus);
+  const tabUnreadCounts = useAppStore((s) => s.tabUnreadCounts);
+  const markTabRead = useAppStore((s) => s.markTabRead);
 
   // 标签内联重命名本地状态（仅 WorkspaceArea 使用）
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -250,7 +252,7 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
                   dragFromIndex.current = null;
                   setDragOverIndex(null);
                 }}
-                onClick={() => { if (renamingTabId !== tab.id) setActiveTab(tab.id); }}
+                onClick={() => { if (renamingTabId !== tab.id) { setActiveTab(tab.id); markTabRead(tab.id); } }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   setRenamingTabId(tab.id);
@@ -331,6 +333,12 @@ export function WorkspaceArea({ onStartSession, onNavClick }: WorkspaceAreaProps
                       if (!preview) return tab.label;
                       return preview.length > 22 ? preview.slice(0, 22) + '…' : preview;
                     })()}
+                    {/* 未读气泡：当后台 Tab 完成任务时显示 */}
+                    {tab.id !== activeTabId && (tabUnreadCounts[tab.id] ?? 0) > 0 && (
+                      <span className="session-tab-unread" title={`${tabUnreadCounts[tab.id]} 次新完成`}>
+                        {tabUnreadCounts[tab.id] > 9 ? '9+' : tabUnreadCounts[tab.id]}
+                      </span>
+                    )}
                   </span>
                 )}
                 {tabs.length > 1 && (

@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.19.0] - 2026-05-17
+
+### 新增
+- **跨 Tab 未读气泡**：当后台 Tab 的 Agent 完成处理时，对应 Tab 标题显示带充满动画的未读数量气泡，切换到该 Tab 后自动清零
+  - `src/stores/useAppStore.ts`：`tabUnreadCounts` 状态 + `markTabRead` 清零操作；`setTabProcessing` 内嵌自动递增逻辑
+  - `src/components/layout/WorkspaceArea.tsx`：订阅 `tabUnreadCounts`，切换 Tab 时调用 `markTabRead`，渲染 `.session-tab-unread` 气泡
+  - `src/index.css`：`.session-tab-unread` 气泡样式 + `badge-pop` 弹出动画
+
 ## [3.18.0] - 2026-05-17
 
 ### 新增
