@@ -75,11 +75,22 @@ export interface ConversationRecord {
 }
 
 /** 工作区（多项目工作区切换） */
+/** 工作区切换时的 tabs 完整快照（每个工作区独立保持自己的会话历史） */
+export interface WorkspaceTabsSnapshot {
+  tabs: Array<{ id: string; label: string }>;
+  activeTabId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tabSnapshots: Record<string, any>;
+}
+
 export interface Workspace {
   id: string;
   name: string;    // 显示名（默认 = path basename）
   path: string;    // 绝对路径
   addedAt: number; // 添加时间戳
+  lastUsed?: number; // 最后使用时间
+  /** 离开此工作区时保存的 tabs 快照（切回时恢复） */
+  tabsSnapshot?: WorkspaceTabsSnapshot;
 }
 
 /** 来自 ~/.claude/projects/ 的 CLI 原生历史会话 */

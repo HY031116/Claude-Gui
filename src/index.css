@@ -1711,7 +1711,220 @@ pre code {
   color: var(--accent);
   margin-bottom: 2px;
   flex-shrink: 0;
+  border: none;
+  outline: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+.nav-rail-logo.nav-ws-trigger:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 2px var(--accent-glass);
+}
+
+/* 工作区缩写徽章 */
+.nav-ws-abbr {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  line-height: 1;
+}
+
+/* 工作区 Popover 浮层 */
+.nav-ws-popover {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  z-index: 1000;
+  width: 220px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: ws-popover-in 0.15s ease;
+}
+@keyframes ws-popover-in {
+  from { opacity: 0; transform: translateX(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.nav-ws-popover-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 8px 12px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+}
+.nav-ws-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+/* 单行工作区（含删除按钮） */
+.nav-ws-item-row {
+  display: flex;
+  align-items: center;
+}
+.nav-ws-item-row .nav-ws-item {
+  flex: 1;
+  min-width: 0;
+}
+.nav-ws-item-del {
+  flex-shrink: 0;
+  width: 20px;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color 0.1s, background 0.1s;
+}
+.nav-ws-item-row:hover .nav-ws-item-del {
+  display: flex;
+}
+.nav-ws-item-del:hover {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.12);
+}
+/* 工作区选项按钮 */
+.nav-ws-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 0 2px;
+  color: var(--text-primary);
+  transition: background 0.12s;
+  text-align: left;
+}
+.nav-ws-item:hover {
+  background: var(--bg-hover);
+}
+.nav-ws-item.active {
+  background: var(--accent-glass);
+  color: var(--accent);
+}
+.nav-ws-item-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.nav-ws-item-abbr {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  background: var(--accent-glass);
+  color: var(--accent);
+}
+.nav-ws-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nav-ws-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-ws-item-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.nav-ws-item-check {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+/* 底部新建按钮 */
+.nav-ws-popover-footer {
+  border-top: 1px solid var(--border);
+  padding: 6px 8px;
+}
+.nav-ws-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-ws-create-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+.nav-ws-create-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+}
+.nav-ws-create-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+.nav-ws-create-input:focus {
+  border-color: var(--accent);
+}
+.nav-ws-create-confirm {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent-glass);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.nav-ws-create-confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.nav-ws-create-confirm:not(:disabled):hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+
 
 /* 分割线 */
 .nav-rail-divider {

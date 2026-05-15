@@ -1,9 +1,9 @@
 /**
  * NavRail — 左侧垂直导航栏（56px 固定宽）
- * Agent 中心设计 v3.0：8 个场景化导航区域
+ * Agent 中心设计 v4.0：8 个场景化导航区域 + 顶部工作区切换器
  * 执行类（指挥/委派/Agents）→ 控制类（审查/产物）→ 配置类（能力/监控）→ 设置
  */
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../stores/useAppStore';
 import {
   LayoutDashboard,
@@ -18,6 +18,10 @@ import {
   Moon,
   ArrowUpCircle,
   Globe,
+  Plus,
+  Check,
+  FolderOpen,
+  Layers,
 } from 'lucide-react';
 import type { NavSection, NavClick } from '../../utils/nav';
 
@@ -60,6 +64,58 @@ export function NavRail({ onNavClick }: NavRailProps) {
   const messages = useAppStore((s) => s.messages);
   const processingTabs = useAppStore((s) => s.processingTabs);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
+
+  // 工作区相关状态
+  const workspaces = useAppStore((s) => s.workspaces);
+  const activeWorkspacePath = useAppStore((s) => s.activeWorkspacePath);
+  const switchWorkspace = useAppStore((s) => s.switchWorkspace);
+  const createWorkspace = useAppStore((s) => s.createWorkspace);
+  const removeWorkspace = useAppStore((s) => s.removeWorkspace);
+  const setActiveWorkspace = useAppStore((s) => s.setActiveWorkspace);
+
+  // 工作区切换器 Popover 状态
+  const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
+  const [wsNewName, setWsNewName] = useState('');
+  const [wsCreating, setWsCreating] = useState(false);
+  const wsPopoverRef = useRef<HTMLDivElement>(null);
+  const wsButtonRef = useRef<HTMLButtonElement>(null);
+
+  // 点击 Popover 外部关闭
+  useEffect(() => {
+    if (!wsPopoverOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (wsPopoverRef.current?.contains(e.target as Node)) return;
+      if (wsButtonRef.current?.contains(e.target as Node)) return;
+      setWsPopoverOpen(false);
+      setWsCreating(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [wsPopoverOpen]);
+
+  /** 当前工作区对象 */
+  const activeWorkspace = workspaces.find((w) => w.path === activeWorkspacePath);
+  /** 当前工作区显示缩写（2个汉字或英文首字母） */
+  const wsAbbr = useMemo(() => {
+    const name = activeWorkspace?.name || '全部';
+    // 汉字取前2个，否则取首字母大写
+    const hanzi = name.match(/[\u4e00-\u9fa5]/g);
+    if (hanzi && hanzi.length >= 1) return hanzi.slice(0, 2).join('');
+    return name.slice(0, 2).toUpperCase();
+  }, [activeWorkspace]);
+
+  /** 格式化相对时间 */
+  const fmtRelTime = (ts?: number) => {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const min = Math.floor(diff / 60000);
+    const hr = Math.floor(diff / 3600000);
+    const day = Math.floor(diff / 86400000);
+    if (min < 1) return '刚刚';
+    if (hr < 1) return `${min}分前`;
+    if (day < 1) return `${hr}小时前`;
+    return `${day}天前`;
+  };
 
   // 计算待审查变更数量（未审阅的文件修改工具调用）
   const pendingChangesCount = useMemo(() => {
@@ -190,9 +246,115 @@ export function NavRail({ onNavClick }: NavRailProps) {
 
   return (
     <div className="nav-rail">
-      {/* 顶部 Logo */}
-      <div className="nav-rail-logo" title="Claude Code GUI">
-        <Bot size={20} />
+      {/* 工作区切换器（替代原 Logo） */}
+      <div style={{ position: 'relative' }}>
+        <button
+          ref={wsButtonRef}
+          className="nav-rail-logo nav-ws-trigger"
+          title={activeWorkspace ? `工作区：${activeWorkspace.name}` : '工作区管理'}
+          onClick={() => setWsPopoverOpen((v) => !v)}
+          style={{ cursor: 'pointer' }}
+        >
+          {activeWorkspace ? (
+            <span className="nav-ws-abbr">{wsAbbr}</span>
+          ) : (
+            <Layers size={18} />
+          )}
+        </button>
+
+        {/* 工作区 Popover */}
+        {wsPopoverOpen && (
+          <div ref={wsPopoverRef} className="nav-ws-popover">
+            <div className="nav-ws-popover-header">
+              <Layers size={12} />
+              <span>工作区</span>
+            </div>
+
+            {/* 工作区列表 */}
+            <div className="nav-ws-list">
+              {/* "全部" 选项（不隔离 tabs） */}
+              <button
+                className={`nav-ws-item${!activeWorkspace ? ' active' : ''}`}
+                onClick={() => { setActiveWorkspace(''); setWsPopoverOpen(false); }}
+              >
+                <span className="nav-ws-item-icon"><Bot size={12} /></span>
+                <span className="nav-ws-item-name">全部会话</span>
+                {!activeWorkspace && <Check size={11} className="nav-ws-item-check" />}
+              </button>
+
+              {workspaces.map((ws) => (
+                <div key={ws.id} className={`nav-ws-item-row${ws.path === activeWorkspacePath ? ' active' : ''}`}>
+                  <button
+                    className="nav-ws-item"
+                    onClick={() => { switchWorkspace(ws.id); setWsPopoverOpen(false); }}
+                  >
+                    <span className="nav-ws-item-icon nav-ws-item-abbr">
+                      {(() => {
+                        const hanzi = ws.name.match(/[\u4e00-\u9fa5]/g);
+                        return hanzi && hanzi.length >= 1 ? hanzi.slice(0, 2).join('') : ws.name.slice(0, 2).toUpperCase();
+                      })()}
+                    </span>
+                    <span className="nav-ws-item-info">
+                      <span className="nav-ws-item-name">{ws.name}</span>
+                      <span className="nav-ws-item-sub">{fmtRelTime(ws.lastUsed)}</span>
+                    </span>
+                    {ws.path === activeWorkspacePath && <Check size={11} className="nav-ws-item-check" />}
+                  </button>
+                  <button
+                    className="nav-ws-item-del"
+                    title="移除工作区"
+                    onClick={(e) => { e.stopPropagation(); removeWorkspace(ws.id); }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+
+            {/* 新建工作区 */}
+            <div className="nav-ws-popover-footer">
+              {wsCreating ? (
+                <div className="nav-ws-create-row">
+                  <FolderOpen size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <input
+                    autoFocus
+                    className="nav-ws-create-input"
+                    placeholder="工作区名称"
+                    value={wsNewName}
+                    onChange={(e) => setWsNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && wsNewName.trim()) {
+                        createWorkspace(wsNewName.trim());
+                        setWsNewName('');
+                        setWsCreating(false);
+                        setWsPopoverOpen(false);
+                      } else if (e.key === 'Escape') {
+                        setWsCreating(false);
+                        setWsNewName('');
+                      }
+                      e.stopPropagation();
+                    }}
+                  />
+                  <button
+                    className="nav-ws-create-confirm"
+                    disabled={!wsNewName.trim()}
+                    onClick={() => {
+                      if (wsNewName.trim()) {
+                        createWorkspace(wsNewName.trim());
+                        setWsNewName('');
+                        setWsCreating(false);
+                        setWsPopoverOpen(false);
+                      }
+                    }}
+                  ><Check size={11} /></button>
+                </div>
+              ) : (
+                <button className="nav-ws-create-btn" onClick={() => setWsCreating(true)}>
+                  <Plus size={11} />
+                  新建工作区
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="nav-rail-divider" />

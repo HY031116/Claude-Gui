@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.0.0] - 2026-05-17
+
+### 新增（重大功能）
+- **多工作区切换器**：NavRail 顶部新增工作区切换器，支持在多个独立工作区之间切换并完整隔离各自的 Tabs 状态
+  - `src/types/index.ts`：`Workspace` 类型扩展，新增 `tabsSnapshot`（离开时保存）和 `lastUsed`；新增 `WorkspaceTabsSnapshot` 接口
+  - `src/stores/useAppStore.ts`：新增 `switchWorkspace`（保存当前→恢复目标工作区）和 `createWorkspace`（新建并立即切换）
+  - `src/components/layout/NavRail.tsx`：工作区切换器替代原 Logo，点击展开 Popover，支持列表切换/新建/移除
+  - `src/index.css`：工作区切换器样式 + Popover + 入场动画
+- **工作区隔离或切换逻辑**：
+  - 切换时将当前所有 Tab（含实时消息）完整打包保入工作区快照
+  - 目标工作区有快照时自动恢复，否则以空白状态开启
+  - `processingTabs`/`tabInterventionStatus`/`tabUnreadCounts` 切换时自动重置防止跨工作区状态污染
+- **工作区显示提示**：首字母开头缩写强调当前所在工作区，悬停显示工作区全名
+
 ## [3.19.0] - 2026-05-17
 
 ### 新增

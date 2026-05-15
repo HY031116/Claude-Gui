@@ -230,6 +230,10 @@ interface AppState {
   addWorkspace: (path: string) => void;
   removeWorkspace: (id: string) => void;
   setActiveWorkspace: (path: string) => void;
+  /** 切换工作区：保存当前 tabs 快照 → 恢复目标工作区的 tabs 快照 */
+  switchWorkspace: (id: string) => void;
+  /** 新建空白工作区并立即切换（不指定路径时默认为空） */
+  createWorkspace: (name: string, path?: string) => string;
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -530,6 +534,93 @@ export const useAppStore = create<AppState>((set, get) => {
     return { workspaces: next, activeWorkspacePath: activePath };
   }),
   setActiveWorkspace: (path) => set({ activeWorkspacePath: path }),
+
+  switchWorkspace: (targetId) => {
+    const state = get();
+    const target = state.workspaces.find((w) => w.id === targetId);
+    if (!target) return;
+    if (target.path === state.activeWorkspacePath) return;
+
+    // 1. 把当前活跃 tab 的实时状态写入快照（不触发 re-render）
+    const currentActiveSnap = {
+      messages: state.messages,
+      session: state.session,
+      tokenUsage: state.tokenUsage,
+      todoItems: state.todoItems,
+      activePlanSteps: state.activePlanSteps,
+      planReview: state.planReview,
+    };
+    const currentTabSnapshots = { ...state.tabSnapshots, [state.activeTabId]: currentActiveSnap };
+
+    // 2. 更新当前工作区的 tabsSnapshot
+    const updatedWorkspaces = state.workspaces.map((w) =>
+      w.path === state.activeWorkspacePath
+        ? { ...w, lastUsed: Date.now(), tabsSnapshot: { tabs: state.tabs, activeTabId: state.activeTabId, tabSnapshots: currentTabSnapshots } }
+        : w
+    );
+    saveWorkspaces(updatedWorkspaces);
+
+    // 3. 恢复目标工作区状态（若无快照则新建空白状态）
+    const targetSnap = target.tabsSnapshot;
+    let newTabs, newActiveTabId, newTabSnapshots, newMessages, newSession, newTokenUsage, newTodoItems, newActivePlanSteps, newPlanReview;
+
+    if (targetSnap && targetSnap.tabs.length > 0) {
+      newTabs = targetSnap.tabs;
+      newActiveTabId = targetSnap.activeTabId;
+      newTabSnapshots = targetSnap.tabSnapshots;
+      const activeSnap = targetSnap.tabSnapshots[targetSnap.activeTabId] ?? DEFAULT_SNAPSHOT;
+      newMessages = activeSnap.messages ?? [];
+      newSession = { ...activeSnap.session, isConnected: false };
+      newTokenUsage = activeSnap.tokenUsage ?? null;
+      newTodoItems = activeSnap.todoItems ?? [];
+      newActivePlanSteps = activeSnap.activePlanSteps ?? [];
+      newPlanReview = activeSnap.planReview ?? DEFAULT_PLAN_REVIEW;
+    } else {
+      // 全新工作区
+      tabCounter++;
+      const newTabId = `tab-${tabCounter}`;
+      newTabs = [{ id: newTabId, label: '会话 1' }];
+      newActiveTabId = newTabId;
+      newTabSnapshots = {};
+      newMessages = [];
+      newSession = { isConnected: false, workingDirectory: target.path };
+      newTokenUsage = null;
+      newTodoItems = [];
+      newActivePlanSteps = [];
+      newPlanReview = DEFAULT_PLAN_REVIEW;
+    }
+
+    set({
+      workspaces: updatedWorkspaces,
+      activeWorkspacePath: target.path,
+      tabs: newTabs,
+      activeTabId: newActiveTabId,
+      tabSnapshots: newTabSnapshots,
+      messages: newMessages,
+      session: newSession,
+      tokenUsage: newTokenUsage,
+      todoItems: newTodoItems,
+      activePlanSteps: newActivePlanSteps,
+      planReview: newPlanReview,
+      // 重置处理中状态（防止跨工作区状态污染）
+      processingTabs: {},
+      tabInterventionStatus: {},
+      tabUnreadCounts: {},
+    });
+  },
+
+  createWorkspace: (name, path = '') => {
+    const id = `ws-${Date.now()}`;
+    const ws: Workspace = { id, name, path: path || name, addedAt: Date.now(), lastUsed: Date.now() };
+    set((state) => {
+      const next = [ws, ...state.workspaces];
+      saveWorkspaces(next);
+      return { workspaces: next };
+    });
+    // 创建后立即切换
+    get().switchWorkspace(id);
+    return id;
+  },
 }; // return 结束
 }); // create 结束
 
