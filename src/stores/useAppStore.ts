@@ -164,6 +164,12 @@ interface AppState {
   // 主题
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
+  // 强调色
+  accentColor: 'purple' | 'blue' | 'emerald' | 'orange' | 'pink' | 'cyan';
+  setAccentColor: (color: 'purple' | 'blue' | 'emerald' | 'orange' | 'pink' | 'cyan') => void;
+  // 字体大小
+  fontSize: 'compact' | 'normal' | 'relaxed';
+  setFontSize: (size: 'compact' | 'normal' | 'relaxed') => void;
   // 状态栏：当前模型与认证方式
   currentModel: string;
   currentAuthMode: string;
@@ -416,6 +422,16 @@ export const useAppStore = create<AppState>((set, get) => {
   setTheme: (theme) => {
     localStorage.setItem('claude-gui-theme', theme);
     set({ theme });
+  },
+  accentColor: (localStorage.getItem('claude-gui-accent') as AppState['accentColor']) ?? 'purple',
+  setAccentColor: (color) => {
+    localStorage.setItem('claude-gui-accent', color);
+    set({ accentColor: color });
+  },
+  fontSize: (localStorage.getItem('claude-gui-fontsize') as AppState['fontSize']) ?? 'normal',
+  setFontSize: (size) => {
+    localStorage.setItem('claude-gui-fontsize', size);
+    set({ fontSize: size });
   },
   currentModel: '',
   currentAuthMode: '',

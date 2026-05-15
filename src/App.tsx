@@ -24,6 +24,8 @@ function App() {
   const addMessage = useAppStore((s) => s.addMessage);
   const addTerminalLine = useAppStore((s) => s.addTerminalLine);
   const theme = useAppStore((s) => s.theme);
+  const accentColor = useAppStore((s) => s.accentColor);
+  const fontSize = useAppStore((s) => s.fontSize);
   const setCurrentStatus = useAppStore((s) => s.setCurrentStatus);
 
   // 可拖拽侧边栏
@@ -31,10 +33,16 @@ function App() {
   // CLI 输出监听（RAF 批次写入）
   useCliOutput();
 
-  // 主题切换：更新 document 根元素的 data-theme 属性
+  // 主题/强调色/字体大小：同步到 document 根元素属性
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-accent', accentColor);
+    if (fontSize === 'normal') {
+      document.documentElement.removeAttribute('data-fontsize');
+    } else {
+      document.documentElement.setAttribute('data-fontsize', fontSize);
+    }
+  }, [theme, accentColor, fontSize]);
 
   // 应用关闭前将所有 tab 状态持久化到 localStorage（下次启动时恢复）
   useEffect(() => {

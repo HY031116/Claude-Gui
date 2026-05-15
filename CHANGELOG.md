@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.17.0] - 2026-05-17
+
+### 新增
+- **外观定制系统 (AppearanceTab)**：设置面板新增「外观」标签页，集中管理主题、强调色和字体大小
+  - **强调色预设（6色）**：紫色（默认）/ 蓝色 / 翠绿 / 橙色 / 粉色 / 青色，即时应用于全局 UI
+    - `src/index.css`：添加 `[data-accent="*"]` CSS 选择器，覆盖 `--accent`, `--accent-light`, `--accent-glass*`, `--accent-focus-*` 等变量
+    - `src/stores/useAppStore.ts`：新增 `accentColor` 状态 + `setAccentColor`，持久化至 `localStorage`
+    - `src/App.tsx`：`useEffect` 监听强调色变化，同步写入 `document.documentElement` 的 `data-accent` 属性
+  - **字体大小三档**：紧凑（12px）/ 标准（14px）/ 宽松（15px），调节全局文本层级变量
+    - `src/index.css`：添加 `[data-fontsize="compact|relaxed"]` CSS 选择器，覆盖 `--text-xs/sm/base/md/lg/xl`
+    - `src/stores/useAppStore.ts`：新增 `fontSize` 状态 + `setFontSize`，持久化至 `localStorage`
+    - `src/App.tsx`：`useEffect` 监听字体大小变化，同步 `data-fontsize` 属性（normal 档移除属性以回退默认值）
+  - **AppearanceTab 组件**：`src/components/settings/AppearanceTab.tsx`，含主题卡片选择器、强调色圆点选择器、字体大小三档按钮及实时预览区
+
+### 技术
+- `src/components/SettingsPanel.tsx`：activeTab 类型扩展 `'appearance'`，TabBar 新增「外观」选项
+- `src/components/settings/index.ts`：导出 `AppearanceTab`
+
 ## [3.16.0] - 2026-05-16
 
 ### 新增

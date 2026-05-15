@@ -3,7 +3,7 @@ import { Settings, Check, X, Loader2, Database, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import { TabBar } from './TabBar';
 import type { AppSettings, AuthStatus } from '../types';
-import { ModelTab, PermissionsTab, SessionTab, ConnectionTab, IntegrationsTab } from './settings';
+import { ModelTab, PermissionsTab, SessionTab, ConnectionTab, IntegrationsTab, AppearanceTab } from './settings';
 import { CONFIG_PRESETS } from './settings/constants';
 
 export function SettingsPanel() {
@@ -32,7 +32,7 @@ export function SettingsPanel() {
   const [checkUpdateStatus, setCheckUpdateStatus] = useState<'idle' | 'checking' | 'latest' | 'error'>('idle');
   const checkUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [activeTab, setActiveTab] = useState<'model' | 'permissions' | 'session' | 'connection' | 'integrations'>('model');
+  const [activeTab, setActiveTab] = useState<'model' | 'permissions' | 'session' | 'connection' | 'integrations' | 'appearance'>('model');
 
   // MCP 服务器状态
   const [mcpServers, setMcpServers] = useState<Record<string, any>>({});
@@ -236,6 +236,7 @@ export function SettingsPanel() {
           { key: 'session', label: '会话' },
           { key: 'connection', label: '连接' },
           { key: 'integrations', label: '集成' },
+          { key: 'appearance', label: '外观' },
         ]}
         activeTab={activeTab}
         onChange={setActiveTab}
@@ -272,6 +273,7 @@ export function SettingsPanel() {
           setEnabledPlugins={setEnabledPlugins}
         />
       )}
+      {activeTab === 'appearance' && <AppearanceTab />}
 
       {/* Save Button */}
       <button
