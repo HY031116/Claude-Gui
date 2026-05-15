@@ -195,6 +195,10 @@ ipcMain.handle('cli:respondPermission', async (_event, requestId: string, allow:
   return cliService.respondPermissionRequest(requestId, allow);
 });
 
+ipcMain.handle('cli:respondQuestion', async (_event, requestId: string, answers: Record<string, { selected?: string[]; freeText?: string; skipped?: boolean }>) => {
+  return cliService.respondQuestionRequest(requestId, answers);
+});
+
 // IPC handlers for filesystem
 ipcMain.handle('fs:list', async (_, dirPath: string) => {
   return fileService.listDirectory(dirPath);

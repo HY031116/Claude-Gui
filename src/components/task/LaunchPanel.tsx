@@ -128,10 +128,40 @@ export function LaunchPanel({ onLaunched }: LaunchPanelProps) {
   const [selectedSkills,   setSelectedSkills]   = useState<string[]>([]);
   const [availableSkills,  setAvailableSkills]  = useState<SkillItem[]>([]);
 
+  // ── Fork Mode（分叉模式）────────────────────────────────────────────────
+  const [forkMode,            setForkMode]            = useState(false);
+  const [forkSourceSessionId, setForkSourceSessionId] = useState('');
+  const [forkEnvEnabled,      setForkEnvEnabled]      = useState<boolean | null>(null);
+  const conversationHistory = useAppStore((s) => s.conversationHistory);
+
   // ── 模板保存 Modal ───────────────────────────────────────────────────────
   const [showSaveModal,    setShowSaveModal]    = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState('');
   const [customTemplates,  setCustomTemplates]  = useState<Template[]>(() => loadCustomTemplates());
+
+  // ── Fork Mode：检测 CLAUDE_CODE_FORK_SUBAGENT 环境变量 ─────────────────
+  useEffect(() => {
+    if (!forkMode) return;
+    window.electronAPI?.loadSettings()
+      .then((res) => {
+        const envVars: Record<string, string> = (res.settings as Record<string, unknown>)?.env as Record<string, string> ?? {};
+        setForkEnvEnabled(envVars['CLAUDE_CODE_FORK_SUBAGENT'] === '1');
+      })
+      .catch(() => setForkEnvEnabled(false));
+  }, [forkMode]);
+
+  const handleEnableForkEnv = useCallback(async () => {
+    try {
+      const res = await window.electronAPI.loadSettings();
+      const current = res.settings as Record<string, unknown>;
+      const envVars: Record<string, string> = (current.env as Record<string, string>) ?? {};
+      await window.electronAPI.saveSettings({
+        ...current,
+        env: { ...envVars, CLAUDE_CODE_FORK_SUBAGENT: '1' },
+      } as Parameters<typeof window.electronAPI.saveSettings>[0]);
+      setForkEnvEnabled(true);
+    } catch { /* ignore */ }
+  }, []);
 
   // ── 远程数据 ────────────────────────────────────────────────────────────
   const [agents, setAgents] = useState<Array<{ name: string; model: string }>>([]);
@@ -275,6 +305,9 @@ export function LaunchPanel({ onLaunched }: LaunchPanelProps) {
   // ── 构建 extraArgs ───────────────────────────────────────────────────────
   const buildExtraArgs = useCallback((): string[] => {
     const args: string[] = [];
+    if (forkMode && forkSourceSessionId.trim()) {
+      args.push('--resume', forkSourceSessionId.trim());
+    }
     if (permissionMode !== 'default') {
       args.push('--permission-mode', permissionMode);
     }
@@ -408,7 +441,8 @@ export function LaunchPanel({ onLaunched }: LaunchPanelProps) {
   }, [handleSubmit]);
 
   // ── 派生状态 ─────────────────────────────────────────────────────────────
-  const canSubmit = !!session.workingDirectory && !!taskDescription.trim() && !isSubmitting;
+  const forkBlocked = forkMode && conversationHistory.length > 0 && !forkSourceSessionId;
+  const canSubmit = !!session.workingDirectory && !!taskDescription.trim() && !isSubmitting && !forkBlocked;
   const workspaceLabel = session.workingDirectory || '（未选择项目目录）';
   const activeMode = PERMISSION_MODES.find((m) => m.value === permissionMode);
 
@@ -648,6 +682,81 @@ export function LaunchPanel({ onLaunched }: LaunchPanelProps) {
               value={appendSystemPrompt}
               onChange={(e) => setAppendSystemPrompt(e.target.value)}
             />
+          </div>
+
+          {/* ── Fork Mode ── */}
+          <div className="lp-field">
+            <label className="lp-label" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={forkMode}
+                onChange={(e) => {
+                  setForkMode(e.target.checked);
+                  if (!e.target.checked) setForkSourceSessionId('');
+                }}
+              />
+              分叉模式（Fork Mode）
+              <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--accent)', color: '#fff' }}>实验</span>
+            </label>
+            <span className="lp-hint">继承已有对话上下文，从中创建分叉新会话。需要环境变量 CLAUDE_CODE_FORK_SUBAGENT=1</span>
+
+            {forkMode && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* 环境变量检测 */}
+                {forkEnvEnabled === false && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 8px', borderRadius: 4,
+                    background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)',
+                    fontSize: 12,
+                  }}>
+                    <AlertTriangle size={12} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <span style={{ flex: 1, color: 'var(--text-secondary)' }}>
+                      未检测到 CLAUDE_CODE_FORK_SUBAGENT=1，Fork Mode 可能无效
+                    </span>
+                    <button
+                      type="button"
+                      className="lp-btn lp-btn--outline"
+                      style={{ padding: '2px 8px', fontSize: 11 }}
+                      onClick={() => void handleEnableForkEnv()}
+                    >
+                      一键启用
+                    </button>
+                  </div>
+                )}
+                {forkEnvEnabled === true && (
+                  <span style={{ fontSize: 11, color: '#22c55e' }}>✓ CLAUDE_CODE_FORK_SUBAGENT=1 已启用</span>
+                )}
+
+                {/* 来源会话选择器 */}
+                <label className="lp-label">分叉来源会话</label>
+                {conversationHistory.length > 0 ? (
+                  <select
+                    className="lp-select"
+                    value={forkSourceSessionId}
+                    onChange={(e) => setForkSourceSessionId(e.target.value)}
+                  >
+                    <option value="">选择要分叉的来源会话…</option>
+                    {conversationHistory.slice(0, 20).map((r) => (
+                      <option key={r.sessionId} value={r.sessionId}>
+                        {r.preview.slice(0, 40) || '（无预览）'} — {new Date(r.lastMessageAt).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="lp-hint">暂无历史会话，请先完成至少一次对话</span>
+                )}
+
+                {forkSourceSessionId && (
+                  <span className="lp-hint" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    将传入 --resume {forkSourceSessionId}
+                  </span>
+                )}
+                {forkBlocked && (
+                  <span className="lp-err">请选择要分叉的来源会话</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

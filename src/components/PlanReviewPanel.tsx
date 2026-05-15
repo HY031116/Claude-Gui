@@ -8,7 +8,7 @@
  *   - 底部操作：取消高风险 / 全选 / 编辑计划 / 确认执行
  *   - 确认时通过消息注入协议跳过未勾选步骤
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { ReviewablePlanStep, PlanRiskLevel } from '../types';
 import { useAppStore } from '../stores/useAppStore';
 
@@ -129,14 +129,39 @@ const TOOL_ICONS: Record<string, string> = {
   Unknown: '•',
 };
 
+/** 每种工具类型对应的操作建议 */
+const TOOL_SUGGESTIONS: Record<string, string> = {
+  Bash: '执行前确认命令无副作用。若仅验证逻辑，可暂时跳过此步骤。',
+  Delete: '删除操作不可撤销，确认目标路径正确后再启用此步骤。',
+  API: '将向外部服务发送请求，可能产生费用或改变远程状态，请谨慎确认。',
+  Edit: '编辑操作可通过 Checkpoint 回滚，建议执行后检查 diff。',
+  Write: '将新建文件，请确认路径与内容符合预期。',
+  Read: '只读操作，无副作用，可安全执行。',
+  Unknown: '请仔细阅读步骤描述，确认操作安全后勾选。',
+};
+
+/** 从原始文本中提取可能的完整命令（反引号或常见 CLI 前缀） */
+function extractCommand(rawText: string): string | undefined {
+  // 反引号包裹的内容优先
+  const backtick = rawText.match(/`([^`]+)`/);
+  if (backtick) return backtick[1];
+  // npm / pip / yarn / pnpm / bash / sh / python 等开头的命令片段
+  const cliMatch = rawText.match(/\b(npm|yarn|pnpm|pip|python|bash|sh|node|git|cargo|go)\s+[\w\s\-./]+/);
+  if (cliMatch) return cliMatch[0].trim();
+  return undefined;
+}
+
 interface StepCardProps {
   step: ReviewablePlanStep;
   onToggle: (id: string) => void;
+  /** 当前会话工作目录，用于在展开详情中显示执行目录 */
+  workingDirectory?: string;
 }
 
-function StepCard({ step, onToggle }: StepCardProps) {
+function StepCard({ step, onToggle, workingDirectory }: StepCardProps) {
   const [expanded, setExpanded] = useState(false);
   const color = RISK_COLORS[step.riskLevel];
+  const command = step.toolType === 'Bash' ? extractCommand(step.rawText) : step.target;
 
   return (
     <div
@@ -188,39 +213,72 @@ function StepCard({ step, onToggle }: StepCardProps) {
             {step.rawText}
           </div>
 
-          {/* 风险说明（高风险时显示） */}
-          {step.riskReason && (
-            <div style={{ marginTop: 6 }}>
-              <button
+          {/* 展开详情按钮（所有步骤均可展开） */}
+          <div style={{ marginTop: 6 }}>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontSize: 11,
+                color: color,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+              onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+            >
+              {expanded ? '▾ 收起详情' : '▸ 展开详情'}
+            </button>
+
+            {expanded && (
+              <div
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  fontSize: 11,
-                  color: color,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                }}
-                onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-              >
-                {expanded ? '▾ 收起详情' : '▸ 展开风险详情'}
-              </button>
-              {expanded && (
-                <div style={{
                   marginTop: 6,
-                  padding: '6px 8px',
-                  background: `${color}15`,
-                  border: `1px solid ${color}30`,
+                  padding: '8px 10px',
+                  background: `${color}10`,
+                  border: `1px solid ${color}25`,
                   borderRadius: 4,
                   fontSize: 12,
-                  color: 'var(--text-secondary)',
-                  lineHeight: 1.5,
-                }}>
-                  ⚠ {step.riskReason}
-                </div>
-              )}
-            </div>
-          )}
+                  lineHeight: 1.7,
+                  display: 'grid',
+                  gridTemplateColumns: '72px 1fr',
+                  gap: '2px 8px',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* 完整命令（Bash 显示命令，其他显示目标） */}
+                {command && (
+                  <>
+                    <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>完整命令</span>
+                    <code style={{ background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+                      {command}
+                    </code>
+                  </>
+                )}
+                {/* 执行目录 */}
+                {workingDirectory && (
+                  <>
+                    <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>执行目录</span>
+                    <code style={{ background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                      {workingDirectory}
+                    </code>
+                  </>
+                )}
+                {/* 推断影响 */}
+                {step.riskReason && (
+                  <>
+                    <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>推断影响</span>
+                    <span style={{ color }}>⚠ {step.riskReason}</span>
+                  </>
+                )}
+                {/* 操作建议 */}
+                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>建议</span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {TOOL_SUGGESTIONS[step.toolType] ?? TOOL_SUGGESTIONS['Unknown']}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -237,11 +295,15 @@ interface EditPlanModalProps {
 
 function EditPlanModal({ rawPlanText, onSave, onClose }: EditPlanModalProps) {
   const [text, setText] = useState(rawPlanText);
+  // 实时预览将被解析的步骤数
+  const previewCount = useMemo(() => parsePlanSteps(text).length, [text]);
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
       onClick={onClose}
     >
       <div
@@ -261,8 +323,11 @@ function EditPlanModal({ rawPlanText, onSave, onClose }: EditPlanModalProps) {
           ✏ 调整执行计划
         </div>
         <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
-          每行编号列表条目（"1. " / "2. " 开头）会被解析为独立步骤。
-        </div>
+          每行编号列表条目（"1. " / "2. " 开头）会被解析为独立步骤。          {previewCount > 0 && (
+            <span style={{ marginLeft: 8, color: 'var(--accent-color)', fontWeight: 500 }}>
+              当前可解析 {previewCount} 个步骤
+            </span>
+          )}        </div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -290,7 +355,7 @@ function EditPlanModal({ rawPlanText, onSave, onClose }: EditPlanModalProps) {
             style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
             onClick={() => onSave(text)}
           >
-            保存并重新解析
+            保存并重新解析{previewCount > 0 ? `（${previewCount} 步骤）` : ''}
           </button>
         </div>
       </div>
@@ -308,8 +373,11 @@ interface PlanReviewPanelProps {
 export function PlanReviewPanel({ onConfirm, onCancel }: PlanReviewPanelProps) {
   const planReview = useAppStore((s) => s.planReview);
   const setPlanReview = useAppStore((s) => s.setPlanReview);
+  const workingDirectory = useAppStore((s) => s.session.workingDirectory);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // 风险分布表显隐（有高风险步骤时默认展开）
+  const [showRiskTable, setShowRiskTable] = useState(true);
 
   const { phase, rawPlanText, parsedSteps } = planReview;
 
@@ -468,13 +536,71 @@ export function PlanReviewPanel({ onConfirm, onCancel }: PlanReviewPanelProps) {
           >
             重置默认
           </button>
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-secondary)' }}>
-            风险汇总:
-            {riskCounts.low > 0 && <span style={{ color: '#22c55e' }}> ●{riskCounts.low}</span>}
-            {riskCounts.medium > 0 && <span style={{ color: '#f59e0b' }}> ⚠{riskCounts.medium}</span>}
-            {riskCounts.high > 0 && <span style={{ color: '#ef4444' }}> 🔴{riskCounts.high}</span>}
-          </span>
+          <button
+            style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border-color)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+            onClick={() => setShowRiskTable((v) => !v)}
+          >
+            {/* 风险汇总徽章 */}
+            {riskCounts.low > 0 && <span style={{ color: '#22c55e' }}>●{riskCounts.low}</span>}
+            {riskCounts.medium > 0 && <span style={{ color: '#f59e0b' }}>⚠{riskCounts.medium}</span>}
+            {riskCounts.high > 0 && <span style={{ color: '#ef4444' }}>🔴{riskCounts.high}</span>}
+            <span style={{ marginLeft: 2 }}>{showRiskTable ? '▴' : '▾'}</span>
+          </button>
         </div>
+
+        {/* 风险等级分布表（可折叠） */}
+        {showRiskTable && parsedSteps.length > 0 && (
+          <div style={{
+            borderBottom: '1px solid var(--border-color)',
+            background: 'var(--bg-primary)',
+            padding: '8px 14px',
+            display: 'grid',
+            gridTemplateColumns: '90px 40px 1fr',
+            gap: '4px 8px',
+            fontSize: 12,
+          }}>
+            {/* 表头 */}
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>风险等级</span>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>数量</span>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>涉及步骤</span>
+            {/* 低风险行 */}
+            {riskCounts.low > 0 && (
+              <>
+                <span style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>●</span> 低风险
+                </span>
+                <span style={{ color: '#22c55e', fontVariantNumeric: 'tabular-nums' }}>{riskCounts.low}</span>
+                <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                  {parsedSteps.filter((s) => s.riskLevel === 'low').map((s) => `#${s.index}`).join('  ')}
+                </span>
+              </>
+            )}
+            {/* 中风险行 */}
+            {riskCounts.medium > 0 && (
+              <>
+                <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>⚠</span> 中风险
+                </span>
+                <span style={{ color: '#f59e0b', fontVariantNumeric: 'tabular-nums' }}>{riskCounts.medium}</span>
+                <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                  {parsedSteps.filter((s) => s.riskLevel === 'medium').map((s) => `#${s.index} ${s.toolType}`).join('  ·  ')}
+                </span>
+              </>
+            )}
+            {/* 高风险行 */}
+            {riskCounts.high > 0 && (
+              <>
+                <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>🔴</span> 高风险
+                </span>
+                <span style={{ color: '#ef4444', fontVariantNumeric: 'tabular-nums' }}>{riskCounts.high}</span>
+                <span style={{ color: '#ef4444', wordBreak: 'break-all' }}>
+                  {parsedSteps.filter((s) => s.riskLevel === 'high').map((s) => `#${s.index} ${s.target ?? s.toolType}`).join('  ·  ')}
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* 步骤列表 */}
         <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '60vh', overflowY: 'auto' }}>
@@ -484,7 +610,7 @@ export function PlanReviewPanel({ onConfirm, onCancel }: PlanReviewPanelProps) {
             </div>
           ) : (
             parsedSteps.map((step) => (
-              <StepCard key={step.id} step={step} onToggle={toggleStep} />
+              <StepCard key={step.id} step={step} onToggle={toggleStep} workingDirectory={workingDirectory} />
             ))
           )}
         </div>

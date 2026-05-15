@@ -96,6 +96,35 @@ interface PermissionRequestForRenderer {
   suggestions?: unknown;
 }
 
+interface AskQuestionOption {
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+interface AskQuestionItem {
+  header: string;
+  question: string;
+  multiSelect?: boolean;
+  allowFreeformInput?: boolean;
+  message?: string;
+  options?: AskQuestionOption[];
+}
+
+interface AskQuestionRequestForRenderer {
+  id: string;
+  toolName: 'AskUserQuestion' | 'vscode_askQuestions' | 'askquestion';
+  questions: AskQuestionItem[];
+}
+
+interface AskQuestionAnswer {
+  selected?: string[];
+  freeText?: string;
+  skipped?: boolean;
+}
+
+type AskQuestionResponse = Record<string, AskQuestionAnswer>;
+
 type PermissionDecision =
   | { behavior: 'allow'; updatedInput: Record<string, unknown> }
   | { behavior: 'deny'; message: string };
@@ -104,6 +133,13 @@ interface PendingPermissionRequest {
   request: PermissionRequestForRenderer;
   resolve: (decision: PermissionDecision) => void;
   timer: NodeJS.Timeout;
+}
+
+interface PendingQuestionRequest {
+  request: AskQuestionRequestForRenderer;
+  resolve: (answers: AskQuestionResponse) => void;
+  timer: NodeJS.Timeout;
+  tabId?: string;
 }
 
 export class CliService {
@@ -116,6 +152,7 @@ export class CliService {
   private permissionServerPort: number | null = null;
   private permissionServerPromise: Promise<number> | null = null;
   private pendingPermissionRequests = new Map<string, PendingPermissionRequest>();
+  private pendingQuestionRequests = new Map<string, PendingQuestionRequest>();
   private readonly permissionMcpServerName = 'claude_code_gui_permission';
   private readonly permissionMcpToolName = 'gui_permission_prompt';
   /** Web 服务器 SSE 事件监听器集合 */
@@ -421,6 +458,9 @@ export class CliService {
       args.push('--max-budget-usd', String(this.config.maxBudgetUsd));
     }
 
+    // 启用 Claude CLI 原生 AskUserQuestion 工具，供 GUI 接管用户选择弹窗
+    args.push('--brief');
+
     // 传递 effort 等级
     if (this.config.effortLevel && this.config.effortLevel !== 'default') {
       args.push('--effort', this.config.effortLevel);
@@ -475,6 +515,19 @@ export class CliService {
         '--permission-prompt-tool', `mcp__${this.permissionMcpServerName}__${this.permissionMcpToolName}`,
         '--settings', JSON.stringify({
           hooks: {
+            PreToolUse: [
+              {
+                matcher: 'AskUserQuestion',
+                hooks: [
+                  {
+                    type: 'http',
+                    url: `http://127.0.0.1:${permissionPort}/question-request/${tid}`,
+                    timeout: 3600,
+                    statusMessage: '等待 GUI 回答 Claude 提问',
+                  },
+                ],
+              },
+            ],
             PermissionRequest: [
               {
                 matcher: '*',
@@ -563,6 +616,7 @@ export class CliService {
         console.log('[CLI] sendMessage process exited with code:', code, 'tabId:', tid);
         this.activeProcesses.delete(tid);
         this.cancelPendingPermissionRequests('Claude 进程已结束，审批请求已取消。');
+        this.cancelPendingQuestionRequests();
         this.emit('message-done', String(code ?? 0), tid);
       });
 
@@ -570,6 +624,7 @@ export class CliService {
         console.error('[CLI] sendMessage spawn error:', err);
         this.activeProcesses.delete(tid);
         this.cancelPendingPermissionRequests('Claude 进程启动失败，审批请求已取消。');
+        this.cancelPendingQuestionRequests();
         this.emit('message-error', String(err), tid);
       });
 
@@ -596,6 +651,7 @@ export class CliService {
       }
       this.activeProcesses.clear();
       this.cancelPendingPermissionRequests('用户已停止生成，审批请求已取消。');
+      this.cancelPendingQuestionRequests();
     }
     return { success: true };
   }
@@ -615,6 +671,19 @@ export class CliService {
 
     pending.resolve(decision);
     this.emit('permission-resolved', JSON.stringify({ id: requestId, behavior: decision.behavior }));
+    return { success: true };
+  }
+
+  respondQuestionRequest(requestId: string, answers: AskQuestionResponse): { success: boolean; error?: string } {
+    const pending = this.pendingQuestionRequests.get(requestId);
+    if (!pending) {
+      return { success: false, error: '提问请求不存在或已结束' };
+    }
+
+    this.pendingQuestionRequests.delete(requestId);
+    clearTimeout(pending.timer);
+    pending.resolve(this.normalizeQuestionAnswers(answers, pending.request.questions));
+    this.emit('question-resolved', JSON.stringify({ id: requestId }), pending.tabId);
     return { success: true };
   }
 
@@ -695,6 +764,7 @@ export class CliService {
           env: {
             ELECTRON_RUN_AS_NODE: '1',
             CLAUDE_GUI_PERMISSION_URL: `http://127.0.0.1:${permissionPort}/permission-tool`,
+            CLAUDE_GUI_QUESTION_URL: `http://127.0.0.1:${permissionPort}/question-tool`,
           },
         },
       },
@@ -710,6 +780,17 @@ export class CliService {
     const route = req.url?.split('?')[0] ?? '';
     if (route === '/permission-tool') {
       await this.handlePermissionToolRequest(req, res);
+      return;
+    }
+
+    if (route === '/question-tool') {
+      await this.handleQuestionToolRequest(req, res);
+      return;
+    }
+
+    if (route.startsWith('/question-request')) {
+      const tabIdFromPath = route.slice('/question-request'.length).replace(/^\//, '') || undefined;
+      await this.handleQuestionHookRequest(req, res, tabIdFromPath);
       return;
     }
 
@@ -762,6 +843,36 @@ export class CliService {
     }
   }
 
+  private async handleQuestionToolRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      const body = await this.readRequestBody(req);
+      const payload = JSON.parse(body || '{}') as Record<string, unknown>;
+      const request = this.createQuestionRequest(payload);
+      const answers = await this.waitForQuestionAnswer(request);
+      this.writeJsonResponse(res, 200, answers);
+    } catch (err) {
+      this.writeJsonResponse(res, 200, this.buildSkippedQuestionAnswers([]));
+    }
+  }
+
+  private async handleQuestionHookRequest(req: http.IncomingMessage, res: http.ServerResponse, tabId?: string): Promise<void> {
+    try {
+      const body = await this.readRequestBody(req);
+      const payload = JSON.parse(body || '{}') as Record<string, unknown>;
+      const request = this.createQuestionRequest(payload);
+      const answers = await this.waitForQuestionAnswer(request, tabId);
+      this.writeJsonResponse(res, 200, this.buildAskUserQuestionHookResponse(request, answers, payload));
+    } catch (err) {
+      this.writeJsonResponse(res, 200, {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: `GUI 提问桥处理 AskUserQuestion 失败：${String(err)}`,
+        },
+      });
+    }
+  }
+
   private readRequestBody(req: http.IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -796,6 +907,77 @@ export class CliService {
     };
   }
 
+  private createQuestionRequest(payload: Record<string, unknown>): AskQuestionRequestForRenderer {
+    const rawToolName = typeof payload.tool_name === 'string'
+      ? payload.tool_name
+      : (typeof payload.toolName === 'string' ? payload.toolName : undefined);
+    const rawToolInput = payload.tool_input && typeof payload.tool_input === 'object' && !Array.isArray(payload.tool_input)
+      ? payload.tool_input as Record<string, unknown>
+      : (payload.toolInput && typeof payload.toolInput === 'object' && !Array.isArray(payload.toolInput)
+        ? payload.toolInput as Record<string, unknown>
+        : null);
+
+    const rawQuestions = Array.isArray(rawToolInput?.questions)
+      ? rawToolInput.questions
+      : (Array.isArray(payload.questions) ? payload.questions : []);
+
+    const isNativeAskUserQuestion = rawToolName === 'AskUserQuestion';
+    const questions = rawQuestions
+      .map((entry) => this.normalizeQuestionItem(entry, isNativeAskUserQuestion))
+      .filter((item): item is AskQuestionItem => item !== null);
+
+    if (questions.length === 0) {
+      const fallbackQuestion = typeof payload.question === 'string' ? payload.question : '请提供你的选择';
+      questions.push({
+        header: typeof payload.header === 'string' ? payload.header : '问题',
+        question: fallbackQuestion,
+        allowFreeformInput: !isNativeAskUserQuestion,
+      });
+    }
+
+    return {
+      id: randomUUID(),
+      toolName: isNativeAskUserQuestion
+        ? 'AskUserQuestion'
+        : (rawToolName === 'askquestion' ? 'askquestion' : 'vscode_askQuestions'),
+      questions,
+    };
+  }
+
+  private normalizeQuestionItem(entry: unknown, isNativeAskUserQuestion = false): AskQuestionItem | null {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+    const raw = entry as Record<string, unknown>;
+    const header = typeof raw.header === 'string' ? raw.header.trim() : '';
+    const question = typeof raw.question === 'string' ? raw.question.trim() : '';
+    if (!header || !question) return null;
+
+    const options: AskQuestionOption[] | undefined = Array.isArray(raw.options)
+      ? raw.options.reduce<AskQuestionOption[]>((acc, option) => {
+          if (!option || typeof option !== 'object' || Array.isArray(option)) return acc;
+          const opt = option as Record<string, unknown>;
+          const label = typeof opt.label === 'string' ? opt.label.trim() : '';
+          if (!label) return acc;
+          acc.push({
+            label,
+            description: typeof opt.description === 'string' ? opt.description : undefined,
+            recommended: Boolean(opt.recommended),
+          });
+          return acc;
+        }, [])
+      : undefined;
+
+    return {
+      header,
+      question,
+      multiSelect: Boolean(raw.multiSelect),
+      allowFreeformInput: raw.allowFreeformInput === undefined
+        ? !isNativeAskUserQuestion
+        : Boolean(raw.allowFreeformInput),
+      message: typeof raw.message === 'string' ? raw.message : undefined,
+      options,
+    };
+  }
+
   private waitForPermissionDecision(request: PermissionRequestForRenderer, tabId?: string): Promise<PermissionDecision> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
@@ -809,6 +991,19 @@ export class CliService {
     });
   }
 
+  private waitForQuestionAnswer(request: AskQuestionRequestForRenderer, tabId?: string): Promise<AskQuestionResponse> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingQuestionRequests.delete(request.id);
+        resolve(this.buildSkippedQuestionAnswers(request.questions));
+        this.emit('question-resolved', JSON.stringify({ id: request.id, timeout: true }), tabId);
+      }, 60 * 60 * 1000);
+
+      this.pendingQuestionRequests.set(request.id, { request, resolve, timer, tabId });
+      this.emit('question-request', JSON.stringify(request), tabId);
+    });
+  }
+
   private cancelPendingPermissionRequests(message: string): void {
     for (const [id, pending] of this.pendingPermissionRequests) {
       clearTimeout(pending.timer);
@@ -816,6 +1011,15 @@ export class CliService {
       this.emit('permission-resolved', JSON.stringify({ id, behavior: 'deny', cancelled: true }));
     }
     this.pendingPermissionRequests.clear();
+  }
+
+  private cancelPendingQuestionRequests(): void {
+    for (const [id, pending] of this.pendingQuestionRequests) {
+      clearTimeout(pending.timer);
+      pending.resolve(this.buildSkippedQuestionAnswers(pending.request.questions));
+      this.emit('question-resolved', JSON.stringify({ id, cancelled: true }), pending.tabId);
+    }
+    this.pendingQuestionRequests.clear();
   }
 
   private writeJsonResponse(res: http.ServerResponse, statusCode: number, body: unknown): void {
@@ -831,6 +1035,72 @@ export class CliService {
     const pathLike = input.file_path ?? input.path ?? input.filename;
     if (typeof pathLike === 'string') return pathLike;
     return JSON.stringify(input).slice(0, 200);
+  }
+
+  private buildSkippedQuestionAnswers(questions: AskQuestionItem[]): AskQuestionResponse {
+    const answers: AskQuestionResponse = {};
+    for (const question of questions) {
+      answers[question.header] = { selected: [], freeText: '', skipped: true };
+    }
+    return answers;
+  }
+
+  private normalizeQuestionAnswers(
+    answers: AskQuestionResponse,
+    questions: AskQuestionItem[],
+  ): AskQuestionResponse {
+    const normalized: AskQuestionResponse = {};
+    for (const question of questions) {
+      const current = answers[question.header] ?? {};
+      normalized[question.header] = {
+        selected: Array.isArray(current.selected)
+          ? current.selected.filter((item): item is string => typeof item === 'string')
+          : [],
+        freeText: typeof current.freeText === 'string' ? current.freeText : '',
+        skipped: Boolean(current.skipped),
+      };
+    }
+    return normalized;
+  }
+
+  private buildAskUserQuestionHookResponse(
+    request: AskQuestionRequestForRenderer,
+    answers: AskQuestionResponse,
+    payload: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const normalized = this.normalizeQuestionAnswers(answers, request.questions);
+    const nativeAnswers: Record<string, string> = {};
+
+    for (const question of request.questions) {
+      const current = normalized[question.header];
+      const selected = current?.selected ?? [];
+      if (current?.skipped || selected.length === 0) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason: '用户未完成 Claude 提问选择，已取消本次 AskUserQuestion。',
+          },
+        };
+      }
+      nativeAnswers[question.question] = question.multiSelect ? selected.join(', ') : selected[0];
+    }
+
+    const rawToolInput = payload.tool_input && typeof payload.tool_input === 'object' && !Array.isArray(payload.tool_input)
+      ? payload.tool_input as Record<string, unknown>
+      : {};
+
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+        updatedInput: {
+          ...rawToolInput,
+          questions: rawToolInput.questions ?? request.questions,
+          answers: nativeAnswers,
+        },
+      },
+    };
   }
 
   private checkOfficialAuth(claudePath: string): ClaudeAuthStatus {

@@ -2,7 +2,7 @@
  * AgentTeamsPanel — Agent Teams 看板（实验性功能）
  * 需要 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 才可完整使用。
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Users, Crown, AlertTriangle, Settings, Plus, MessageSquare, X, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 
@@ -54,6 +54,37 @@ const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   rejected: '拒绝',
 };
 
+// ── 工具函数：提取 tool_result 块 ───────────────────────────────────────────
+
+function extractToolResultBlocks(
+  obj: Record<string, unknown>,
+): Array<{ toolUseId: string; content: string }> {
+  const results: Array<{ toolUseId: string; content: string }> = [];
+  const candidates: Array<Record<string, unknown>> = [];
+
+  if (obj.type === 'tool' && Array.isArray(obj.content)) {
+    candidates.push(...(obj.content as Array<Record<string, unknown>>));
+  }
+  const userContent = (obj.message as Record<string, unknown> | undefined)?.content;
+  if (obj.type === 'user' && Array.isArray(userContent)) {
+    candidates.push(...(userContent as Array<Record<string, unknown>>));
+  }
+
+  for (const block of candidates) {
+    if (block.type === 'tool_result' && block.tool_use_id) {
+      const rawContent = block.content;
+      const content = Array.isArray(rawContent)
+        ? (rawContent as Array<{ type: string; text: string }>)
+            .filter((b) => b.type === 'text')
+            .map((b) => b.text)
+            .join('')
+        : String(rawContent ?? '');
+      results.push({ toolUseId: block.tool_use_id as string, content });
+    }
+  }
+  return results;
+}
+
 // ── 主组件 ────────────────────────────────────────────────────────────────
 
 export function AgentTeamsPanel() {
@@ -61,6 +92,12 @@ export function AgentTeamsPanel() {
   const [team, setTeam] = useState<AgentTeamState | null>(null);
   const [inlineMsg, setInlineMsg] = useState<Record<string, string>>({});
   const setActiveNavSection = useAppStore((s) => s.setActiveNavSection);
+
+  // 实时解析用的 Refs（不引发重渲染）
+  const pendingTasksRef = useRef<Map<string, { agentName: string; taskDesc: string; toolUseId: string }>>(
+    new Map(),
+  );
+  const lineBufferRef = useRef<Map<string, string>>(new Map());
 
   // 检查 env 变量是否启用
   useEffect(() => {
@@ -86,6 +123,165 @@ export function AgentTeamsPanel() {
   const handleGoToSettings = useCallback(() => {
     setActiveNavSection('settings');
   }, [setActiveNavSection]);
+
+  // ── 订阅 onCliOutput 实时解析 Task 工具调用 ─────────────────────────────────
+  useEffect(() => {
+    if (!enabled || !window.electronAPI?.onCliOutput) return;
+
+    const unsubscribe = window.electronAPI.onCliOutput((event) => {
+      if (event.type !== 'message-chunk') return;
+
+      // 只处理当前活跃 Tab
+      const activeTabId = useAppStore.getState().activeTabId;
+      if (event.tabId && event.tabId !== activeTabId) return;
+
+      const tid = event.tabId ?? 'default';
+      const prev = lineBufferRef.current.get(tid) ?? '';
+      const combined = prev + event.data;
+      const lines = combined.split('\n');
+      const incomplete = lines.pop() ?? '';
+      lineBufferRef.current.set(tid, incomplete);
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const obj = JSON.parse(line) as Record<string, unknown>;
+
+          // ── assistant 消息：寻找 Task tool_use 块 ──
+          if (obj.type === 'assistant') {
+            const content = (obj.message as Record<string, unknown> | undefined)?.content;
+            if (Array.isArray(content)) {
+              for (const block of content as Array<Record<string, unknown>>) {
+                // Lead 派务给 Teammate
+                if (
+                  block.type === 'tool_use' &&
+                  (block.name === 'Task' || block.name === 'task' || block.name === 'dispatch')
+                ) {
+                  const input = (block.input as Record<string, unknown>) ?? {};
+                  const agentName = String(
+                    input.agent ?? input.subagent ?? input.agent_name ?? input.name ?? '',
+                  ).trim();
+                  const taskDesc = String(
+                    input.description ?? input.prompt ?? input.task ?? '',
+                  ).trim();
+                  const toolUseId = block.id as string;
+
+                  if (agentName && toolUseId) {
+                    pendingTasksRef.current.set(toolUseId, { agentName, taskDesc, toolUseId });
+                    setTeam((prev) => {
+                      const base: AgentTeamState = prev ?? {
+                        teamName: 'agent-team',
+                        teammates: [],
+                        tasks: [],
+                        leadStatus: '协调任务中',
+                      };
+                      const existingIdx = base.teammates.findIndex((t) => t.id === agentName);
+                      const updatedTeammates =
+                        existingIdx >= 0
+                          ? base.teammates.map((t, i) =>
+                              i === existingIdx
+                                ? { ...t, status: 'active' as TeammateStatus, currentTask: taskDesc }
+                                : t,
+                            )
+                          : [
+                              ...base.teammates,
+                              {
+                                id: agentName,
+                                displayName: agentName,
+                                status: 'active' as TeammateStatus,
+                                currentTask: taskDesc,
+                              },
+                            ];
+                      const updatedTasks =
+                        taskDesc && !base.tasks.find((tk) => tk.id === toolUseId)
+                          ? [
+                              ...base.tasks,
+                              {
+                                id: toolUseId,
+                                description: taskDesc,
+                                assignedTo: agentName,
+                                status: 'in_progress' as TaskStatus,
+                              },
+                            ]
+                          : base.tasks;
+                      return {
+                        ...base,
+                        teammates: updatedTeammates,
+                        tasks: updatedTasks,
+                        leadStatus: `正在等待 ${agentName}`,
+                      };
+                    });
+                  }
+                }
+
+                // Lead 当前状态文字（取 assistant 文本居前 60 字）
+                if (block.type === 'text') {
+                  const text = String(block.text ?? '').trim();
+                  if (text.length > 10) {
+                    const summary = text.slice(0, 60).replace(/\n/g, ' ');
+                    setTeam((prev) =>
+                      prev ? { ...prev, leadStatus: summary + (text.length > 60 ? '…' : '') } : prev,
+                    );
+                  }
+                }
+              }
+            }
+          }
+
+          // ── 工具结果：标记 Teammate 已完成 ──
+          const toolResults = extractToolResultBlocks(obj);
+          for (const { toolUseId, content } of toolResults) {
+            const pending = pendingTasksRef.current.get(toolUseId);
+            if (pending) {
+              pendingTasksRef.current.delete(toolUseId);
+              const { agentName } = pending;
+              setTeam((prev) => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  teammates: prev.teammates.map((t) =>
+                    t.id === agentName
+                      ? {
+                          ...t,
+                          status: 'idle' as TeammateStatus,
+                          lastMessage: content.slice(0, 120),
+                          currentTask: undefined,
+                        }
+                      : t,
+                  ),
+                  tasks: prev.tasks.map((task) =>
+                    task.id === toolUseId ? { ...task, status: 'done' as TaskStatus } : task,
+                  ),
+                  leadStatus: `${agentName} 已完成任务`,
+                };
+              });
+            }
+          }
+
+          // ── 会话结束：所有 Teammate 设为 done ──
+          if (obj.type === 'result') {
+            setTeam((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    leadStatus: '会话已结束',
+                    teammates: prev.teammates.map((t) => ({ ...t, status: 'done' as TeammateStatus })),
+                  }
+                : null,
+            );
+            // 清空待完成的任务映射
+            pendingTasksRef.current.clear();
+          }
+        } catch { /* 非 JSON 行忽略 */ }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      pendingTasksRef.current.clear();
+      lineBufferRef.current.clear();
+    };
+  }, [enabled]);
 
   const handleCreateTeam = useCallback(() => {
     // 跳转到 Dispatch 新建 Tab，发送创建团队的引导消息
@@ -173,7 +369,7 @@ export function AgentTeamsPanel() {
         <Users size={32} className="agent-teams-empty-icon" />
         <h3 className="agent-teams-empty-title">暂无活跃的 Agent 团队</h3>
         <p className="agent-teams-empty-hint">
-          你可以让 Claude 创建一个团队，Lead 会自动委派 Teammate 并行处理子任务。
+          当 Claude 使用 <code>Task</code> 工具派务子代理时，看板会自动显示团队状态。也可以手动要求 Lead 创建团队。
         </p>
         <div className="agent-teams-actions">
           <button className="at-btn at-btn--primary" onClick={handleCreateTeam}>
@@ -213,7 +409,21 @@ export function AgentTeamsPanel() {
       <div className="agent-teams-board-header">
         <Users size={14} />
         <span className="at-team-name">当前团队：{team.teamName ?? '未命名'}</span>
-        <button className="at-btn at-btn--ghost at-btn--sm" onClick={() => setTeam(null)}>清理团队</button>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontSize: 10, color: '#22c55e', marginLeft: 'auto',
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', background: '#22c55e',
+            boxShadow: '0 0 4px #22c55e',
+          }} />
+          实时监控
+        </span>
+        <button className="at-btn at-btn--ghost at-btn--sm" onClick={() => {
+          setTeam(null);
+          pendingTasksRef.current.clear();
+          lineBufferRef.current.clear();
+        }}>清理团队</button>
       </div>
 
       {/* Lead 状态 */}

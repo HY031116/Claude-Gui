@@ -20,10 +20,10 @@ function writeError(id: JsonRpcId | undefined, code: number, message: string): v
   process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }) + '\n');
 }
 
-function postPermissionRequest(payload: unknown): Promise<unknown> {
-  const url = process.env.CLAUDE_GUI_PERMISSION_URL;
+function postToolRequest(urlEnvKey: 'CLAUDE_GUI_PERMISSION_URL' | 'CLAUDE_GUI_QUESTION_URL', payload: unknown, fallbackMessage: string): Promise<unknown> {
+  const url = process.env[urlEnvKey];
   if (!url) {
-    return Promise.resolve({ behavior: 'deny', message: 'GUI 权限审批服务未配置。' });
+    return Promise.resolve({ error: fallbackMessage });
   }
 
   return new Promise((resolve) => {
@@ -43,17 +43,17 @@ function postPermissionRequest(payload: unknown): Promise<unknown> {
           const text = Buffer.concat(chunks).toString('utf8');
           resolve(JSON.parse(text || '{}'));
         } catch (error) {
-          resolve({ behavior: 'deny', message: `GUI 权限审批响应无效：${String(error)}` });
+          resolve({ error: `GUI 工具桥响应无效：${String(error)}` });
         }
       });
     });
 
     req.on('timeout', () => {
       req.destroy();
-      resolve({ behavior: 'deny', message: 'GUI 权限审批超时，已自动拒绝工具调用。' });
+      resolve({ error: fallbackMessage });
     });
     req.on('error', (error) => {
-      resolve({ behavior: 'deny', message: `GUI 权限审批服务不可用：${String(error)}` });
+      resolve({ error: `GUI 工具桥不可用：${String(error)}` });
     });
     req.end(body);
   });
@@ -86,6 +86,58 @@ async function handleMessage(message: JsonRpcMessage): Promise<void> {
           description: 'Ask the Claude Code GUI user to allow or deny a pending Claude Code tool call.',
           inputSchema: { type: 'object', additionalProperties: true },
         },
+        {
+          name: 'vscode_askQuestions',
+          description: 'Show a GUI dialog with selectable questions and return the user answers.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              questions: {
+                type: 'array',
+                minItems: 1,
+                items: {
+                  type: 'object',
+                  properties: {
+                    header: { type: 'string' },
+                    question: { type: 'string' },
+                    multiSelect: { type: 'boolean' },
+                    allowFreeformInput: { type: 'boolean' },
+                    message: { type: 'string' },
+                    options: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          label: { type: 'string' },
+                          description: { type: 'string' },
+                          recommended: { type: 'boolean' },
+                        },
+                        required: ['label'],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ['header', 'question'],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ['questions'],
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'askquestion',
+          description: 'Alias of vscode_askQuestions for prompting the GUI user with selectable questions.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              questions: { type: 'array' },
+            },
+            required: ['questions'],
+            additionalProperties: true,
+          },
+        },
       ],
     });
     return;
@@ -93,14 +145,17 @@ async function handleMessage(message: JsonRpcMessage): Promise<void> {
 
   if (method === 'tools/call') {
     const toolName = typeof params?.name === 'string' ? params.name : '';
-    if (toolName !== 'gui_permission_prompt') {
+    if (!['gui_permission_prompt', 'vscode_askQuestions', 'askquestion'].includes(toolName)) {
       writeError(id, -32602, `Unknown tool: ${toolName}`);
       return;
     }
 
-    const decision = await postPermissionRequest(params?.arguments ?? {});
+    const result = toolName === 'gui_permission_prompt'
+      ? await postToolRequest('CLAUDE_GUI_PERMISSION_URL', params?.arguments ?? {}, 'GUI 权限审批超时，已自动拒绝工具调用。')
+      : await postToolRequest('CLAUDE_GUI_QUESTION_URL', params?.arguments ?? {}, 'GUI 询问弹窗超时，已自动跳过问题。');
+
     writeResult(id, {
-      content: [{ type: 'text', text: JSON.stringify(decision) }],
+      content: [{ type: 'text', text: JSON.stringify(result) }],
     });
     return;
   }

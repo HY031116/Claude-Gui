@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { MessageSquare, Trash2, FolderOpen, ArrowLeft, Clock, RefreshCw, Search, ArrowUpDown } from 'lucide-react';
-import type { ConversationRecord, CliSessionRecord } from '../types';
+import type { ConversationRecord, CliSessionRecord, Message } from '../types';
 
 /** 格式化相对时间 */
 function formatRelativeTime(ts: number): string {
@@ -77,7 +77,7 @@ export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
   highlightSessionId?: string | null;
   onHighlightConsumed?: () => void;
 } = {}) {
-  const { conversationHistory, clearConversationHistory, removeConversation, session, setSession, clearMessages, setActiveNavSection } = useAppStore();
+  const { conversationHistory, clearConversationHistory, removeConversation, session, setSession, clearMessages, setMessages, setActiveNavSection } = useAppStore();
   const historySearchTrigger = useAppStore((s) => s.historySearchTrigger);
   const [cliSessions, setCliSessions] = useState<CliSessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -260,17 +260,28 @@ export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
   const activeGroup = projectGroups.find((g) => g.key === selectedProject) ?? projectGroups[0];
   const totalCount = projectGroups.reduce((sum, g) => sum + g.sessions.length, 0);
 
-  /** 点击会话：切换 sessionId 并回到对话面板 */
+  /** 点击会话：切换 sessionId，尝试离线加载历史消息，回到对话面板 */
   const handleSelectSession = useCallback(
-    (record: ConversationRecord) => {
+    async (record: ConversationRecord, projectDirName: string) => {
       clearMessages();
       setSession({
         conversationSessionId: record.sessionId,
         workingDirectory: record.workingDirectory || session.workingDirectory,
       });
       setActiveNavSection('chat');
+      // 尝试从本地 JSONL 离线加载历史消息（非 Electron 环境自动忽略）
+      if (projectDirName) {
+        try {
+          const result = await window.electronAPI.loadSessionMessages(projectDirName, record.sessionId);
+          if (result.success && result.messages && result.messages.length > 0) {
+            setMessages(result.messages as Message[]);
+          }
+        } catch {
+          // 非 Electron 环境或读取失败时静默忽略
+        }
+      }
     },
-    [clearMessages, setSession, setActiveNavSection, session.workingDirectory],
+    [clearMessages, setSession, setActiveNavSection, session.workingDirectory, setMessages],
   );
 
   /**
@@ -571,7 +582,7 @@ export function HistoryPanel({ highlightSessionId, onHighlightConsumed }: {
                         className={`history-session-row ${isActive && !batchMode ? 'active' : ''} ${batchMode && isBatchChecked ? 'batch-checked' : ''} ${isFlashing ? 'highlight-flash' : ''}`}
                         onClick={() => {
                           if (batchMode) { toggleBatchSelect(record.sessionId); return; }
-                          if (!isDeleting) handleSelectSession(record);
+                          if (!isDeleting) handleSelectSession(record, projectDirName);
                         }}
                       >
                         {/* 批量模式 checkbox */}

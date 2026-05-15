@@ -10,10 +10,37 @@ export type UpdateStatus =
   | { type: 'error'; message: string };
 
 export interface CliOutputEvent {
-  type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved';
+  type: 'stdout' | 'stderr' | 'exit' | 'message-chunk' | 'message-stderr' | 'message-done' | 'message-error' | 'permission-request' | 'permission-resolved' | 'question-request' | 'question-resolved';
   data: string;
   /** 发起请求的 tab ID，用于多会话并行路由（仅 message-* 事件携带） */
   tabId?: string;
+}
+
+export interface AskQuestionOption {
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export interface AskQuestionItem {
+  header: string;
+  question: string;
+  multiSelect?: boolean;
+  allowFreeformInput?: boolean;
+  message?: string;
+  options?: AskQuestionOption[];
+}
+
+export interface AskQuestionAnswer {
+  selected?: string[];
+  freeText?: string;
+  skipped?: boolean;
+}
+
+export interface AskQuestionRequestEvent {
+  id: string;
+  toolName: 'AskUserQuestion' | 'vscode_askQuestions' | 'askquestion';
+  questions: AskQuestionItem[];
 }
 
 export interface ElectronAPI {
@@ -27,6 +54,8 @@ export interface ElectronAPI {
   cliSendToStdin: (data: string) => Promise<{ success: boolean; error?: string }>;
   /** 响应 Claude Code 的真实 PermissionRequest hook 审批 */
   cliRespondPermission: (requestId: string, allow: boolean) => Promise<{ success: boolean; error?: string }>;
+  /** 响应 Claude Code 的 vscode_askQuestions / askquestion 工具调用 */
+  cliRespondQuestion: (requestId: string, answers: Record<string, AskQuestionAnswer>) => Promise<{ success: boolean; error?: string }>;
   onCliOutput: (callback: (event: CliOutputEvent) => void) => () => void;
   listDirectory: (path: string) => Promise<{ success: boolean; entries?: any[]; error?: string }>;
   listFilesInDir: (cwd: string, query: string) => Promise<{ success: boolean; files?: string[]; error?: string }>;
@@ -138,6 +167,7 @@ const api: ElectronAPI = {
   cliStopMessage: (tabId) => ipcRenderer.invoke('cli:stopMessage', tabId),
   cliSendToStdin: (data: string) => ipcRenderer.invoke('cli:sendToStdin', data),
   cliRespondPermission: (requestId, allow) => ipcRenderer.invoke('cli:respondPermission', requestId, allow),
+  cliRespondQuestion: (requestId, answers) => ipcRenderer.invoke('cli:respondQuestion', requestId, answers),
   onCliOutput: (callback) => {
     const handler = (_: any, event: CliOutputEvent) => callback(event);
     ipcRenderer.on('cli:output', handler);

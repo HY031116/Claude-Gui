@@ -1,5 +1,32 @@
 # Changelog
 
+## [4.3.0] - 2026-05-19
+
+### 改进
+- **Plan Mode 增强**：PlanReviewPanel 补全两处缺失功能
+  - **EditPlanModal 步骤数实时预览**：保存按钮文字动态显示当前文本将被解析的步骤数，格式"保存并重新解析（N 步骤）"；辅助提示行也同步展示实时步骤数
+  - **风险等级分布表**：在步骤列表上方新增可折叠的风险分布表（3 行 × 3 列：等级 / 数量 / 涉及步骤编号），高风险行直接显示目标文件/命令，便于快速定位危险操作；点击右上角徽章可折叠/展开；有高风险步骤时默认展开
+  - **StepCard 展开态增强**：展开详情由纯风险说明扩展为 4 行网格：完整命令（Bash 步骤提取 CLI 命令，其他步骤显示目标文件）/ 执行目录（读取当前会话工作目录）/ 推断影响（riskReason）/ 操作建议（按工具类型定制）；所有步骤均可展开，不再仅限高风险步骤
+- **HistoryPanel 离线会话加载**：点击历史会话时自动从 `~/.claude/projects/<projectDir>/<sessionId>.jsonl` 读取完整对话记录并填充聊天视图
+  - 后端 `loadSessionMessages` IPC 接口已实现（最大读取 2MB，支持旧版 queue-operation 格式和 CLI 2.x type=user 格式）
+  - 前端 `handleSelectSession` 改为 async，选中会话后调用 `electronAPI.loadSessionMessages` 并通过 `setMessages` 填充 store；非 Electron 环境静默忽略
+  - 切换至聊天面板后用户可立即看到历史消息，无需重新运行 Claude
+
+## [4.2.0] - 2026-05-18
+
+### 新增
+- **Agent Teams 实时状态同步**：AgentTeamsPanel 订阅 CLI 消息流，自动解析 `Task` 工具调用
+  - 检测到 Lead 派发 `Task` 工具时，自动创建 Teammate 卡片并标记为「活跃」
+  - 工具结果返回时自动将 Teammate 状态切换为「等待任务」，并更新共享任务列表
+  - 会话结束时所有 Teammate 状态变为「完成」
+  - Lead 当前状态随 assistant 文本实时滚动更新
+  - 看板标题区新增「实时监控」绿色指示点；空状态说明更新，告知用户会自动检测无需手动
+- **分叉模式（Fork Mode）**：委派表单高级选项中新增「分叉模式」开关
+  - 启用后显示历史会话下拉选择器（最多 20 条），选中后自动在 CLI 参数中注入 `--resume <sessionId>` 以继承对话上下文
+  - 自动检测 `CLAUDE_CODE_FORK_SUBAGENT=1` 环境变量；若未配置则显示警告并提供「一键启用」按钮
+  - 启用分叉但未选择来源会话时阻止提交，避免误操作
+  - 对应设计文档规格：`docs/PRODUCT_DESIGN.md` 行 321/342/448
+
 ## [4.1.0] - 2026-05-17
 
 ### 新增

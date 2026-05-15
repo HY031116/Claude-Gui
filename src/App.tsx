@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { useAppStore, persistTabState } from './stores/useAppStore';
 import { NavRail } from './components/layout/NavRail';
 import { WorkspaceArea } from './components/layout/WorkspaceArea';
@@ -6,12 +6,22 @@ import { AuxPanel } from './components/layout/AuxPanel';
 import { StatusBar } from './components/layout/StatusBar';
 import { ShortcutsModal } from './components/layout/ShortcutsModal';
 import { CommandPalette } from './components/layout/CommandPalette';
+import { AskQuestionsModal } from './components/layout/AskQuestionsModal';
+import { InterventionCenter } from './components/layout/InterventionCenter';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WebModeBanner } from './components/WebModeBanner';
 import { useResizableSidebar } from './hooks/useResizableSidebar';
 import { useCliOutput } from './hooks/useCliOutput';
 import { computeNavTransition } from './utils/nav';
 import type { NavSection, NavClick } from './utils/nav';
+import type { AskQuestionAnswer, AskQuestionRequestEvent, PermissionRequestEvent } from './types/electron';
+import type { PendingPermissionItem, PendingQuestionItem } from './components/layout/InterventionCenter';
+
+function resolveTabLabel(tabId?: string): string {
+  if (!tabId) return '当前任务';
+  const { tabs } = useAppStore.getState();
+  return tabs.find((tab) => tab.id === tabId)?.label ?? tabId;
+}
 
 function App() {
   // 精确订阅：只订阅 App 层真正需要的字段
@@ -145,28 +155,145 @@ function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const handleCloseCommandPalette = useCallback(() => setShowCommandPalette(false), []);
   const handleShowShortcutsFromPalette = useCallback(() => setShowShortcuts(true), []);
+  const [questionRequests, setQuestionRequests] = useState<PendingQuestionItem[]>([]);
+  const [questionRespondingId, setQuestionRespondingId] = useState<string | null>(null);
+  const [activeQuestionRequestId, setActiveQuestionRequestId] = useState<string | null>(null);
+  const [permissionRequests, setPermissionRequests] = useState<PendingPermissionItem[]>([]);
+  const [permissionRespondingId, setPermissionRespondingId] = useState<string | null>(null);
+  const [showInterventionCenter, setShowInterventionCenter] = useState(false);
+
+  const pendingInterventionCount = questionRequests.length + permissionRequests.length;
+  const selectedQuestionRequest = useMemo(() => {
+    if (questionRequests.length === 0) return null;
+    return questionRequests.find((item) => item.request.id === activeQuestionRequestId) ?? questionRequests[0];
+  }, [questionRequests, activeQuestionRequestId]);
+
+  useEffect(() => {
+    if (pendingInterventionCount === 0) {
+      setShowInterventionCenter(false);
+      setActiveQuestionRequestId(null);
+    }
+  }, [pendingInterventionCount]);
 
   // 3.3.7：监听后台 tab 的 permission-request 事件，触发系统通知
   useEffect(() => {
     if (!window.electronAPI?.onCliOutput) return;
     const unsubscribe = window.electronAPI.onCliOutput((event) => {
-      if (event.type !== 'permission-request') return;
+      if (event.type === 'permission-request') {
+        try {
+          const req = JSON.parse(event.data) as PermissionRequestEvent;
+          const nextItem: PendingPermissionItem = {
+            request: req,
+            tabId: event.tabId,
+            tabLabel: resolveTabLabel(event.tabId),
+          };
+          setPermissionRequests((prev) => prev.some((item) => item.request.id === req.id) ? prev : [...prev, nextItem]);
+          setShowInterventionCenter(true);
+        } catch { /* 忽略解析失败 */ }
+      }
+
+      if (event.type === 'permission-resolved') {
+        try {
+          const resolved = JSON.parse(event.data) as { id?: string };
+          if (resolved.id) {
+            setPermissionRequests((prev) => prev.filter((item) => item.request.id !== resolved.id));
+            setPermissionRespondingId((current) => current === resolved.id ? null : current);
+          }
+        } catch { /* 忽略解析失败 */ }
+      }
+
+      if (event.type === 'question-request') {
+        try {
+          const req = JSON.parse(event.data) as AskQuestionRequestEvent;
+          const nextItem: PendingQuestionItem = {
+            request: req,
+            tabId: event.tabId,
+            tabLabel: resolveTabLabel(event.tabId),
+          };
+          setQuestionRequests((prev) => prev.some((item) => item.request.id === req.id) ? prev : [...prev, nextItem]);
+          setShowInterventionCenter(true);
+        } catch { /* 忽略解析失败 */ }
+      }
+
+      if (event.type === 'question-resolved') {
+        try {
+          const resolved = JSON.parse(event.data) as { id?: string };
+          if (resolved.id) {
+            setQuestionRequests((prev) => prev.filter((item) => item.request.id !== resolved.id));
+            setQuestionRespondingId((current) => current === resolved.id ? null : current);
+            setActiveQuestionRequestId((current) => current === resolved.id ? null : current);
+          }
+        } catch { /* 忽略解析失败 */ }
+      }
+
+      if (event.type !== 'permission-request' && event.type !== 'question-request') return;
       if (!event.tabId) return;
       const { activeTabId: curActive, tabs } = useAppStore.getState();
       if (event.tabId === curActive) return; // 当前 tab 已可见，无需通知
       try {
         const req = JSON.parse(event.data) as { toolName?: string };
         const tabLabel = tabs.find((t) => t.id === event.tabId)?.label ?? event.tabId;
-        const toolName = req.toolName ?? '工具调用';
+        const toolName = event.type === 'question-request' ? '提问' : (req.toolName ?? '工具调用');
         window.electronAPI.notifySend(
           'Claude 需要你的输入',
-          `${tabLabel} — ${toolName} 请求审批`,
+          `${tabLabel} — ${toolName}${event.type === 'question-request' ? ' 等待选择' : ' 请求审批'}`,
           event.tabId,
         ).catch(() => {});
       } catch { /* 忽略解析失败 */ }
     });
     return () => unsubscribe();
   }, []);
+
+  const handleQuestionSubmit = useCallback(async (requestId: string, answers: Record<string, AskQuestionAnswer>) => {
+    setQuestionRespondingId(requestId);
+    const result = await window.electronAPI.cliRespondQuestion(requestId, answers);
+    if (!result.success) {
+      addMessage({
+        id: `msg-${Date.now()}-question`,
+        role: 'system',
+        content: result.error || '问题回答回传失败。',
+        timestamp: Date.now(),
+      });
+      setQuestionRespondingId(null);
+      return;
+    }
+    setQuestionRequests((prev) => prev.filter((item) => item.request.id !== requestId));
+    setQuestionRespondingId(null);
+    setActiveQuestionRequestId((current) => current === requestId ? null : current);
+  }, [addMessage]);
+
+  const handleQuestionSkip = useCallback(async (request: AskQuestionRequestEvent) => {
+    const skippedAnswers = Object.fromEntries(
+      request.questions.map((question) => [question.header, { selected: [], freeText: '', skipped: true }]),
+    ) as Record<string, AskQuestionAnswer>;
+    await handleQuestionSubmit(request.id, skippedAnswers);
+  }, [handleQuestionSubmit]);
+
+  const handleApprovalAction = useCallback(async (request: PermissionRequestEvent, allow: boolean) => {
+    setPermissionRespondingId(request.id);
+    const result = await window.electronAPI.cliRespondPermission(request.id, allow);
+    if (!result.success) {
+      addMessage({
+        id: `msg-${Date.now()}-permission`,
+        role: 'system',
+        content: result.error || '权限审批响应失败。',
+        timestamp: Date.now(),
+      });
+      setPermissionRespondingId(null);
+      return;
+    }
+    setPermissionRequests((prev) => prev.filter((item) => item.request.id !== request.id));
+    setPermissionRespondingId(null);
+  }, [addMessage]);
+
+  const handleFocusQuestion = useCallback((requestId: string, tabId?: string) => {
+    setActiveQuestionRequestId(requestId);
+    setShowInterventionCenter(true);
+    if (!tabId) return;
+    const store = useAppStore.getState();
+    store.setActiveTab(tabId);
+    setActiveNavSection('dispatch');
+  }, [setActiveNavSection]);
 
   // 3.3.7：点击系统通知 → 切换到对应 tab 并跳到 dispatch 视图
   useEffect(() => {
@@ -249,6 +376,17 @@ function App() {
       <StatusBar />
     </div>
 
+      {(pendingInterventionCount > 0 || showInterventionCenter) && (
+        <button
+          className={`intervention-fab${pendingInterventionCount > 0 ? ' active' : ''}`}
+          onClick={() => setShowInterventionCenter((current) => !current)}
+          aria-label="打开介入中心"
+        >
+          <span className="intervention-fab-label">介入中心</span>
+          <span className="intervention-fab-count">{pendingInterventionCount}</span>
+        </button>
+      )}
+
       {/* 快捷键一览 Modal（fixed 浮层，挂在 body 级别） */}
       {showShortcuts && <ShortcutsModal onClose={handleCloseShortcuts} />}
 
@@ -259,6 +397,28 @@ function App() {
           onNavClick={handleNavClick as (id: NavClick) => void}
           onStartSession={handleStartSession}
           onShowShortcuts={handleShowShortcutsFromPalette}
+        />
+      )}
+
+      <InterventionCenter
+        isOpen={showInterventionCenter}
+        pendingQuestions={questionRequests}
+        pendingPermissions={permissionRequests}
+        activeQuestionId={selectedQuestionRequest?.request.id ?? null}
+        permissionRespondingId={permissionRespondingId}
+        onClose={() => setShowInterventionCenter(false)}
+        onFocusQuestion={handleFocusQuestion}
+        onApprovePermission={(request) => void handleApprovalAction(request, true)}
+        onDenyPermission={(request) => void handleApprovalAction(request, false)}
+      />
+
+      {selectedQuestionRequest && (
+        <AskQuestionsModal
+          request={selectedQuestionRequest.request}
+          pendingCount={questionRequests.length}
+          submitting={questionRespondingId === selectedQuestionRequest.request.id}
+          onSubmit={(answers) => void handleQuestionSubmit(selectedQuestionRequest.request.id, answers)}
+          onSkip={() => void handleQuestionSkip(selectedQuestionRequest.request)}
         />
       )}
     </>

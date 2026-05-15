@@ -129,6 +129,12 @@ export function startWebServer(services: WebServerServices): http.Server {
         case 'cli:respondPermission':
           result = await cliService.respondPermissionRequest(args[0] as string, args[1] as boolean);
           break;
+        case 'cli:respondQuestion':
+          result = await cliService.respondQuestionRequest(
+            args[0] as string,
+            args[1] as Record<string, { selected?: string[]; freeText?: string; skipped?: boolean }>,
+          );
+          break;
         case 'cli:history':
           result = await fileService.loadCliHistory();
           break;

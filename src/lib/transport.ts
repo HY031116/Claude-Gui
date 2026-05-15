@@ -76,6 +76,7 @@ export const webAPI: ElectronAPI = {
   cliStopMessage: (tabId) => webInvoke('cli:stopMessage', tabId),
   cliSendToStdin: (data) => webInvoke('cli:sendToStdin', data),
   cliRespondPermission: (requestId, allow) => webInvoke('cli:respondPermission', requestId, allow),
+  cliRespondQuestion: (requestId, answers) => webInvoke('cli:respondQuestion', requestId, answers),
 
   onCliOutput: (callback) => {
     ensureSSE();
