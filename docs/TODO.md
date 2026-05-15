@@ -92,10 +92,9 @@
 - **描述**：`sendQuickReply` 使用 `session.conversationSessionId || undefined`，如果会话尚未建立（首条消息还未收到 session_id）就触发快速回复，会以无 sessionId 的方式发送，可能开启新对话而不是延续当前上下文。
 - **方向**：在 sendQuickReply 中检查 sessionId 是否存在，不存在时给出 UI 提示"当前会话尚未建立，无法快速回复"。
 
-#### BUG-103 handleStop 后 permissionRequests 清空但全局介入中心不清
-- **代码行**：ChatPanel.tsx:1144（handleStop 里的 setPermissionRequests）
-- **描述**：手动停止生成时，ChatPanel 本地 `setPermissionRequests([])` 会清空，但 `App.tsx` 的全局 `permissionRequests` state 不会被更新，导致介入中心仍显示已过期的审批请求。
-- **方向**：将 permissionRequests 提升到 store（BUG-002 修复后自然解决）。
+#### ✅ BUG-103 handleStop 后 permissionRequests 清空但全局介入中心不清 — **已自然修复（BUG-002 副作用）**
+- **代码行**：ChatPanel.tsx:1140（handleStop 里的 clearPermissionRequestsForTab）
+- **状态**：BUG-002 修复时已将 handleStop 中的 `setPermissionRequests([])` 替换为 `clearPermissionRequestsForTab(activeTabId)`，该清空操作直接写入 store，全局介入中心（App.tsx 的 `permissionRequests` 是 store 的派生值）会自动同步更新。无需额外修复。
 
 #### RISK-101 后台 Tab 的 CLI 进程在工作区切换时是否被正确清理
 - **描述**：切换工作区时，前工作区的 Tab 的 CLI 会话进程没有显式终止。如果该进程仍在运行并发出 permission-request，会被 App.tsx 的全局监听器接收并写入新工作区的介入中心。
@@ -141,7 +140,7 @@
 ### v4.4.0
 - [ ] BUG-101 通过：并发 question + permission 事件不互相覆盖
 - [ ] BUG-102 通过：无 sessionId 时快速回复有明确 UI 提示
-- [ ] BUG-103 通过：handleStop 后全局介入中心权限列表同步清空
+- [x] BUG-103 通过：handleStop 后全局介入中心权限列表同步清空（BUG-002 副作用已修复）
 - [ ] RISK-101 评估：工作区切换的进程生命周期明确
 
 ### v4.5.0
