@@ -1923,6 +1923,25 @@ pre code {
   background: var(--accent);
   color: #fff;
 }
+.nav-ws-create-dir-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.nav-ws-create-dir-btn:hover {
+  color: var(--accent);
+  background: var(--accent-glass);
+  border-color: var(--accent);
+}
 
 
 

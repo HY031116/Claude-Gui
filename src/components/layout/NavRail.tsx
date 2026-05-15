@@ -104,7 +104,21 @@ export function NavRail({ onNavClick }: NavRailProps) {
     return name.slice(0, 2).toUpperCase();
   }, [activeWorkspace]);
 
-  /** 格式化相对时间 */
+  // 工作区选择目录（Electron 环境）
+  const [wsSelectedPath, setWsSelectedPath] = useState('');
+  const handlePickDir = async () => {
+    if (typeof window.electronAPI?.selectDirectory === 'function') {
+      const res = await window.electronAPI.selectDirectory();
+      if (res.success && res.path) {
+        setWsSelectedPath(res.path);
+        // 自动用目录名填充工作区名称（如果用户还没输入名称）
+        if (!wsNewName) {
+          const dirName = res.path.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() ?? '';
+          setWsNewName(dirName);
+        }
+      }
+    }
+  };
   const fmtRelTime = (ts?: number) => {
     if (!ts) return '';
     const diff = Date.now() - ts;
@@ -296,7 +310,10 @@ export function NavRail({ onNavClick }: NavRailProps) {
                     </span>
                     <span className="nav-ws-item-info">
                       <span className="nav-ws-item-name">{ws.name}</span>
-                      <span className="nav-ws-item-sub">{fmtRelTime(ws.lastUsed)}</span>
+                      <span className="nav-ws-item-sub" title={ws.path || ''}>
+                        {ws.path ? ws.path.replace(/\\/g, '/').split('/').slice(-2).join('/') : '未绑定目录'}
+                        {ws.lastUsed ? ` · ${fmtRelTime(ws.lastUsed)}` : ''}
+                      </span>
                     </span>
                     {ws.path === activeWorkspacePath && <Check size={11} className="nav-ws-item-check" />}
                   </button>
@@ -313,7 +330,6 @@ export function NavRail({ onNavClick }: NavRailProps) {
             <div className="nav-ws-popover-footer">
               {wsCreating ? (
                 <div className="nav-ws-create-row">
-                  <FolderOpen size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <input
                     autoFocus
                     className="nav-ws-create-input"
@@ -322,26 +338,30 @@ export function NavRail({ onNavClick }: NavRailProps) {
                     onChange={(e) => setWsNewName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && wsNewName.trim()) {
-                        createWorkspace(wsNewName.trim());
-                        setWsNewName('');
-                        setWsCreating(false);
-                        setWsPopoverOpen(false);
+                        createWorkspace(wsNewName.trim(), wsSelectedPath);
+                        setWsNewName(''); setWsSelectedPath(''); setWsCreating(false); setWsPopoverOpen(false);
                       } else if (e.key === 'Escape') {
-                        setWsCreating(false);
-                        setWsNewName('');
+                        setWsCreating(false); setWsNewName(''); setWsSelectedPath('');
                       }
                       e.stopPropagation();
                     }}
                   />
+                  {typeof window.electronAPI?.selectDirectory === 'function' && (
+                    <button
+                      className="nav-ws-create-dir-btn"
+                      title={wsSelectedPath || '选择目录'}
+                      onClick={handlePickDir}
+                    >
+                      <FolderOpen size={11} />
+                    </button>
+                  )}
                   <button
                     className="nav-ws-create-confirm"
                     disabled={!wsNewName.trim()}
                     onClick={() => {
                       if (wsNewName.trim()) {
-                        createWorkspace(wsNewName.trim());
-                        setWsNewName('');
-                        setWsCreating(false);
-                        setWsPopoverOpen(false);
+                        createWorkspace(wsNewName.trim(), wsSelectedPath);
+                        setWsNewName(''); setWsSelectedPath(''); setWsCreating(false); setWsPopoverOpen(false);
                       }
                     }}
                   ><Check size={11} /></button>

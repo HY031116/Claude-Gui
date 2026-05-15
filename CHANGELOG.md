@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.1.0] - 2026-05-17
+
+### 新增
+- **工作区目录绑定**：新建工作区时支持选择本地目录，自动用目录名填充工作区名称
+  - `NavRail.tsx`：Popover 新建行加入 `选择目录` 按鈕（Electron 环境），调用 `selectDirectory` API
+  - `useAppStore.ts`：`switchWorkspace` 切换到工作区时自动回写 `session.workingDirectory` 到 `workspace.path`；恢复快照时 session cwd 自动用工作区 path 补充
+- **工作区列表显示路径**：Popover 中每个工作区显示路径末尾 2级目录 + 相对时间，悬停 tooltip 显示完整路径
+
 ## [4.0.0] - 2026-05-17
 
 ### 新增（重大功能）

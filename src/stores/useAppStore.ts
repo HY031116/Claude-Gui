@@ -552,10 +552,11 @@ export const useAppStore = create<AppState>((set, get) => {
     };
     const currentTabSnapshots = { ...state.tabSnapshots, [state.activeTabId]: currentActiveSnap };
 
-    // 2. 更新当前工作区的 tabsSnapshot
+    // 2. 更新当前工作区的 tabsSnapshot（同步回写 workingDirectory 到 path）
+    const currentCwd = state.session.workingDirectory || '';
     const updatedWorkspaces = state.workspaces.map((w) =>
       w.path === state.activeWorkspacePath
-        ? { ...w, lastUsed: Date.now(), tabsSnapshot: { tabs: state.tabs, activeTabId: state.activeTabId, tabSnapshots: currentTabSnapshots } }
+        ? { ...w, lastUsed: Date.now(), path: currentCwd || w.path, tabsSnapshot: { tabs: state.tabs, activeTabId: state.activeTabId, tabSnapshots: currentTabSnapshots } }
         : w
     );
     saveWorkspaces(updatedWorkspaces);
@@ -570,7 +571,9 @@ export const useAppStore = create<AppState>((set, get) => {
       newTabSnapshots = targetSnap.tabSnapshots;
       const activeSnap = targetSnap.tabSnapshots[targetSnap.activeTabId] ?? DEFAULT_SNAPSHOT;
       newMessages = activeSnap.messages ?? [];
-      newSession = { ...activeSnap.session, isConnected: false };
+      // 如果快照里的 workingDirectory 为空，用工作区 path 补充
+      const snapCwd = activeSnap.session?.workingDirectory || target.path || '';
+      newSession = { ...activeSnap.session, isConnected: false, workingDirectory: snapCwd };
       newTokenUsage = activeSnap.tokenUsage ?? null;
       newTodoItems = activeSnap.todoItems ?? [];
       newActivePlanSteps = activeSnap.activePlanSteps ?? [];
@@ -611,7 +614,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
   createWorkspace: (name, path = '') => {
     const id = `ws-${Date.now()}`;
-    const ws: Workspace = { id, name, path: path || name, addedAt: Date.now(), lastUsed: Date.now() };
+    const ws: Workspace = { id, name, path, addedAt: Date.now(), lastUsed: Date.now() };
     set((state) => {
       const next = [ws, ...state.workspaces];
       saveWorkspaces(next);
