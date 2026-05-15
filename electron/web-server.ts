@@ -463,7 +463,8 @@ export function startWebServer(services: WebServerServices): http.Server {
 
     // ── 静态文件服务 ──
     if (req.method === 'GET') {
-      const distDir = path.join(app.getAppPath(), 'dist');
+      // __dirname 在编译后指向 dist-electron/，向上一级即项目根目录的 dist/
+      const distDir = path.join(__dirname, '..', 'dist');
       let filePath = path.join(distDir, url.pathname === '/' ? 'index.html' : url.pathname);
 
       // 路径安全检查：防止目录穿越

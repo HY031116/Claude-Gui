@@ -66,7 +66,7 @@ function ensureSSE(): void {
 
 // ── Web 模式完整 API 实现 ────────────────────────────────────────────────────
 
-const webAPI: ElectronAPI = {
+export const webAPI: ElectronAPI = {
   // ── CLI ──
   cliStart: (options) => webInvoke('cli:start', options),
   cliSend: (msg) => webInvoke('cli:send', msg),
