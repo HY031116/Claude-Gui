@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.4.0] - 2026-05-20
+
+### 修复
+- **RISK-101 工作区切换进程生命周期修复**（App.tsx）
+  - `activeWorkspacePath` useEffect 中新增 `cliStopMessage()` 调用（不传 tabId = 全部停止），工作区切换后立即终止所有旧工作区 CLI 进程，防止僵尸进程持续运行并向新工作区介入中心发送 permission-request / question-request 事件
+  - `onCliOutput` 回调开头加防御性 tabId 有效性过滤：若 `event.tabId` 不在当前工作区 `tabs` 中直接跳过，防止极端竞态下的漏网事件
+- **BUG-101/BUG-102/BUG-103 分析确认无实际问题**（无需代码修改）
+  - BUG-101：`permission-request` 已写 Zustand store（BUG-002 副作用），`question-request` 用函数式更新，不存在 React batch 覆盖风险
+  - BUG-102：`sendQuickReply` 触发时机（pendingDecision/pendingFileRequest 被设置后）与 `conversationSessionId` 设置时机在同一 `message-done` React 批次，sessionId 必然已有值
+  - BUG-103：BUG-002 修复时已将 `handleStop` 中的 `setPermissionRequests([])` 改为 `clearPermissionRequestsForTab(activeTabId)`，全局介入中心自动同步
+
+---
+
 ## [4.3.0] - 2026-05-19
 
 ### 改进
