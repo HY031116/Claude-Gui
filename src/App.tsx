@@ -43,6 +43,8 @@ function App() {
   const pendingDecisionRequests = useAppStore((s) => s.pendingDecisionRequests);
   const pendingFileRequests = useAppStore((s) => s.pendingFileRequests);
   const setPendingQuickReply = useAppStore((s) => s.setPendingQuickReply);
+  // FIX[BUG-006][v4.3.0] 订阅 activeWorkspacePath，工作区切换时清空全局介入状态。
+  const activeWorkspacePath = useAppStore((s) => s.activeWorkspacePath);
 
   // 可拖拽侧边栏
   const { sidebarWidth, handleResizeMouseDown } = useResizableSidebar();
@@ -210,6 +212,17 @@ function App() {
       setActiveQuestionRequestId(null);
     }
   }, [pendingInterventionCount]);
+
+  // FIX[BUG-006][v4.3.0] 工作区切换时清空全局介入状态（questionRequests / permissionRequests），
+  // 防止旧工作区的待处理项残留在介入中心并误操作到错误的 CLI 进程。
+  // activeWorkspacePath 变化说明 switchWorkspace 已完成，此时旧介入全部作废。
+  useEffect(() => {
+    setQuestionRequests([]);
+    setPermissionRequests([]);
+    setShowInterventionCenter(false);
+    setActiveQuestionRequestId(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWorkspacePath]);
 
   // 3.3.7：监听后台 tab 的 permission-request 事件，触发系统通知
   useEffect(() => {

@@ -392,11 +392,14 @@ export function ChatPanel() {
   // 修复：提升到 store（类似 pendingDecisionRequests），统一由 store 管理每个 tabId 的权限列表。
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequestEvent[]>([]);
   // 介入类型 D：长时等待横幅（45 秒无新 chunk）
-  // TODO[BUG-004][v4.3.0] showLongWaitBanner 是本地 state 且所有 Tab 共享同一 ChatPanel 实例，
-  // 切换 Tab 时横幅不重置，会误显示在无关 Tab 上。
-  // 修复：监听 activeTabId 变化的 useEffect 中重置此 state。
+  // FIX[BUG-004][v4.3.0] showLongWaitBanner 在 Tab 切换时重置，防止跨 Tab 误显示。
   const [showLongWaitBanner, setShowLongWaitBanner] = useState(false);
   const lastChunkAtRef = useRef<number>(Date.now());
+
+  // FIX[BUG-004][v4.3.0] 监听 activeTabId 变化，切换 Tab 时重置长时等待横幅。
+  useEffect(() => {
+    setShowLongWaitBanner(false);
+  }, [activeTabId]);
 
   // 介入状态联动 TabBar 状态点颜色
   // blocked(🔴) = 有工具审批/决策问题/文件请求；warning(🟡) = 长时等待；null = 无
@@ -901,10 +904,9 @@ export function ChatPanel() {
     }
   }, [isProcessing, session.workingDirectory, session.conversationSessionId, localAgent, activeTabId, addMessage, setTokenUsage, clearPlanSteps, setPendingDecisionRequest, setPendingFileRequest]);
 
-  // TODO[BUG-003][v4.3.0] isProcessing=true 时 pendingQuickReply 被静默丢弃（直接 return），
-  // 用户从介入中心下发快速回复但 Claude 恰好在生成中时，动作消失无任何反馈。
-  // 修复方向：不丢弃，等待 isProcessing 变 false 后自动触发；
-  // 或在介入中心 UI 上显示"等待 Claude 完成后自动回复"的提示状态。
+  // FIX[BUG-003][v4.3.0] pendingQuickReply 在 isProcessing=true 时不再静默丢弃，
+  // 改为等待 Claude 当前轮生成结束（isProcessing 变为 false）后自动触发快速回复。
+  // 这样用户从介入中心下发的动作在任何时机都不会丢失。
   useEffect(() => {
     if (!pendingQuickReply || isProcessing) return;
     setPendingQuickReply(activeTabId, null);

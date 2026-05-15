@@ -116,6 +116,22 @@ export interface TokenRecord {
   workingDirectory?: string;
 }
 
+export interface PendingDecisionRequest {
+  text: string;
+  options: string[];
+  createdAt: number;
+}
+
+export interface PendingFileRequest {
+  text: string;
+  createdAt: number;
+}
+
+export interface PendingQuickReply {
+  text: string;
+  createdAt: number;
+}
+
 /** 自定义 API 配置文件（用于快速切换多套 API 配置） */
 export interface ApiProfile {
   id: string;

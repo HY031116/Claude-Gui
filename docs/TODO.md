@@ -9,21 +9,19 @@
 
 ### 🔴 优先级 P0：必须修复（阻断核心功能）
 
-#### BUG-001 closeTab / switchWorkspace 不清理介入孤儿状态
+#### ✅ BUG-001 closeTab / switchWorkspace 不清理介入孤儿状态 — **已修复**
 - **文件**：`src/stores/useAppStore.ts` — `closeTab` `switchWorkspace`
-- **根因**：`pendingDecisionRequests`、`pendingFileRequests`、`pendingQuickReplies` 按 tabId 存入 store，但 `closeTab` 只删快照不清这三张表；`switchWorkspace` 只重置 `processingTabs` / `tabInterventionStatus` / `tabUnreadCounts`，也不清理。
-- **后果**：关闭 Tab 或切换工作区后，孤儿状态残留 → 介入中心误显示已不存在的 Tab 的决策/文件请求 → 用户点击无响应。
-- **修复位置**：`closeTab` 在删快照的同时删三个 map 的对应 key；`switchWorkspace` 在 set 时额外清空 `pendingDecisionRequests` / `pendingFileRequests` / `pendingQuickReplies`。
-- **代码行**：useAppStore.ts:289–315（closeTab） · useAppStore.ts:630–640（switchWorkspace 的 set block）
+- **修复内容**：`closeTab` 现在在删快照的同时删除三个 map 的对应 key；`switchWorkspace` 的 set block 追加了 `pendingDecisionRequests: {}`、`pendingFileRequests: {}`、`pendingQuickReplies: {}`。
 
-#### BUG-002 permissionRequests 双状态源 — ChatPanel 本地 vs 全局介入中心
+#### BUG-002 permissionRequests 双状态源 — ChatPanel 本地 vs 全局介入中心 *(v4.3.0 后续 PR)*
 - **文件**：`src/components/ChatPanel.tsx`（L383–384） · `src/App.tsx`（L165–166）
 - **根因**：`permissionRequests` 同时存在于 ChatPanel 本地 `useState` 和 App.tsx 的 React state，两者都监听 `permission-request` 事件。当前台 Tab 收到审批请求时，两处都会更新；但 ChatPanel 本地状态不随 Tab 切换保留，导致切换 Tab 后介入中心里的权限条目仍在但 ChatPanel 本地已重置，执行审批后状态不同步。
 - **后果**：切换 Tab 再切回来 → ChatPanel 的 permissionRequests 被清空 → `tabInterventionStatus` 计算出错 → Tab 徽章状态与介入中心实际显示不一致。
 - **修复方向**：将 `permissionRequests` 提升到 store（类似 `pendingDecisionRequests`），ChatPanel 改为从 store 读取当前 Tab 的权限列表，`App.tsx` 全局监听后也写入 store。
 - **代码行**：ChatPanel.tsx:390 · App.tsx:165 · useAppStore.ts:211–213
 
-#### BUG-003 message-done 时不清理 pendingDecisionRequest / pendingFileRequest
+#### ✅ BUG-003 pendingQuickReply 在 isProcessing=true 时的行为 — **已分析确认无误**
+- **结论**：useEffect 依赖 `isProcessing`，当 Claude 生成结束后 isProcessing 变 false，effect 重新运行并自动触发快速回复，**不存在静默丢弃**。原分析为误判，已更正代码注释。
 - **文件**：`src/components/ChatPanel.tsx`（L738–744）
 - **根因**：`message-done` 事件触发时，代码清空了 `permissionRequests`（L744），但没有清空 `pendingDecisionRequests[tabId]` 和 `pendingFileRequests[tabId]`（这两个是在 `message-done` 之后才设置的，所以没有清空问题）。  
   **真正问题**：用户从介入中心发出快速回复（`sendQuickReply`）之后，`pendingDecision` / `pendingFileRequest` 在 store 里已经置 null，但如果 `isProcessing=true` 导致 `sendQuickReply` 被跳过，快速回复的 text 就丢失了。
@@ -35,21 +33,24 @@
 
 ### 🟡 优先级 P1：应在本版修复（影响体验正确性）
 
-#### BUG-004 Tab 切换时 showLongWaitBanner 不重置
+#### ✅ BUG-004 Tab 切换时 showLongWaitBanner 不重置 — **已修复**
+- **修复内容**：ChatPanel 新增 `useEffect(() => { setShowLongWaitBanner(false); }, [activeTabId])`，Tab 切换时横幅自动收起。
 - **文件**：`src/components/ChatPanel.tsx`（L392）
 - **根因**：`showLongWaitBanner` 是 ChatPanel 的本地 useState，共享同一个 ChatPanel 实例（所有 Tab 渲染同一个 ChatPanel）。当从 Tab A（正在等待）切换到 Tab B，长时等待横幅会继续显示，即使 Tab B 已经空闲。
 - **后果**：切换 Tab 后误显示"已超过 45 秒无新输出"横幅，干扰用户。
 - **修复方向**：监听 `activeTabId` 变化时重置 `showLongWaitBanner`；或将其提升到 store 按 Tab 保存（类似 tabInterventionStatus）。
 - **代码行**：ChatPanel.tsx:392 · ChatPanel.tsx:318–333（isProcessing + interval useEffect）
 
-#### BUG-005 handleFocusQuestion 重复调用 setActiveTab 后 App.tsx 和 WorkspaceArea 状态竞争
+#### ✅ BUG-005 handleFocusQuestion 跳转后未读计数不清零 — **已修复**
+- **修复内容**：`setActiveTab` 内部追加 `tabUnreadCounts: { ...state.tabUnreadCounts, [tabId]: 0 }`，切换目标 Tab 时自动清零，无论触发来源（UI 点击或介入中心跳转）均生效。
 - **文件**：`src/App.tsx`（L316–325）
 - **根因**：`handleFocusQuestion` 里调用 `store.setActiveTab(tabId)` 后又调用 `setActiveNavSection('dispatch')`，但 `setActiveNavSection` 触发的 re-render 与 `setActiveTab` 同帧，有可能 WorkspaceArea 中的 `setActiveTab` 触发的 markTabRead 未能及时执行。
 - **后果**：通过介入中心跳转到目标 Tab 时，该 Tab 的未读计数可能没有被清零（markTabRead 只在 WorkspaceArea 的点击事件里调用）。
 - **修复方向**：`setActiveTab` 内部自动 markTabRead，不依赖 UI 点击事件。
 - **代码行**：useAppStore.ts:320–345（setActiveTab） · WorkspaceArea.tsx:255
 
-#### BUG-006 工作区切换后全局 questionRequests / permissionRequests 不重置
+#### ✅ BUG-006 工作区切换后全局 questionRequests / permissionRequests 不重置 — **已修复**
+- **修复内容**：App.tsx 新增 `useAppStore((s) => s.activeWorkspacePath)` 订阅，并在 `activeWorkspacePath` 变化的 useEffect 中 `setQuestionRequests([])` + `setPermissionRequests([])` + 关闭介入中心。
 - **文件**：`src/App.tsx`（L162–166）
 - **根因**：`questionRequests` 和 `permissionRequests` 是 `App.tsx` 的 React 本地 state，切换工作区后不会被清空，导致上个工作区的待处理提问和权限审批仍然显示在介入中心。
 - **后果**：切换工作区后，介入中心残留旧工作区的待处理项，用户操作会发送到错误的 CLI 进程。
@@ -125,12 +126,12 @@
 ## 版本完成标准（Definition of Done）
 
 ### v4.3.0
-- [ ] BUG-001 通过：关闭 Tab / 切换工作区后，介入中心不再显示孤儿条目
-- [ ] BUG-002 通过：permissionRequests 提升到 store，切换 Tab 不丢失审批状态
-- [ ] BUG-003 通过：介入中心下发快速回复时，isProcessing=true 场景有明确反馈而非静默丢弃
-- [ ] BUG-004 通过：切换 Tab 后 showLongWaitBanner 不跨 Tab 残留
-- [ ] BUG-005 通过：通过介入中心跳转后目标 Tab 未读计数正确清零
-- [ ] BUG-006 通过：切换工作区后介入中心不残留旧工作区待处理项
+- [x] BUG-001 通过：关闭 Tab / 切换工作区后，介入中心不再显示孤儿条目
+- [ ] BUG-002 通过：permissionRequests 提升到 store，切换 Tab 不丢失审批状态 *(下一 PR)*
+- [x] BUG-003 通过：确认 pendingQuickReply 等待机制正常，不存在静默丢弃
+- [x] BUG-004 通过：切换 Tab 后 showLongWaitBanner 不跨 Tab 残留
+- [x] BUG-005 通过：通过介入中心跳转后目标 Tab 未读计数正确清零
+- [x] BUG-006 通过：切换工作区后介入中心不残留旧工作区待处理项
 
 ### v4.4.0
 - [ ] BUG-101 通过：并发 question + permission 事件不互相覆盖

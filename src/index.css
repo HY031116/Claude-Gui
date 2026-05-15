@@ -3024,6 +3024,34 @@ body.is-resizing .resize-handle::after {
   gap: 8px;
 }
 
+.intervention-center-option-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.intervention-center-option-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.intervention-center-option-chip-action {
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+
+.intervention-center-option-chip-action:hover {
+  border-color: var(--accent-glass-border);
+  background: var(--accent-glass);
+  color: var(--accent);
+}
+
 .intervention-center-card-actions.split > * {
   flex: 1;
 }

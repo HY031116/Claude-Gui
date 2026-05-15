@@ -299,10 +299,14 @@ export const useAppStore = create<AppState>((set, get) => {
       const snapshot = state.tabSnapshots[newActiveId] ?? DEFAULT_SNAPSHOT;
       const restSnapshots = { ...state.tabSnapshots };
       delete restSnapshots[tabId];
-      // TODO[BUG-001][v4.3.0] 关闭 Tab 时未清理对应 tabId 的介入孤儿状态：
-      // pendingDecisionRequests、pendingFileRequests、pendingQuickReplies 未被删除，
-      // 导致介入中心仍显示已关闭 Tab 的决策/文件请求。
-      // 修复：在 set() 中额外传入三个 map 删除 tabId 后的副本。
+      // FIX[BUG-001][v4.3.0] 关闭 Tab 时同步清理介入孤儿状态，
+      // 防止介入中心显示已关闭 Tab 的决策/文件/快速回复请求。
+      const restDecisions = { ...state.pendingDecisionRequests };
+      const restFileReqs = { ...state.pendingFileRequests };
+      const restQuickReplies = { ...state.pendingQuickReplies };
+      delete restDecisions[tabId];
+      delete restFileReqs[tabId];
+      delete restQuickReplies[tabId];
       set({
         tabs: newTabs,
         activeTabId: newActiveId,
@@ -313,21 +317,35 @@ export const useAppStore = create<AppState>((set, get) => {
         todoItems: snapshot.todoItems,
         activePlanSteps: snapshot.activePlanSteps,
         planReview: snapshot.planReview ?? DEFAULT_PLAN_REVIEW,
+        pendingDecisionRequests: restDecisions,
+        pendingFileRequests: restFileReqs,
+        pendingQuickReplies: restQuickReplies,
       });
     } else {
       const restSnapshots = { ...state.tabSnapshots };
       delete restSnapshots[tabId];
-      // TODO[BUG-001][v4.3.0] 非活跃 Tab 关闭时同样需要清理孤儿介入状态。
-      set({ tabs: newTabs, tabSnapshots: restSnapshots });
+      // FIX[BUG-001][v4.3.0] 非活跃 Tab 关闭时同样清理孤儿介入状态。
+      const restDecisions = { ...state.pendingDecisionRequests };
+      const restFileReqs = { ...state.pendingFileRequests };
+      const restQuickReplies = { ...state.pendingQuickReplies };
+      delete restDecisions[tabId];
+      delete restFileReqs[tabId];
+      delete restQuickReplies[tabId];
+      set({
+        tabs: newTabs,
+        tabSnapshots: restSnapshots,
+        pendingDecisionRequests: restDecisions,
+        pendingFileRequests: restFileReqs,
+        pendingQuickReplies: restQuickReplies,
+      });
     }
   },
 
   setActiveTab: (tabId: string) => {
     const state = get();
     if (state.activeTabId === tabId) return;
-    // TODO[BUG-005][v4.3.0] setActiveTab 不自动 markTabRead，
-    // 通过介入中心/通知跳转时目标 Tab 的未读计数不会被清零。
-    // 修复：在此处调用 get().markTabRead(tabId)，移除对 WorkspaceArea UI 点击的依赖。
+    // FIX[BUG-005][v4.3.0] setActiveTab 时自动 markTabRead，
+    // 确保通过介入中心/通知跳转时目标 Tab 的未读计数同步清零，不依赖 UI 点击事件。
     // 保存当前 tab 快照
     const snapshot: TabSnapshot = {
       messages: state.messages,
@@ -347,6 +365,8 @@ export const useAppStore = create<AppState>((set, get) => {
       todoItems: targetSnapshot.todoItems,
       activePlanSteps: targetSnapshot.activePlanSteps,
       planReview: targetSnapshot.planReview ?? DEFAULT_PLAN_REVIEW,
+      // FIX[BUG-005][v4.3.0] 切换到目标 Tab 时自动清零未读计数。
+      tabUnreadCounts: { ...state.tabUnreadCounts, [tabId]: 0 },
     });
   },
 
@@ -644,12 +664,13 @@ export const useAppStore = create<AppState>((set, get) => {
       processingTabs: {},
       tabInterventionStatus: {},
       tabUnreadCounts: {},
-      // TODO[BUG-001][v4.3.0] 工作区切换时未清理 pendingDecisionRequests /
-      // pendingFileRequests / pendingQuickReplies，孤儿介入条目跨工作区残留。
-      // 修复：此处追加 pendingDecisionRequests: {}, pendingFileRequests: {}, pendingQuickReplies: {}
+      // FIX[BUG-001][v4.3.0] 工作区切换时清理介入孤儿状态，防止跨工作区残留。
+      pendingDecisionRequests: {},
+      pendingFileRequests: {},
+      pendingQuickReplies: {},
       // TODO[BUG-006][v4.3.0] App.tsx 的 questionRequests / permissionRequests 是
       // React 本地 state，switchWorkspace 无法触发其重置。
-      // 修复方向 A：将两者提升到 store（BUG-002 连带修复）。
+      // 修复方向 A：将两者提升到 store（BUG-002 连带修复）；
       // 修复方向 B：App.tsx 监听 activeWorkspacePath 变化时手动 setState([])。
     });
   },
