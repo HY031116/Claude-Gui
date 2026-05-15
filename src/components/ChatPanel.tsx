@@ -266,6 +266,9 @@ const PERMISSION_MODE_OPTIONS = [
   { value: 'bypassPermissions', label: 'Bypass' },
 ];
 
+/** FIX[BUG-103-loop][v4.4.0] 模块级稳定空数组，防止 `?? []` 每次返回新引用导致无限渲染循环 */
+const EMPTY_PERMISSION_REQUESTS: import('../types').PermissionRequestEvent[] = [];
+
 export function ChatPanel() {
   // 精确订阅各自所需字段，避免无关 store 更新触发 ChatPanel 整体重渲
   const messages = useAppStore((s) => s.messages);
@@ -302,7 +305,8 @@ export function ChatPanel() {
   const pendingQuickReply = useAppStore((s) => s.pendingQuickReplies[activeTabId] ?? null);
   const setPendingQuickReply = useAppStore((s) => s.setPendingQuickReply);
   // FIX[BUG-002][v4.3.0] permissionRequests 从 store 读取（单一数据源），不再使用本地 state。
-  const permissionRequests = useAppStore((s) => s.permissionRequestsPerTab[activeTabId] ?? []);
+  // FIX[BUG-103-loop][v4.4.0] 使用模块级稳定常量作为空数组 fallback，防止每次 store 更新创建新引用导致 useEffect 无限循环。
+  const permissionRequests = useAppStore((s) => s.permissionRequestsPerTab[activeTabId] ?? EMPTY_PERMISSION_REQUESTS);
   const clearPermissionRequestsForTab = useAppStore((s) => s.clearPermissionRequestsForTab);
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
