@@ -118,6 +118,8 @@ export class CliService {
   private pendingPermissionRequests = new Map<string, PendingPermissionRequest>();
   private readonly permissionMcpServerName = 'claude_code_gui_permission';
   private readonly permissionMcpToolName = 'gui_permission_prompt';
+  /** Web 服务器 SSE 事件监听器集合 */
+  private outputListeners = new Set<(event: { type: string; data: string; tabId?: string }) => void>();
 
   setConfig(config: CliConfig): void {
     this.config = { ...this.config, ...config };
@@ -636,10 +638,19 @@ export class CliService {
     this.process?.resize(cols, rows);
   }
 
+  /** 注册外部输出事件监听器（Web 服务器 SSE 使用），返回取消订阅函数 */
+  addOutputListener(callback: (event: { type: string; data: string; tabId?: string }) => void): () => void {
+    this.outputListeners.add(callback);
+    return () => this.outputListeners.delete(callback);
+  }
+
   private emit(type: string, data: string, tabId?: string) {
+    const event = { type, data, tabId };
     BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send('cli:output', { type, data, tabId });
+      win.webContents.send('cli:output', event);
     });
+    // 通知 Web 服务器 SSE 监听器
+    this.outputListeners.forEach((listener) => listener(event));
   }
 
   private ensurePermissionServer(): Promise<number> {

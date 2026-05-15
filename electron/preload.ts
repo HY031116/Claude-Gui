@@ -86,8 +86,8 @@ export interface ElectronAPI {
   timelineMemory: (options?: { anchor?: string; query?: string; depthBefore?: number; depthAfter?: number; project?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   getObservations: (ids: number[], options?: { orderBy?: string; project?: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   // 自定义 Agent 管理
-  agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
-  agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
+  agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string; permission_mode: string; max_turns: number | null; effort: string; allowed_tools: string[]; disallowed_tools: string[]; skills: string[]; memory_type: string; isolation: string; background: boolean; initial_prompt: string; color: string }>; error?: string }>;
+  agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string; permission_mode: string; max_turns: number | null; effort: string; allowed_tools: string[]; disallowed_tools: string[]; skills: string[]; memory_type: string; isolation: string; background: boolean; initial_prompt: string; color: string }) => Promise<{ success: boolean; error?: string }>;
   agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
   // Plugin 管理
   pluginList: () => Promise<{ success: boolean; plugins?: Array<{ key: string; name: string; marketplace: string; version: string; description: string; author: string; enabled: boolean; pluginDir: string }>; error?: string }>;
@@ -124,6 +124,8 @@ export interface ElectronAPI {
   hookTestRun: (command: string, cwd: string, envVars: Record<string, string>) => Promise<{
     success: boolean; stdout: string; stderr: string; exitCode: number | null; durationMs: number; error?: string;
   }>;
+  /** 在默认浏览器中打开本地 Web 版本 (http://127.0.0.1:5175) */
+  openInBrowser: () => Promise<{ success: boolean }>;
 }
 
 const api: ElectronAPI = {
@@ -208,6 +210,8 @@ const api: ElectronAPI = {
   sessionDelete: (sessionId) => ipcRenderer.invoke('session:delete', sessionId),
   // Hook 测试运行器（3.5.7）
   hookTestRun: (command, cwd, envVars) => ipcRenderer.invoke('hook:testRun', command, cwd, envVars),
+  // Web 模式：在默认浏览器中打开本地 Web 版本
+  openInBrowser: () => ipcRenderer.invoke('web:open'),
   onUpdateStatus: (callback) => {
     const handler = (_: unknown, status: unknown) => callback(status as any);
     ipcRenderer.on('app:updateStatus', handler);

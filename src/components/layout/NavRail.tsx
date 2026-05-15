@@ -17,6 +17,7 @@ import {
   Sun,
   Moon,
   ArrowUpCircle,
+  Globe,
 } from 'lucide-react';
 import type { NavSection, NavClick } from '../../utils/nav';
 
@@ -226,7 +227,19 @@ export function NavRail({ onNavClick }: NavRailProps) {
         </button>
       )}
 
-      {/* 设置按钮（置底） */}
+      {/* 在浏览器中打开（仅 Electron 环境显示） */}
+      {typeof window.electronAPI !== 'undefined' && (
+        <button
+          onClick={() => window.electronAPI?.openInBrowser?.()}
+          className="nav-button"
+          aria-label="在浏览器中打开"
+          data-tooltip="在浏览器中打开 Web 版"
+        >
+          <Globe size={16} />
+        </button>
+      )}
+
+      {/* 设置按鈕（置底） */}
       <button
         onClick={() => onNavClick('settings')}
         className={`nav-button${activeNavSection === 'settings' ? ' active' : ''}`}

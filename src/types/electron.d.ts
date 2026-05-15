@@ -93,8 +93,8 @@ export interface ElectronAPI {
   cliDoctor: () => Promise<{ success: boolean; output?: string; error?: string }>;
   cliUpdate: (subcmd?: 'update' | 'upgrade') => Promise<{ success: boolean; output: string }>;
   // 自定义 Agent 管理
-  agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string }>; error?: string }>;
-  agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string }) => Promise<{ success: boolean; error?: string }>;
+  agentList: () => Promise<{ success: boolean; agents?: Array<{ filename: string; name: string; model: string; description: string; prompt: string; permission_mode: string; max_turns: number | null; effort: string; allowed_tools: string[]; disallowed_tools: string[]; skills: string[]; memory_type: string; isolation: string; background: boolean; initial_prompt: string; color: string }>; error?: string }>;
+  agentWrite: (filename: string, data: { name: string; model: string; description: string; prompt: string; permission_mode: string; max_turns: number | null; effort: string; allowed_tools: string[]; disallowed_tools: string[]; skills: string[]; memory_type: string; isolation: string; background: boolean; initial_prompt: string; color: string }) => Promise<{ success: boolean; error?: string }>;
   agentDelete: (filename: string) => Promise<{ success: boolean; error?: string }>;
   // Plugin 管理
   pluginList: () => Promise<{ success: boolean; plugins?: InstalledPlugin[]; error?: string }>;
@@ -125,6 +125,8 @@ export interface ElectronAPI {
   hookTestRun?: (command: string, cwd: string, envVars: Record<string, string>) => Promise<{
     success: boolean; stdout: string; stderr: string; exitCode: number | null; durationMs: number; error?: string;
   }>;
+  /** 在默认浏览器中打开本地 Web 版本 (http://127.0.0.1:5175) */
+  openInBrowser?: () => Promise<{ success: boolean }>;
 }
 
 export interface GitFile {

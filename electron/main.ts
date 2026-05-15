@@ -11,6 +11,7 @@ import {
   getGitLog, isGitRepo, getGitBranch, gitPush, gitPull, getGitRemotes,
   listWorktrees, addWorktree, removeWorktree, pruneWorktrees,
 } from './git-service';
+import { startWebServer, WEB_PORT } from './web-server';
 
 const cliService = new CliService();
 const fileService = new FileService();
@@ -145,6 +146,9 @@ app.whenReady().then(() => {
   // 初始化会话持久化目录
   const sessionsDir = path.join(app.getPath('userData'), 'sessions');
   fileService.setSessionsDir(sessionsDir);
+
+  // 启动内嵌本地 Web 服务器（127.0.0.1:5175），允许在浏览器中访问完整 GUI
+  startWebServer({ cliService, fileService, settingsService, cliConfigService });
 
   // 启动自动更新检测（仅打包模式生效）
   const mainWin = BrowserWindow.getAllWindows()[0];
@@ -527,7 +531,7 @@ ipcMain.handle('mem:get_observations', async (_e, ids: number[], options?: { ord
 
 // 自定义 Agent CRUD
 ipcMain.handle('agent:list', async () => fileService.listCustomAgents());
-ipcMain.handle('agent:write', async (_e, filename: string, data: { name: string; model: string; description: string; prompt: string }) =>
+ipcMain.handle('agent:write', async (_e, filename: string, data: { name: string; model: string; description: string; prompt: string; permission_mode: string; max_turns: number | null; effort: string; allowed_tools: string[]; disallowed_tools: string[]; skills: string[]; memory_type: string; isolation: string; background: boolean; initial_prompt: string; color: string }) =>
   fileService.writeCustomAgent(filename, data)
 );
 ipcMain.handle('agent:delete', async (_e, filename: string) => fileService.deleteCustomAgent(filename));
@@ -644,3 +648,10 @@ ipcMain.handle('hook:testRun', async (
   });
 });
 
+
+// ── Web 模式：在浏览器中打开 ────────────────────────────────────────────────
+ipcMain.handle('web:open', async () => {
+  const url = `http://127.0.0.1:${WEB_PORT}`;
+  await shell.openExternal(url);
+  return { success: true };
+});
