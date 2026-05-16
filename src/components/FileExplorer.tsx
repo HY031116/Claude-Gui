@@ -134,6 +134,14 @@ export function FileExplorer() {
           </div>
         )}
 
+        {!currentPath && entries.length === 0 && (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+            <Folder size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
+            <div>请先在委派视图中设置工作目录</div>
+            <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>设置后文件列表将自动加载</div>
+          </div>
+        )}
+
         {entries.map((entry) => (
           <div
             key={entry.path}

@@ -72,10 +72,11 @@ export function AgentPanel() {
       } else {
         setError(res.error ?? '加载失败');
       }
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // 无后端（web 模式）时静默忽略，使用空状态展示
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);

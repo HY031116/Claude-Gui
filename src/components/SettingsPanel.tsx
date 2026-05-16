@@ -129,6 +129,8 @@ export function SettingsPanel() {
       if (result?.success && result.agents) {
         setAvailableAgents(result.agents);
       }
+    }).catch(() => {
+      // 无后端时静默忽略
     });
   }, [loadSettings]);
 
