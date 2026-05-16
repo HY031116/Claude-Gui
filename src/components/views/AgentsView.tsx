@@ -16,7 +16,7 @@ export function AgentsView() {
   const tabs: { id: AgentTab; label: string; icon: React.ElementType }[] = [
     { id: 'worktrees', label: 'Worktrees（并行会话）', icon: Layers },
     { id: 'agents', label: 'Agent 定义', icon: Bot },
-    { id: 'teams', label: '🧪 Agent Teams', icon: Users },
+    { id: 'teams', label: 'Agent Teams', icon: Users },
   ];
 
   return (
@@ -33,6 +33,13 @@ export function AgentsView() {
             >
               <Icon size={13} />
               <span>{tab.label}</span>
+              {tab.id === 'teams' && (
+                <span style={{
+                  fontSize: 9, padding: '1px 4px', borderRadius: 3,
+                  background: 'rgba(168, 85, 247, 0.18)', color: 'var(--accent)',
+                  fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1,
+                }}>实验</span>
+              )}
             </button>
           );
         })}
