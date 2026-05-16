@@ -1,7 +1,30 @@
-# Claude Code GUI — Bug 追踪 TODO（v4.3.0 → v4.5.0）
+# Claude Code GUI — Bug 追踪 TODO（v4.3.0 → v4.6.0）
 
 > 版本目标：聚焦"交互与状态同步"稳定化，不追加大功能。  
 > 标签格式：`[BUG]` 已知缺陷 · `[RISK]` 潜在风险 · `[DEBT]` 技术债 · `[TEST]` 需补测试
+
+---
+
+## v4.6.0 — 状态清理收尾版（规划中）
+
+> 前提：v4.5.0 已发布，所有 DoD 完成，56 tests passed。
+
+### 🟡 优先级 P1：应在本版修复
+
+#### DEBT-002 permissionRequests 清理时机分散，单一遗漏即可残留
+- **代码行**：ChatPanel.tsx L761（message-done）· L798（message-error）· L1144（handleStop）· 权限 resolved 处理 2 处
+- **描述**：权限请求清理共 5 个分散调用点；任意一处遗漏都会导致介入中心残留过期审批条目。现状是靠"5 处都写对"维持正确，脆性高。
+- **方向**：将清理收敛为一个 `clearPermissionRequestsForTab` 调用入口，其他位置通过消费已有 action 而非直接 set；或将清理责任归到 `setIsProcessing(false)` 时自动触发（isProcessing 从 true → false 表示一轮结束）
+- **优先级**：P1（维护安全性）
+
+#### TEST-202 DEBT-002 修复后补充回归测试
+- **描述**：验证 5 个清理路径（message-done / message-error / handleStop / permission-resolved ×2）均正确清空，且相互隔离（Tab A 清理不影响 Tab B）
+
+---
+
+### 📋 v4.6.0 新需求收集（待补充）
+
+> 请在此处登记 v4.6.0 希望新增的功能、优化或用户反馈。
 
 ---
 
@@ -147,6 +170,10 @@
 - [x] BUG-202 通过：resume 场景不重复计入成本（增量 token 计算，仅记录每轮新增量）
 - [x] DEBT-201 完成：rawJsonLog 加入自动清理（message-done 后裁剪至 200 条）
 - [x] TEST-201 完成：v4.5.0 场景测试覆盖（trimRawJson / token 增量 / 介入收敛 / 工作区切换，6 个场景全通过，56 tests passed）
+
+### v4.6.0
+- [ ] DEBT-002 完成：permissionRequests 5 处分散清理收敛为单一入口
+- [ ] TEST-202 完成：DEBT-002 修复后回归测试覆盖
 
 ---
 
