@@ -763,6 +763,8 @@ export function ChatPanel() {
         trimRawJson(200);
 
       } else if (event.type === 'message-stderr') {
+        const stderrText = event.data;
+        let friendlyError = '';
 
         if (stderrText.includes('401') || stderrText.toLowerCase().includes('unauthorized') || stderrText.toLowerCase().includes('api key')) {
           friendlyError = 'API Key 无效或未授权，请在设置中检查 API Key 配置。';
