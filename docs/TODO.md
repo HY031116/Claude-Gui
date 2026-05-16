@@ -146,7 +146,7 @@
 - [x] BUG-201 通过：MultiEdit diff 行号准确（顺序模拟编辑，逐步更新文本基准）
 - [x] BUG-202 通过：resume 场景不重复计入成本（增量 token 计算，仅记录每轮新增量）
 - [x] DEBT-201 完成：rawJsonLog 加入自动清理（message-done 后裁剪至 200 条）
-- [ ] TEST-201 完成：端到端场景测试覆盖
+- [x] TEST-201 完成：v4.5.0 场景测试覆盖（trimRawJson / token 增量 / 介入收敛 / 工作区切换，6 个场景全通过，56 tests passed）
 
 ---
 

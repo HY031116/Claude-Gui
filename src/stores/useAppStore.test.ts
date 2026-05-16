@@ -260,3 +260,114 @@ describe('useAppStore - 介入状态隔离（TEST-001）', () => {
     expect(useAppStore.getState().tabUnreadCounts[tabB]).toBe(0);
   });
 });
+
+// TEST-201[v4.5.0] v4.5.0 场景验证
+// 验证：trimRawJson 裁剪行为；token 增量记录；介入中心快速回复状态收敛；工作区切换后旧介入清空。
+describe('useAppStore - v4.5.0 场景测试（TEST-201）', () => {
+
+  // --- DEBT-201：trimRawJson ---
+  it('trimRawJson：裁剪后仅保留最近 N 条，多余条目丢弃', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    // 写入 300 条
+    for (let i = 0; i < 300; i++) {
+      store.appendRawJson(`{"seq":${i}}`);
+    }
+    expect(useAppStore.getState().rawJsonLog.length).toBe(300);
+
+    // 裁剪到 200
+    store.trimRawJson(200);
+    const log = useAppStore.getState().rawJsonLog;
+    expect(log.length).toBe(200);
+    // 保留的是最近的 200 条（seq 100 ~ 299）
+    expect(JSON.parse(log[0]).seq).toBe(100);
+    expect(JSON.parse(log[199]).seq).toBe(299);
+  });
+
+  it('trimRawJson：条目数不足 N 时不改变列表', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.appendRawJson('{"type":"test"}');
+    store.appendRawJson('{"type":"test2"}');
+    store.trimRawJson(200);
+    expect(useAppStore.getState().rawJsonLog.length).toBe(2);
+  });
+
+  // --- BUG-202：token 增量记录 ---
+  it('addTokenRecord：多次记录的 inputTokens 按增量求和正确', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    // 第 1 轮：增量 100 input
+    store.addTokenRecord({ id: 'r1', sessionId: 's1', inputTokens: 100, outputTokens: 50, timestamp: Date.now() });
+    // 第 2 轮（resume）：增量 200 input（不是累计 300）
+    store.addTokenRecord({ id: 'r2', sessionId: 's1', inputTokens: 200, outputTokens: 80, timestamp: Date.now() });
+
+    const history = useAppStore.getState().tokenHistory;
+    // tokenHistory 最新在前
+    const totalInput = history.reduce((acc, r) => acc + r.inputTokens, 0);
+    // 记录的应是增量之和，不应是 300+50 = 350（累计值重复相加）
+    expect(totalInput).toBe(300); // 100 + 200 = 300
+  });
+
+  // --- 介入中心快速回复 → 状态收敛 ---
+  it('setPendingDecisionRequest：设置后可正确清空为 null（状态收敛）', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const tabId = store.tabs[0].id;
+    store.setPendingDecisionRequest(tabId, {
+      text: '是否继续？',
+      options: ['是', '否'],
+      createdAt: Date.now(),
+    });
+    expect(useAppStore.getState().pendingDecisionRequests[tabId]).not.toBeNull();
+
+    // 模拟用户快速回复后清空
+    store.setPendingDecisionRequest(tabId, null);
+    expect(useAppStore.getState().pendingDecisionRequests[tabId]).toBeNull();
+  });
+
+  it('setPendingFileRequest：按 Tab 隔离，其他 Tab 不受影响', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addTab();
+    const tabs = useAppStore.getState().tabs;
+    const tabA = tabs[0].id;
+    const tabB = tabs[1].id;
+
+    store.setPendingFileRequest(tabA, { text: '请提供文件', createdAt: Date.now() });
+
+    const state = useAppStore.getState();
+    expect(state.pendingFileRequests[tabA]).not.toBeUndefined();
+    expect(state.pendingFileRequests[tabB] ?? null).toBeNull();
+  });
+
+  // --- 工作区切换 → 旧介入不残留 ---
+  it('switchWorkspace：切换后 pendingDecisionRequests / permissionRequestsPerTab 全部清空', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const tabId = store.tabs[0].id;
+    // 写入旧工作区介入状态
+    store.setPendingDecisionRequest(tabId, { text: '旧请求', options: [], createdAt: Date.now() });
+    store.addPermissionRequest(tabId, { id: 'req-old', toolName: 'bash', input: {}, risk: 'medium' });
+    store.setLongWaitBanner(tabId, true);
+
+    // 创建并切换到新工作区
+    const newWsId = store.createWorkspace('新工作区', '/tmp/ws2');
+
+    const next = useAppStore.getState();
+    expect(Object.keys(next.pendingDecisionRequests)).toHaveLength(0);
+    expect(Object.keys(next.permissionRequestsPerTab)).toHaveLength(0);
+    expect(Object.keys(next.longWaitBanners)).toHaveLength(0);
+    // 新工作区 ID 已激活
+    expect(next.activeWorkspacePath).toBeTruthy();
+    // createWorkspace 会调用 switchWorkspace，workspaces 列表含新 ID
+    expect(next.workspaces.some((w) => w.id === newWsId)).toBe(true);
+  });
+});
+
