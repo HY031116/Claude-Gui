@@ -552,11 +552,18 @@ export const useAppStore = create<AppState>((set, get) => {
     if (!processing && tabId !== state.activeTabId) {
       unreadUpdate[tabId] = (state.tabUnreadCounts[tabId] ?? 0) + 1;
     }
+    // DEBT-002[v4.6.0] 回合结束（processing → false）时自动清空该 Tab 的权限审批请求。
+    // 将原本分散在 message-done / message-error / handleStop 三处的 clearPermissionRequestsForTab
+    // 调用收敛到此单一入口，任何触发回合结束的路径均可自动清理，消除遗漏风险。
+    const permUpdate = !processing
+      ? { permissionRequestsPerTab: { ...state.permissionRequestsPerTab, [tabId]: [] } }
+      : {};
     return {
       processingTabs: { ...state.processingTabs, [tabId]: processing },
       tabUnreadCounts: Object.keys(unreadUpdate).length > 0
         ? { ...state.tabUnreadCounts, ...unreadUpdate }
         : state.tabUnreadCounts,
+      ...permUpdate,
     };
   }),
 

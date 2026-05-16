@@ -309,7 +309,7 @@ export function ChatPanel() {
   // FIX[BUG-002][v4.3.0] permissionRequests 从 store 读取（单一数据源），不再使用本地 state。
   // FIX[BUG-103-loop][v4.4.0] 使用模块级稳定常量作为空数组 fallback，防止每次 store 更新创建新引用导致 useEffect 无限循环。
   const permissionRequests = useAppStore((s) => s.permissionRequestsPerTab[activeTabId] ?? EMPTY_PERMISSION_REQUESTS);
-  const clearPermissionRequestsForTab = useAppStore((s) => s.clearPermissionRequestsForTab);
+  // DEBT-002[v4.6.0] clearPermissionRequestsForTab 已收敛到 store 的 setTabProcessing 内部自动调用，此处无需单独订阅。
   const tabs = useAppStore((s) => s.tabs);
   const renameTab = useAppStore((s) => s.renameTab);
   const planReview = useAppStore((s) => s.planReview);
@@ -758,9 +758,9 @@ export function ChatPanel() {
         stderrErrShownRef.current = false;
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
-        clearPermissionRequestsForTab(activeTabIdRef.current); // FIX[BUG-002]
         // DEBT-201[v4.5.0] 每轮结束后裁剪 rawJsonLog，仅保留最近 200 条，防止长会话内存增长
         trimRawJson(200);
+        // DEBT-002[v4.6.0] permissionRequests 清理已收敛到 store setTabProcessing(tabId, false) 内部自动触发。
 
       } else if (event.type === 'message-stderr') {
         const stderrText = event.data;
@@ -797,7 +797,7 @@ export function ChatPanel() {
         stderrErrShownRef.current = false;
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
-        clearPermissionRequestsForTab(activeTabIdRef.current); // FIX[BUG-002]
+        // DEBT-002[v4.6.0] permissionRequests 清理已收敛到 store setTabProcessing(tabId, false) 内部自动触发。
       }
     });
     return unsubscribe;
@@ -1167,8 +1167,8 @@ export function ChatPanel() {
     stderrErrShownRef.current = false;
     pendingToolCallsRef.current = [];
     currentPlanStepsRef.current = [];
-    clearPermissionRequestsForTab(activeTabId); // FIX[BUG-002] / FIX[BUG-103]
-  }, [updateMessage, addMessage, clearPermissionRequestsForTab, activeTabId]);
+    // DEBT-002[v4.6.0] permissionRequests 清理已收敛到 store setTabProcessing(tabId, false) 内部自动触发。
+  }, [updateMessage, addMessage, activeTabId]);
 
   /** 开始编辑工作目录 */
   const handleWdEdit = useCallback(() => {

@@ -172,8 +172,8 @@
 - [x] TEST-201 完成：v4.5.0 场景测试覆盖（trimRawJson / token 增量 / 介入收敛 / 工作区切换，6 个场景全通过，56 tests passed）
 
 ### v4.6.0
-- [ ] DEBT-002 完成：permissionRequests 5 处分散清理收敛为单一入口
-- [ ] TEST-202 完成：DEBT-002 修复后回归测试覆盖
+- [x] DEBT-002 完成：permissionRequests 5 处分散清理收敛为单一入口（setTabProcessing false 时自动清空）
+- [x] TEST-202 完成：DEBT-002 修复后回归测试覆盖（3 个场景，59 tests passed）
 
 ---
 

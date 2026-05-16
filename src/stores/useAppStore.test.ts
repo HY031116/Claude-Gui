@@ -371,3 +371,54 @@ describe('useAppStore - v4.5.0 场景测试（TEST-201）', () => {
   });
 });
 
+// TEST-202[v4.6.0] DEBT-002 回归测试
+// 验证：setTabProcessing(tabId, false) 自动清空 permissionRequestsPerTab[tabId]，
+// 消除原先 3 处分散 clearPermissionRequestsForTab 调用的遗漏风险。
+describe('useAppStore - DEBT-002 权限清理收敛测试（TEST-202）', () => {
+
+  it('setTabProcessing false：自动清空该 Tab 的权限请求', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const tabId = store.tabs[0].id;
+    store.addPermissionRequest(tabId, { id: 'req-1', toolName: 'bash', input: {}, risk: 'medium' });
+    expect(useAppStore.getState().permissionRequestsPerTab[tabId]).toHaveLength(1);
+
+    // 回合结束，setTabProcessing → false
+    store.setTabProcessing(tabId, false);
+    expect(useAppStore.getState().permissionRequestsPerTab[tabId]).toHaveLength(0);
+  });
+
+  it('setTabProcessing true：不清空权限请求（仅结束时清理）', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const tabId = store.tabs[0].id;
+    store.addPermissionRequest(tabId, { id: 'req-2', toolName: 'write', input: {}, risk: 'high' });
+
+    // 开始新回合，不应清空
+    store.setTabProcessing(tabId, true);
+    expect(useAppStore.getState().permissionRequestsPerTab[tabId]).toHaveLength(1);
+  });
+
+  it('setTabProcessing false：Tab A 清理不影响 Tab B 的权限请求', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addTab();
+    const tabs = useAppStore.getState().tabs;
+    const tabA = tabs[0].id;
+    const tabB = tabs[1].id;
+
+    store.addPermissionRequest(tabA, { id: 'req-a', toolName: 'bash', input: {}, risk: 'low' });
+    store.addPermissionRequest(tabB, { id: 'req-b', toolName: 'write', input: {}, risk: 'medium' });
+
+    // Tab A 回合结束
+    store.setTabProcessing(tabA, false);
+
+    const state = useAppStore.getState();
+    expect(state.permissionRequestsPerTab[tabA]).toHaveLength(0);
+    // Tab B 的权限请求不受影响
+    expect(state.permissionRequestsPerTab[tabB]).toHaveLength(1);
+  });
+});
