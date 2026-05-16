@@ -422,3 +422,165 @@ describe('useAppStore - DEBT-002 权限清理收敛测试（TEST-202）', () => 
     expect(state.permissionRequestsPerTab[tabB]).toHaveLength(1);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────
+// TEST-203[v4.6.x] 对话历史管理
+// ──────────────────────────────────────────────────────────────────
+describe('useAppStore - 对话历史管理', () => {
+  it('addOrUpdateConversation：新记录插入到列表头部', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addOrUpdateConversation({
+      sessionId: 'sess-1',
+      projectDir: '/tmp/proj',
+      preview: '第一条',
+      startedAt: Date.now(),
+      lastMessageAt: Date.now(),
+    });
+    expect(useAppStore.getState().conversationHistory[0].sessionId).toBe('sess-1');
+  });
+
+  it('addOrUpdateConversation：更新已有记录时移至顶部并更新 lastMessageAt', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const ts1 = Date.now();
+    store.addOrUpdateConversation({ sessionId: 'sess-A', projectDir: '/tmp', preview: 'A', startedAt: ts1, lastMessageAt: ts1 });
+    store.addOrUpdateConversation({ sessionId: 'sess-B', projectDir: '/tmp', preview: 'B', startedAt: ts1, lastMessageAt: ts1 });
+
+    // sess-A 排在后面，更新后应移至顶部
+    const ts2 = ts1 + 5000;
+    store.addOrUpdateConversation({ sessionId: 'sess-A', projectDir: '/tmp', preview: 'A', startedAt: ts1, lastMessageAt: ts2 });
+
+    const history = useAppStore.getState().conversationHistory;
+    expect(history[0].sessionId).toBe('sess-A');
+    expect(history[0].lastMessageAt).toBe(ts2);
+  });
+
+  it('removeConversation：删除指定会话后不出现在列表', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addOrUpdateConversation({ sessionId: 'del-me', projectDir: '/tmp', preview: 'X', startedAt: 0, lastMessageAt: 0 });
+    store.removeConversation('del-me');
+
+    expect(useAppStore.getState().conversationHistory.every((r) => r.sessionId !== 'del-me')).toBe(true);
+  });
+
+  it('clearConversationHistory：清空后列表为空', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addOrUpdateConversation({ sessionId: 'c1', projectDir: '/tmp', preview: 'C1', startedAt: 0, lastMessageAt: 0 });
+    store.clearConversationHistory();
+
+    expect(useAppStore.getState().conversationHistory).toHaveLength(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// TEST-204[v4.6.x] 执行计划步骤追踪
+// ──────────────────────────────────────────────────────────────────
+describe('useAppStore - 执行计划步骤追踪', () => {
+  it('addPlanStep：累积步骤，顺序保持不变', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addPlanStep({ id: 'step-1', description: '读取文件', status: 'pending', tool: 'readFile' });
+    store.addPlanStep({ id: 'step-2', description: '写入文件', status: 'pending', tool: 'writeFile' });
+
+    const steps = useAppStore.getState().activePlanSteps;
+    expect(steps).toHaveLength(2);
+    expect(steps[0].id).toBe('step-1');
+    expect(steps[1].id).toBe('step-2');
+  });
+
+  it('updatePlanStep：将指定步骤标记为 done，其他步骤不变', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addPlanStep({ id: 's1', description: '步骤1', status: 'pending', tool: 'bash' });
+    store.addPlanStep({ id: 's2', description: '步骤2', status: 'pending', tool: 'bash' });
+    store.updatePlanStep('s1', 'done');
+
+    const steps = useAppStore.getState().activePlanSteps;
+    expect(steps.find((s) => s.id === 's1')?.status).toBe('done');
+    expect(steps.find((s) => s.id === 's2')?.status).toBe('pending');
+  });
+
+  it('clearPlanSteps：清空后 activePlanSteps 为空数组', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addPlanStep({ id: 'x', description: '步骤', status: 'pending', tool: 'bash' });
+    store.clearPlanSteps();
+
+    expect(useAppStore.getState().activePlanSteps).toHaveLength(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// TEST-205[v4.6.x] Token 用量追踪
+// ──────────────────────────────────────────────────────────────────
+describe('useAppStore - Token 用量追踪', () => {
+  it('setTokenUsage：设置后可读取，再次设为 null 时清空', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.setTokenUsage({ inputTokens: 500, outputTokens: 200, costUsd: 0.01 });
+    expect(useAppStore.getState().tokenUsage?.inputTokens).toBe(500);
+
+    store.setTokenUsage(null);
+    expect(useAppStore.getState().tokenUsage).toBeNull();
+  });
+
+  it('clearTokenHistory：清空后 tokenHistory 为空数组', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addTokenRecord({ id: 'r1', sessionId: 's1', inputTokens: 10, outputTokens: 5, timestamp: Date.now() });
+    store.clearTokenHistory();
+
+    expect(useAppStore.getState().tokenHistory).toHaveLength(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// TEST-206[v4.6.x] 任务列表 & 主题设置
+// ──────────────────────────────────────────────────────────────────
+describe('useAppStore - 任务列表与主题', () => {
+  it('setTodoItems：设置后列表可正确读取', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const items = [
+      { id: 't1', content: '任务一', status: 'pending' as const },
+      { id: 't2', content: '任务二', status: 'in_progress' as const },
+    ];
+    store.setTodoItems(items);
+
+    expect(useAppStore.getState().todoItems).toHaveLength(2);
+    expect(useAppStore.getState().todoItems[0].content).toBe('任务一');
+  });
+
+  it('triggerHistorySearch：每次调用令 historySearchTrigger 自增', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    const before = useAppStore.getState().historySearchTrigger;
+    store.triggerHistorySearch();
+    expect(useAppStore.getState().historySearchTrigger).toBe(before + 1);
+    store.triggerHistorySearch();
+    expect(useAppStore.getState().historySearchTrigger).toBe(before + 2);
+  });
+
+  it('setCurrentStatus：model 与 authMode 同时更新', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.setCurrentStatus('claude-3-5-sonnet', 'oauth');
+    expect(useAppStore.getState().currentModel).toBe('claude-3-5-sonnet');
+    expect(useAppStore.getState().currentAuthMode).toBe('oauth');
+  });
+});
