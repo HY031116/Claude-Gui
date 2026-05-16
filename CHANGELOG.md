@@ -1,5 +1,30 @@
 # Changelog
 
+## [4.5.0] - 2026-05-21
+
+### 修复
+- **BUG-201 MultiEdit diff 行号偏移**（ChatPanel.tsx）
+  - 根因：在编辑前快照 `originalContent` 中逐个搜索 `old_string`，前序编辑已改变行号，导致后续 diff 行号显示偏移
+  - 修复：IIFE 内用 `currentText` 顺序模拟替换，每步更新文本基准，行号从实时文本状态计算
+- **BUG-202 resume 会话 token 重复计入**（ChatPanel.tsx）
+  - 根因：Claude `--resume` 时 API `input_tokens` 包含所有历史轮次累计值；`addTokenRecord` 直接记录原始值后 CostPanel 求和导致历史 token 被反复累加
+  - 修复：`cumulativeTokensByTabRef`（per-tab Map）在每轮 `session_end` 时追踪累计基准，记录增量 = current - prev，确保 CostPanel 显示单轮实际消耗
+
+### 优化
+- **DEBT-201 rawJsonLog 内存自动清理**（useAppStore.ts + ChatPanel.tsx）
+  - 每次 `message-done` 后自动调用 `trimRawJson(200)`，将全局调试日志裁剪至最近 200 条，防止长会话持续占用 JS heap
+  - 新增 `trimRawJson(keepLast: number)` store action，用户手动清空（clearRawJson）行为不受影响
+
+### 测试
+- **TEST-201 v4.5.0 场景单元测试**（useAppStore.test.ts，56 tests passed）
+  - `trimRawJson` 裁剪行为：保留最近 N 条，多余丢弃；条目不足时不变
+  - `addTokenRecord` 增量记录求和验证（BUG-202 场景）
+  - `setPendingDecisionRequest` 快速回复状态收敛（设置 → 清空为 null）
+  - `setPendingFileRequest` 按 Tab 隔离，其他 Tab 不受影响
+  - `switchWorkspace` 后 `pendingDecisionRequests` / `permissionRequestsPerTab` / `longWaitBanners` 全部清空
+
+---
+
 ## [4.4.0] - 2026-05-20
 
 ### 修复
