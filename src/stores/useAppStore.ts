@@ -137,6 +137,8 @@ interface AppState {
   rawJsonLog: string[];
   appendRawJson: (line: string) => void;
   clearRawJson: () => void;
+  /** DEBT-201[v4.5.0] 保留最近 keepLast 条，超出部分丢弃，防止长会话内存增长 */
+  trimRawJson: (keepLast: number) => void;
 
   // 对话历史（持久化到 localStorage）
   conversationHistory: ConversationRecord[];
@@ -443,6 +445,10 @@ export const useAppStore = create<AppState>((set, get) => {
     rawJsonLog: [...state.rawJsonLog, line].slice(-1000),
   })),
   clearRawJson: () => set({ rawJsonLog: [] }),
+  // DEBT-201[v4.5.0] 保留最后 keepLast 条，message-done 后自动调用以限制内存
+  trimRawJson: (keepLast) => set((state) => ({
+    rawJsonLog: state.rawJsonLog.slice(-keepLast),
+  })),
 
   conversationHistory: loadHistory(),
   addOrUpdateConversation: (record) => set((state) => {

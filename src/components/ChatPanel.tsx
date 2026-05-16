@@ -296,6 +296,8 @@ export function ChatPanel() {
   const updatePlanStep = useAppStore((s) => s.updatePlanStep);
   const clearPlanSteps = useAppStore((s) => s.clearPlanSteps);
   const appendRawJson = useAppStore((s) => s.appendRawJson);
+  // DEBT-201[v4.5.0] message-done 后自动裁剪超出 200 条的 rawJsonLog
+  const trimRawJson = useAppStore((s) => s.trimRawJson);
   const setTabProcessing = useAppStore((s) => s.setTabProcessing);
   const setTabInterventionStatus = useAppStore((s) => s.setTabInterventionStatus);
   const pendingDecision = useAppStore((s) => s.pendingDecisionRequests[activeTabId] ?? null);
@@ -757,10 +759,10 @@ export function ChatPanel() {
         pendingToolCallsRef.current = [];
         currentPlanStepsRef.current = [];
         clearPermissionRequestsForTab(activeTabIdRef.current); // FIX[BUG-002]
+        // DEBT-201[v4.5.0] 每轮结束后裁剪 rawJsonLog，仅保留最近 200 条，防止长会话内存增长
+        trimRawJson(200);
 
       } else if (event.type === 'message-stderr') {
-        const stderrText = event.data;
-        let friendlyError = '';
 
         if (stderrText.includes('401') || stderrText.toLowerCase().includes('unauthorized') || stderrText.toLowerCase().includes('api key')) {
           friendlyError = 'API Key 无效或未授权，请在设置中检查 API Key 配置。';
