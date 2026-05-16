@@ -267,7 +267,7 @@ const PERMISSION_MODE_OPTIONS = [
 ];
 
 /** FIX[BUG-103-loop][v4.4.0] 模块级稳定空数组，防止 `?? []` 每次返回新引用导致无限渲染循环 */
-const EMPTY_PERMISSION_REQUESTS: import('../types').PermissionRequestEvent[] = [];
+const EMPTY_PERMISSION_REQUESTS: import('../types/electron').PermissionRequestEvent[] = [];
 
 export function ChatPanel() {
   // 精确订阅各自所需字段，避免无关 store 更新触发 ChatPanel 整体重渲
