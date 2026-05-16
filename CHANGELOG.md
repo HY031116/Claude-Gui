@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.7.0] - 2026-05-21
+
+### 测试
+- **TEST-203 集成测试覆盖率突破 30%**（258 tests passed）
+  - 新增 `HooksArtifactsCommand.test.tsx`：HooksPanel / ArtifactsView / CommandPalette / CapabilitiesView 共 21 条集成测试
+  - HooksPanel：挂载调用 `loadCliConfig`、空状态"该事件暂无 Hook 配置"、添加 Matcher Group、PreToolUse 事件列表
+  - ArtifactsView：无活跃会话空状态、有会话无文件空状态、"未选目录"Git 状态格、Tab 按钮渲染
+  - CommandPalette：搜索框 placeholder、"导航"分组、"没有匹配的命令"空状态、"指挥中心"命令项
+  - CapabilitiesView：挂载调用 `loadCliConfig`、统计栏（MCP/Hooks/权限规则）、左侧菜单"Hooks"
+  - **Line 覆盖率：27.08% → 30.45%**（+3.37%）
+- **TEST-204 全局 setup 优化**（src/test/setup.ts）
+  - 新增全局 `afterEach(cleanup)`：每条测试后自动卸载 React 树，消除跨测试污染
+  - 新增 `console.error` 过滤：静默 act() 警告噪音（根因：mock Promise 在断言完成后 resolve 触发 setState），保留真实错误输出
+
+---
+
 ## [4.6.0] - 2026-05-21
 
 ### 优化
