@@ -400,6 +400,9 @@ export function ChatPanel() {
   const showLongWaitBanner = useAppStore((s) => s.longWaitBanners[activeTabId] ?? false);
   const setLongWaitBanner = useAppStore((s) => s.setLongWaitBanner);
   const lastChunkAtRef = useRef<number>(Date.now());
+  // FIX[BUG-202][v4.5.0] 追踪各 tab 会话链的累计 token 基准，防止 resume 时 input_tokens 重复计入。
+  // key = tabId，value = 上一次 session_end 报告的累计 token 量（包含历史轮次）。
+  const cumulativeTokensByTabRef = useRef<Map<string, { inputTokens: number; outputTokens: number; costUsd: number }>>(new Map());
 
   // DEBT-001[v4.3.0] Tab 切换时重置新活跃 Tab 的长时等待横幅（防止跨 Tab 误显示）。
   useEffect(() => {
@@ -647,18 +650,33 @@ export function ChatPanel() {
           // 解析最终 result 行，获取 session_id 用于多轮对话
           if (parsed.type === 'session_end' && parsed.sessionId) {
             setSession({ conversationSessionId: parsed.sessionId });
-            // 更新 Token 用量 + 写入历史
+            // 更新 Token 用量 + 写入历史（增量计入，防止 resume 时重复累积）
             if (parsed.usage) {
+              // FIX[BUG-202][v4.5.0] 用累计基准计算增量：resume 场景下 input_tokens 包含历史轮次，需减去上次基准
+              const tabKey = activeTabIdRef.current;
+              const prev = cumulativeTokensByTabRef.current.get(tabKey);
+              const incrementalInput = Math.max(0, parsed.usage.input_tokens - (prev?.inputTokens ?? 0));
+              const incrementalOutput = Math.max(0, parsed.usage.output_tokens - (prev?.outputTokens ?? 0));
+              const incrementalCostUsd = parsed.costUsd != null
+                ? Math.max(0, parsed.costUsd - (prev?.costUsd ?? 0))
+                : undefined;
+              // setTokenUsage 仍保留完整 API 调用量（用于当前对话 UI 显示），不受增量影响
               setTokenUsage({ inputTokens: parsed.usage.input_tokens, outputTokens: parsed.usage.output_tokens, costUsd: parsed.costUsd });
               addTokenRecord({
                 id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 timestamp: Date.now(),
                 sessionId: parsed.sessionId,
-                inputTokens: parsed.usage.input_tokens,
-                outputTokens: parsed.usage.output_tokens,
-                costUsd: parsed.costUsd,
+                inputTokens: incrementalInput,
+                outputTokens: incrementalOutput,
+                costUsd: incrementalCostUsd,
                 model: parsed.model ?? currentModel ?? undefined,
                 workingDirectory: workingDirectoryRef.current,
+              });
+              // 更新累计基准，供本 tab 下一次 resume turn 使用
+              cumulativeTokensByTabRef.current.set(tabKey, {
+                inputTokens: parsed.usage.input_tokens,
+                outputTokens: parsed.usage.output_tokens,
+                costUsd: parsed.costUsd ?? (prev?.costUsd ?? 0),
               });
             }
             // 写入本轮 Turn 摘要到最后一条 assistant 消息
@@ -824,6 +842,10 @@ export function ChatPanel() {
     setAtQuery('');
     if (continueMode) setContinueMode(false); // 发送后清除 continue 模式
     setTokenUsage(null); // 新对话开始时重置 token 用量
+    // FIX[BUG-202][v4.5.0] 全新对话（无 sessionId）时清除当前 tab 的累计 token 基准，resume 场景不清除
+    if (!currentSessionId) {
+      cumulativeTokensByTabRef.current.delete(activeTabIdRef.current);
+    }
     clearPlanSteps();    // 新消息时清空上一轮步骤
     resetPlanReview();   // 新消息时重置 Plan Mode 审查状态（3.4）
     turnStartedAtRef.current = Date.now(); // 记录本轮 turn 开始时间
