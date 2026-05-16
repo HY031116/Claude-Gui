@@ -194,6 +194,9 @@ body {
   --shadow-md:     0 4px 16px rgba(0, 0, 0, 0.16);
   --shadow-lg:     0 12px 40px rgba(0, 0, 0, 0.22);
 
+  /* 兼容别名亮色覆盖（旧组件用 --bg-tertiary / --bg-primary 等）*/
+  --bg-tertiary:   #dde0f0;
+
   /* 组件语义变量亮色覆盖 */
   --nav-rail-bg:         rgba(245, 245, 252, 0.95);
   --accent-glass:        rgba(124, 58, 237, 0.10);

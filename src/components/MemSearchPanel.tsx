@@ -67,6 +67,9 @@ export function MemSearchPanel() {
     window.electronAPI.checkClaudeMem().then((res) => {
       setInstalled(res.installed);
       setEnabled(res.enabled);
+    }).catch(() => {
+      setInstalled(false);
+      setEnabled(false);
     });
   }, []);
 

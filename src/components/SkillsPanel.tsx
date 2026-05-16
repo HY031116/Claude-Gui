@@ -268,8 +268,15 @@ export function SkillsPanel() {
           flexShrink: 0,
         }}>
           {!cwd ? (
-            <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              请先开启会话
+            <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+              <div style={{ fontStyle: 'italic', marginBottom: 8 }}>请先开启会话</div>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: 11, padding: '4px 10px' }}
+                onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
+              >
+                前往委派
+              </button>
             </div>
           ) : files.length === 0 && customFiles.length === 0 && !loading ? (
             <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>

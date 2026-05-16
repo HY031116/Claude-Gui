@@ -3,15 +3,20 @@
  * 展示：Diff 变更审查 + Plan Mode 步骤审查 + Checkpoint 快照
  */
 import { useState } from 'react';
-import { GitCommit, Camera, FileText } from 'lucide-react';
+import { GitCommit, Camera, FileText, ClipboardList } from 'lucide-react';
 import { ChangeSummaryPanel } from '../ChangeSummaryPanel';
 import { CheckpointPanel } from '../CheckpointPanel';
 import { TaskTimeline } from '../task/TaskTimeline';
+import { useAppStore } from '../../stores/useAppStore';
 
 type ReviewTab = 'changes' | 'plan' | 'checkpoints';
 
 export function ReviewView() {
   const [activeTab, setActiveTab] = useState<ReviewTab>('changes');
+  const messages = useAppStore((s) => s.messages);
+  const hasToolCalls = messages.some(
+    (m) => m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0
+  );
 
   const tabs: { id: ReviewTab; label: string; icon: React.ElementType }[] = [
     { id: 'changes', label: 'Diff 变更', icon: GitCommit },
@@ -60,7 +65,24 @@ export function ReviewView() {
                 在 Plan Mode 下审查并确认执行步骤
               </span>
             </div>
-            <TaskTimeline />
+            {hasToolCalls ? (
+              <TaskTimeline />
+            ) : (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                <ClipboardList size={28} style={{ opacity: 0.3, marginBottom: 8 }} />
+                <div>本次会话暂无执行计划</div>
+                <div style={{ fontSize: 11, marginTop: 4, marginBottom: 12 }}>
+                  启动 Plan Mode 会话后，步骤时序将在此展示
+                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ fontSize: 12, padding: '5px 14px' }}
+                  onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
+                >
+                  前往委派，启动会话
+                </button>
+              </div>
+            )}
           </div>
         )}
 

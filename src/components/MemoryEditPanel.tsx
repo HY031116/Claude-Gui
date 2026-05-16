@@ -266,10 +266,18 @@ export function MemoryEditPanel() {
             gap: 8,
             color: 'var(--text-muted)',
             fontSize: 13,
+            textAlign: 'center',
           }}
         >
           <AlertTriangle size={24} />
-          请先在左侧选择工作目录
+          <div>请先在委派视图中设置工作目录</div>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: 4, fontSize: 12, padding: '5px 14px' }}
+            onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
+          >
+            前往委派
+          </button>
         </div>
       ) : (
         /* 编辑区 */

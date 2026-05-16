@@ -33,6 +33,8 @@ export function FileExplorer() {
         setEntries(result.entries);
         setCurrentPath(path);
       }
+    } catch {
+      // 无后端时静默忽略
     } finally {
       setLoading(false);
     }
@@ -59,9 +61,13 @@ export function FileExplorer() {
       }
     } else {
       setSelectedFile(entry.path);
-      const result = await window.electronAPI.readFile(entry.path);
-      if (result.success) {
-        setFileContent(result.content || '');
+      try {
+        const result = await window.electronAPI.readFile(entry.path);
+        if (result.success) {
+          setFileContent(result.content || '');
+        }
+      } catch {
+        // 无后端时静默忽略
       }
     }
   }, [expandedDirs, loadDirectory, setSelectedFile, setFileContent]);

@@ -34,6 +34,8 @@ export default function PluginPanel() {
       if (result.success && result.plugins) {
         setPlugins(result.plugins);
       }
+    } catch {
+      // 无后端时静默忽略
     } finally {
       setLoading(false);
     }
