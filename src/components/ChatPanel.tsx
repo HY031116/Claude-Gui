@@ -2381,32 +2381,43 @@ const ToolCallCard = memo(function ToolCallCard({ toolCall }: { toolCall: ToolCa
             </div>
           )}
           {/* MultiEdit 工具：多段 Diff */}
-          {toolCall.name === 'MultiEdit' && Array.isArray(toolCall.arguments?.edits) && (
-            <div className="tool-call-section">
-              <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <FileDiff size={11} /> 多段变更
-              </div>
-              {(toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>).map((edit, idx) => {
-                // 从 originalContent 中定位每段 old_string 的起始行号
-                let startLine = 1;
-                if (toolCall.originalContent && edit.old_string) {
-                  const pos = toolCall.originalContent.indexOf(edit.old_string);
-                  if (pos !== -1) startLine = toolCall.originalContent.slice(0, pos).split('\n').length;
+          {toolCall.name === 'MultiEdit' && Array.isArray(toolCall.arguments?.edits) && (() => {
+            const edits = toolCall.arguments.edits as Array<{ old_string: string; new_string: string }>;
+            // FIX[BUG-201][v4.5.0] 顺序模拟各次编辑，逐步更新快照文本，确保行号相对于当时文件状态准确。
+            // 原实现在 originalContent 中直接定位 old_string，连续编辑后前面的修改会使后续 old_string 行号偏移。
+            const startLines: number[] = [];
+            let currentText = toolCall.originalContent ?? '';
+            for (const edit of edits) {
+              let startLine = 1;
+              if (currentText && edit.old_string) {
+                const pos = currentText.indexOf(edit.old_string);
+                if (pos !== -1) {
+                  startLine = currentText.slice(0, pos).split('\n').length;
+                  // 模拟应用此次编辑，为下一次迭代更新文本基准
+                  currentText = currentText.slice(0, pos) + (edit.new_string ?? '') + currentText.slice(pos + edit.old_string.length);
                 }
-                return (
+              }
+              startLines.push(startLine);
+            }
+            return (
+              <div className="tool-call-section">
+                <div className="tool-call-section-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <FileDiff size={11} /> 多段变更
+                </div>
+                {edits.map((edit, idx) => (
                   <div key={idx} style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>变更 {idx + 1}</div>
                     <DiffViewer
                       oldStr={edit.old_string ?? ''}
                       newStr={edit.new_string ?? ''}
-                      startLineOld={startLine}
-                      startLineNew={startLine}
+                      startLineOld={startLines[idx]}
+                      startLineNew={startLines[idx]}
                     />
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
           {/* Write 工具：有原内容时展示 diff，否则展示新内容预览 */}
           {toolCall.name === 'Write' && toolCall.arguments?.content !== undefined && (
             <div className="tool-call-section">

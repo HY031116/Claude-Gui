@@ -143,7 +143,7 @@
 - [x] RISK-101 评估：工作区切换的进程生命周期明确（已修复：switchWorkspace 时终止所有旧进程 + tabId 过滤双层保障）
 
 ### v4.5.0
-- [ ] BUG-201 通过：MultiEdit diff 行号准确
+- [x] BUG-201 通过：MultiEdit diff 行号准确（顺序模拟编辑，逐步更新文本基准）
 - [ ] BUG-202 通过：resume 场景不重复计入成本
 - [ ] DEBT-201 完成：rawJsonLog 加入自动清理
 - [ ] TEST-201 完成：端到端场景测试覆盖
