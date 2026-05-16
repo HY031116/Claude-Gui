@@ -284,8 +284,12 @@ export function WorktreePanel() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
           <GitFork size={14} color="var(--accent-color)" />
           <span style={{ fontWeight: 600, fontSize: 13 }}>Git Worktree</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-            {cwd}
+          <span
+            title={cwd}
+            style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+          >
+            {/* 仅显示路径最后一段（目录名），完整路径通过 title tooltip 展示 */}
+            {cwd ? (cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? cwd) : ''}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
