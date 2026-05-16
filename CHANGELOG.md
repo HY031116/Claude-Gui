@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.6.0] - 2026-05-21
+
+### 优化
+- **DEBT-002 permissionRequests 清理收敛**（useAppStore.ts + ChatPanel.tsx）
+  - 将原 ChatPanel 中 3 处分散的 `clearPermissionRequestsForTab` 调用（message-done / message-error / handleStop）收敛到 store 的 `setTabProcessing(tabId, false)` 内部自动触发
+  - 语义：回合结束（`processing → false`）时该 Tab 的待审批权限请求必然过期，由单一入口统一清理，消除遗漏风险
+  - 移除 ChatPanel 对 `clearPermissionRequestsForTab` 的独立 store 订阅
+
+### 测试
+- **TEST-202 DEBT-002 回归测试**（useAppStore.test.ts，59 tests passed）
+  - `setTabProcessing(false)` 自动清空当前 Tab 权限请求
+  - `setTabProcessing(true)` 不清空（仅结束时清理）
+  - Tab A 清理隔离：不影响 Tab B 的权限请求
+
+---
+
 ## [4.5.0] - 2026-05-21
 
 ### 修复
