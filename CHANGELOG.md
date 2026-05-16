@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.8.0] - 2026-05-22
+
+### 测试
+- **TEST-205 覆盖率冲刺第三阶段**（355 tests passed / 27 test files）
+  - 新增 `SettingsSubPanels.test.tsx`：SessionTab / IntegrationsTab / WorkspaceArea（+15条）
+  - 新增 `MoreSettingsTabs.test.tsx`：AppearanceTab / ModelTab / PermissionsTab（+22条）
+  - 新增 `SmallComponents.test.tsx`：UpdateBanner / StatusBar / ShortcutsModal / AuxPanel（+15条）
+  - 新增 `MoreComponents.test.tsx`：WebModeBanner / AskQuestionsModal / useResizableSidebar / InterventionCenter（+25条）
+  - **Line 覆盖率：31.91% → 35.28%**（+3.37%，首次突破 35% 里程碑）
+
+---
+
 ## [4.7.0] - 2026-05-21
 
 ### 测试
