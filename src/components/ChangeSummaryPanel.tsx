@@ -342,7 +342,14 @@ export function ChangeSummaryPanel() {
     return (
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
         <FileText size={32} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }} />
-        本次会话暂无文件变更
+        <div style={{ marginBottom: 12 }}>本次会话暂无文件变更</div>
+        <button
+          className="btn btn-primary"
+          style={{ fontSize: 12, padding: '5px 14px' }}
+          onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
+        >
+          前往委派，开始一个任务
+        </button>
       </div>
     );
   }

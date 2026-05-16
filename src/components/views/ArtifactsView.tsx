@@ -153,7 +153,14 @@ function AiArtifactsPanel({ onGoGit }: { onGoGit: () => void }) {
     return (
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
         <FileText size={28} style={{ opacity: 0.3, marginBottom: 8 }} />
-        <div>本次会话暂无文件修改记录</div>
+        <div style={{ marginBottom: 12 }}>本次会话暂无文件修改记录</div>
+        <button
+          className="btn btn-primary"
+          style={{ fontSize: 12, padding: '5px 14px' }}
+          onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
+        >
+          前往委派，新建任务
+        </button>
       </div>
     );
   }
