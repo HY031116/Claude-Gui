@@ -662,7 +662,7 @@ export function HooksPanel() {
         setDisableAll(!!res.settings.disableAllHooks);
       }
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, []);
 
   const totalCount = Object.values(hooksConfig).reduce((s, groups) => s + groups.length, 0);

@@ -227,10 +227,14 @@ export function McpPanel() {
 
   const loadServers = useCallback(async () => {
     setIsLoading(true);
-    const result = await window.electronAPI?.loadCliConfig();
-    if (result?.success && result.settings?.mcpServers) {
-      setServers(result.settings.mcpServers as Record<string, McpServerConfig>);
-    } else {
+    try {
+      const result = await window.electronAPI?.loadCliConfig();
+      if (result?.success && result.settings?.mcpServers) {
+        setServers(result.settings.mcpServers as Record<string, McpServerConfig>);
+      } else {
+        setServers({});
+      }
+    } catch {
       setServers({});
     }
     setIsLoading(false);

@@ -144,7 +144,14 @@ function AiArtifactsPanel({ onGoGit }: { onGoGit: () => void }) {
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
         <Cpu size={28} style={{ opacity: 0.3, marginBottom: 8 }} />
         <div>当前无活跃会话</div>
-        <div style={{ fontSize: 11, marginTop: 4 }}>启动 Claude 会话后，这里将汇总所有 AI 修改的文件</div>
+        <div style={{ fontSize: 11, marginTop: 4, marginBottom: 12 }}>启动 Claude 会话后，这里将汇总所有 AI 修改的文件</div>
+        <button
+          className="btn btn-primary"
+          style={{ fontSize: 12, padding: '5px 14px' }}
+          onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
+        >
+          前往委派，启动会话
+        </button>
       </div>
     );
   }

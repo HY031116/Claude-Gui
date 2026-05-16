@@ -93,6 +93,7 @@ body {
   --warning:      #f59e0b;
   --error:        #ef4444;
   --error-text:   #f87171;
+  --danger:       #ef4444;
 
   /* ══ 工具调用类型色 ══ */
   --tool-bash:  #f59e0b;

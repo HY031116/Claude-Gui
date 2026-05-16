@@ -322,7 +322,7 @@ export function RulesPanel() {
         setPermissionMode(perms?.mode ?? 'auto');
       }
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {

@@ -65,11 +65,15 @@ export function AgentPanel() {
   const load = async () => {
     setLoading(true);
     setError(null);
-    const res = await window.electronAPI.agentList();
-    if (res.success && res.agents) {
-      setAgents(res.agents);
-    } else {
-      setError(res.error ?? '加载失败');
+    try {
+      const res = await window.electronAPI.agentList();
+      if (res.success && res.agents) {
+        setAgents(res.agents);
+      } else {
+        setError(res.error ?? '加载失败');
+      }
+    } catch (e) {
+      setError(String(e));
     }
     setLoading(false);
   };
