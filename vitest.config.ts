@@ -13,6 +13,15 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts'],
     coverage: {
       reporter: ['text', 'json', 'html'],
+      // 只统计 src 目录下的业务代码
+      include: ['src/**/*.{ts,tsx}'],
+      // 排除测试文件、类型声明及入口文件
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/test/**',
+        'src/types/**',
+        'src/main.tsx',
+      ],
     },
   },
   resolve: {
