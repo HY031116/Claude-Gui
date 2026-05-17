@@ -269,7 +269,7 @@ export function SkillsPanel() {
         }}>
           {!cwd ? (
             <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-              <div style={{ fontStyle: 'italic', marginBottom: 8 }}>请先开启会话</div>
+              <div style={{ fontStyle: 'italic', marginBottom: 8 }}>请先在委派视图中设置工作目录</div>
               <button
                 className="btn btn-primary"
                 style={{ fontSize: 11, padding: '4px 10px' }}

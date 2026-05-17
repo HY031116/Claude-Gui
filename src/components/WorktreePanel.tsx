@@ -273,7 +273,7 @@ export function WorktreePanel() {
     return (
       <div className="worktree-panel">
         <div className="worktree-empty" style={{ textAlign: 'center', paddingTop: 32 }}>
-          <div style={{ marginBottom: 12 }}>请先在聊天面板设置工作目录</div>
+          <div style={{ marginBottom: 12 }}>请先在委派视图中设置工作目录</div>
           <button
             className="btn btn-primary"
             style={{ fontSize: 12, padding: '5px 14px' }}

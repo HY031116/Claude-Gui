@@ -60,11 +60,11 @@ describe('AgentsView - Tab 渲染', () => {
 // 情景 2：默认 Tab（worktrees）空状态
 // ──────────────────────────────────────────
 describe('AgentsView - Worktrees 空状态', () => {
-  it('无工作目录时应显示"请先在聊天面板设置工作目录"', async () => {
+  it('无工作目录时应显示"请先在委派视图中设置工作目录"', async () => {
     const { AgentsView } = await import('./views/AgentsView');
     render(<AgentsView />);
     await waitFor(() => {
-      expect(screen.getByText('请先在聊天面板设置工作目录')).toBeInTheDocument();
+      expect(screen.getByText('请先在委派视图中设置工作目录')).toBeInTheDocument();
     });
   });
 

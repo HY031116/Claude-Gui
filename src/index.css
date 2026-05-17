@@ -2118,6 +2118,49 @@ pre code {
   border-bottom-color: var(--accent);
 }
 
+/* AuxPanel 折叠态 */
+.aux-panel-collapsed {
+  width: 32px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.aux-panel-toggle-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+
+.aux-panel-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* 折叠按钮：紧贴右端，仅图标 */
+.aux-collapse-btn {
+  border-bottom: 2px solid transparent !important;
+  color: var(--text-tertiary) !important;
+  flex-shrink: 0;
+}
+
+.aux-collapse-btn:hover {
+  color: var(--text-secondary) !important;
+  background: var(--glass-hover);
+}
+
 
 .workspace-shell {
   flex: 1;
@@ -6855,6 +6898,19 @@ body.is-resizing .resize-handle::after {
 .capabilities-menu-text { display: flex; flex-direction: column; gap: 2px; }
 .capabilities-menu-label { font-size: 13px; font-weight: 500; line-height: 1.2; }
 .capabilities-menu-desc { font-size: 10px; color: var(--text-tertiary); line-height: 1.3; }
+
+/* 分组标题 */
+.capabilities-menu-group { display: flex; flex-direction: column; gap: 1px; }
+.capabilities-menu-group + .capabilities-menu-group { margin-top: 12px; }
+.capabilities-menu-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 2px 10px 4px;
+  margin-bottom: 2px;
+}
 
 .capabilities-content {
   flex: 1;

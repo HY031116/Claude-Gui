@@ -32,6 +32,13 @@ const TABS: { id: CapabilitiesTab; label: string; icon: React.ElementType; desc:
   { id: 'mem-search', label: '记忆搜索', icon: Search, desc: '搜索 Claude 的记忆文件' },
 ];
 
+/** 左侧菜单语义分组（三大类） */
+const TAB_GROUPS: { label: string; items: CapabilitiesTab[] }[] = [
+  { label: '工具接入', items: ['mcp', 'plugins'] },
+  { label: '自动化与安全', items: ['hooks', 'rules'] },
+  { label: '知识与记忆', items: ['skills', 'claude-md', 'mem-search'] },
+];
+
 export function CapabilitiesView() {
   const [activeTab, setActiveTab] = useState<CapabilitiesTab>('mcp');
   const [counts, setCounts] = useState<ConfigCounts>({ mcp: 0, hooks: 0, rules: 0 });
@@ -117,36 +124,42 @@ export function CapabilitiesView() {
 
       {/* 左侧菜单 + 右侧内容（二栏布局） */}
       <div className="capabilities-layout">
-        {/* 左侧垂直菜单 */}
+        {/* 左侧垂直菜单（分三组：工具接入 / 自动化与安全 / 知识与记忆） */}
         <div className="capabilities-menu">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            const count = getCount(tab.id);
-            return (
-              <button
-                key={tab.id}
-                className={`capabilities-menu-item${active ? ' active' : ''}`}
-                onClick={() => handleTabChange(tab.id)}
-              >
-                <Icon size={15} />
-                <div className="capabilities-menu-text">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="capabilities-menu-label">{tab.label}</span>
-                    {count > 0 && (
-                      <span style={{
-                        fontSize: 10, background: 'var(--accent, #6366f1)', color: '#fff',
-                        borderRadius: 8, padding: '1px 5px', lineHeight: 1.4,
-                      }}>
-                        {count}
-                      </span>
-                    )}
-                  </div>
-                  <span className="capabilities-menu-desc">{tab.desc}</span>
-                </div>
-              </button>
-            );
-          })}
+          {TAB_GROUPS.map((group) => (
+            <div key={group.label} className="capabilities-menu-group">
+              <div className="capabilities-menu-group-label">{group.label}</div>
+              {group.items.map((tabId) => {
+                const tab = TABS.find((t) => t.id === tabId)!;
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                const count = getCount(tab.id);
+                return (
+                  <button
+                    key={tab.id}
+                    className={`capabilities-menu-item${active ? ' active' : ''}`}
+                    onClick={() => handleTabChange(tab.id)}
+                  >
+                    <Icon size={15} />
+                    <div className="capabilities-menu-text">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="capabilities-menu-label">{tab.label}</span>
+                        {count > 0 && (
+                          <span style={{
+                            fontSize: 10, background: 'var(--accent, #6366f1)', color: '#fff',
+                            borderRadius: 8, padding: '1px 5px', lineHeight: 1.4,
+                          }}>
+                            {count}
+                          </span>
+                        )}
+                      </div>
+                      <span className="capabilities-menu-desc">{tab.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
         {/* 右侧内容区 */}
