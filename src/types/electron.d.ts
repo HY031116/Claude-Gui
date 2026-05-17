@@ -49,6 +49,25 @@ export interface WorktreeInfo {
   isLocked: boolean;
 }
 
+/** Routine 定时任务（v4.9.0 FEAT-411） */
+export interface RoutineHistoryEntry {
+  runAt: number;
+  success: boolean;
+  error?: string;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  prompt: string;
+  cwd: string;
+  cronExpr: string;
+  enabled: boolean;
+  createdAt: number;
+  lastRunAt?: number;
+  history: RoutineHistoryEntry[];
+}
+
 export interface ElectronAPI {
   cliStart: (options: { cwd: string; args?: string[] }) => Promise<{ success: boolean; pid?: number; error?: string }>;
   cliSend: (message: string) => Promise<{ success: boolean; error?: string }>;
@@ -160,6 +179,14 @@ export interface ElectronAPI {
   }>;
   /** 在默认浏览器中打开本地 Web 版本 (http://127.0.0.1:5175) */
   openInBrowser?: () => Promise<{ success: boolean }>;
+  // Routines 定时任务（v4.9.0 FEAT-411）
+  routinesList?: () => Promise<Routine[]>;
+  routinesCreate?: (data: Omit<Routine, 'id' | 'createdAt' | 'history'>) => Promise<{ success: boolean; routine?: Routine; error?: string }>;
+  routinesUpdate?: (id: string, data: Partial<Omit<Routine, 'id' | 'createdAt' | 'history'>>) => Promise<{ success: boolean; routine?: Routine; error?: string }>;
+  routinesDelete?: (id: string) => Promise<{ success: boolean }>;
+  routinesRunNow?: (id: string) => Promise<{ success: boolean; error?: string }>;
+  routinesValidateCron?: (expr: string) => Promise<{ valid: boolean }>;
+  onRoutinesUpdated?: (cb: (routines: Routine[]) => void) => () => void;
 }
 
 export interface GitFile {

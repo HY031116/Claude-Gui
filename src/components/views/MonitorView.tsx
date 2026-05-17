@@ -8,8 +8,9 @@ import { useAppStore } from '../../stores/useAppStore';
 import { ContextPanel } from '../ContextPanel';
 import { CostPanel } from '../CostPanel';
 import { HistoryPanel } from '../HistoryPanel';
+import { RoutinesPanel } from '../RoutinesPanel';
 
-type MonitorTab = 'context' | 'cost' | 'sessions';
+type MonitorTab = 'context' | 'cost' | 'sessions' | 'routines';
 
 /** 格式化 token 数量 */
 function fmtTokens(n: number): string {
@@ -81,6 +82,7 @@ export function MonitorView() {
     { id: 'context', label: '上下文', icon: Info },
     { id: 'cost', label: '成本统计', icon: DollarSign },
     { id: 'sessions', label: '历史会话', icon: Clock },
+    { id: 'routines', label: '定时任务', icon: Activity },
   ];
 
   return (
@@ -189,6 +191,7 @@ export function MonitorView() {
         {activeTab === 'context' && <ContextPanel />}
         {activeTab === 'cost' && <CostPanel />}
         {activeTab === 'sessions' && <HistoryPanel highlightSessionId={highlightSessionId} onHighlightConsumed={() => setHighlightSessionId(null)} />}
+        {activeTab === 'routines' && <RoutinesPanel />}
       </div>
     </div>
   );

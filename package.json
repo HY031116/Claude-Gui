@@ -22,11 +22,13 @@
   },
   "dependencies": {
     "@types/marked": "^5.0.2",
+    "@types/node-cron": "^3.0.11",
     "ansi-to-html": "^0.7.2",
     "electron-updater": "^6.8.3",
     "highlight.js": "^11.11.1",
     "lucide-react": "^1.14.0",
     "marked": "^18.0.3",
+    "node-cron": "^4.2.1",
     "node-pty": "^1.1.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

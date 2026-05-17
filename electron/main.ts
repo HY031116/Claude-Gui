@@ -7,6 +7,7 @@ import { CliService, type CliStartOptions } from './cli-service';
 import { FileService } from './file-service';
 import { SettingsService } from './settings-service';
 import { CliConfigService } from './cli-config-service';
+import { RoutinesService, type Routine, type RoutineHistoryEntry } from './routines-service';
 import {
   getGitStatus, getGitDiff, gitAdd, gitUnstage, gitCommit,
   getGitLog, isGitRepo, getGitBranch, gitPush, gitPull, getGitRemotes,
@@ -18,6 +19,7 @@ const cliService = new CliService();
 const fileService = new FileService();
 const settingsService = new SettingsService();
 const cliConfigService = new CliConfigService();
+const routinesService = new RoutinesService();
 
 // 模块顶层常量：是否为开发模式
 const isDev = !app.isPackaged;
@@ -667,4 +669,76 @@ ipcMain.handle('web:open', async () => {
   const url = `http://127.0.0.1:${WEB_PORT}`;
   await shell.openExternal(url);
   return { success: true };
+});
+
+// ── Routines 定时任务（v4.9.0 FEAT-411）──────────────────────────────────────
+
+// 设置任务触发回调：定时到点时调用 cliSendMessage 发送任务提示词
+routinesService.setRunCallback(async (routine: Routine) => {
+  const runAt = Date.now();
+  let entry: RoutineHistoryEntry;
+  try {
+    const result = await cliService.sendMessage(
+      routine.prompt,
+      routine.cwd,
+      undefined,   // sessionId：每次新会话
+      [],           // imagePaths
+      undefined,   // agentOverride
+      `routine-${routine.id}`, // tabId
+    );
+    entry = { runAt, success: result.success, error: result.error };
+  } catch (err: unknown) {
+    entry = { runAt, success: false, error: String((err as Error)?.message ?? err) };
+  }
+  routinesService.recordHistory(routine.id, entry);
+  // 通知渲染进程更新列表
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('routines:updated', routinesService.list());
+  }
+});
+
+// app ready 后启动调度器（在 createWindow 之后执行，此处注册为模块级副作用）
+app.whenReady().then(() => {
+  routinesService.start();
+});
+
+app.on('will-quit', () => {
+  routinesService.stop();
+});
+
+ipcMain.handle('routines:list', () => routinesService.list());
+
+ipcMain.handle('routines:create', (_e, data: Omit<Routine, 'id' | 'createdAt' | 'history'>) => {
+  try {
+    const routine = routinesService.create(data);
+    return { success: true, routine };
+  } catch (err: unknown) {
+    return { success: false, error: String((err as Error)?.message ?? err) };
+  }
+});
+
+ipcMain.handle('routines:update', (_e, id: string, data: Partial<Omit<Routine, 'id' | 'createdAt' | 'history'>>) => {
+  try {
+    const routine = routinesService.update(id, data);
+    if (!routine) return { success: false, error: '任务不存在' };
+    return { success: true, routine };
+  } catch (err: unknown) {
+    return { success: false, error: String((err as Error)?.message ?? err) };
+  }
+});
+
+ipcMain.handle('routines:delete', (_e, id: string) => {
+  const ok = routinesService.delete(id);
+  return { success: ok };
+});
+
+ipcMain.handle('routines:runNow', (_e, id: string) => {
+  const routine = routinesService.runNow(id);
+  if (!routine) return { success: false, error: '任务不存在' };
+  return { success: true };
+});
+
+ipcMain.handle('routines:validateCron', (_e, expr: string) => {
+  return { valid: routinesService.validateCron(expr) };
 });

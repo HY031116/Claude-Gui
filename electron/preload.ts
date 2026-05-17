@@ -1,5 +1,24 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+/** Routine 定时任务类型（与 main/routines-service.ts 保持一致） */
+export interface RoutineHistoryEntry {
+  runAt: number;
+  success: boolean;
+  error?: string;
+}
+
+export interface RoutineItem {
+  id: string;
+  name: string;
+  prompt: string;
+  cwd: string;
+  cronExpr: string;
+  enabled: boolean;
+  createdAt: number;
+  lastRunAt?: number;
+  history: RoutineHistoryEntry[];
+}
+
 /** 应用更新状态（与 main.ts 中的 UpdateStatus 保持一致） */
 export type UpdateStatus =
   | { type: 'checking' }
@@ -157,6 +176,15 @@ export interface ElectronAPI {
   }>;
   /** 在默认浏览器中打开本地 Web 版本 (http://127.0.0.1:5175) */
   openInBrowser: () => Promise<{ success: boolean }>;
+  // Routines 定时任务（v4.9.0 FEAT-411）
+  routinesList: () => Promise<RoutineItem[]>;
+  routinesCreate: (data: Omit<RoutineItem, 'id' | 'createdAt' | 'history'>) => Promise<{ success: boolean; routine?: RoutineItem; error?: string }>;
+  routinesUpdate: (id: string, data: Partial<Omit<RoutineItem, 'id' | 'createdAt' | 'history'>>) => Promise<{ success: boolean; routine?: RoutineItem; error?: string }>;
+  routinesDelete: (id: string) => Promise<{ success: boolean }>;
+  routinesRunNow: (id: string) => Promise<{ success: boolean; error?: string }>;
+  routinesValidateCron: (expr: string) => Promise<{ valid: boolean }>;
+  /** 订阅 Routines 列表变化（任务执行完成后推送） */
+  onRoutinesUpdated: (cb: (routines: RoutineItem[]) => void) => () => void;
 }
 
 const api: ElectronAPI = {
@@ -246,6 +274,18 @@ const api: ElectronAPI = {
   hookTestRun: (command, cwd, envVars) => ipcRenderer.invoke('hook:testRun', command, cwd, envVars),
   // Web 模式：在默认浏览器中打开本地 Web 版本
   openInBrowser: () => ipcRenderer.invoke('web:open'),
+  // Routines 定时任务（v4.9.0 FEAT-411）
+  routinesList: () => ipcRenderer.invoke('routines:list'),
+  routinesCreate: (data) => ipcRenderer.invoke('routines:create', data),
+  routinesUpdate: (id, data) => ipcRenderer.invoke('routines:update', id, data),
+  routinesDelete: (id) => ipcRenderer.invoke('routines:delete', id),
+  routinesRunNow: (id) => ipcRenderer.invoke('routines:runNow', id),
+  routinesValidateCron: (expr) => ipcRenderer.invoke('routines:validateCron', expr),
+  onRoutinesUpdated: (cb) => {
+    const handler = (_: unknown, routines: unknown) => cb(routines as RoutineItem[]);
+    ipcRenderer.on('routines:updated', handler);
+    return () => ipcRenderer.removeListener('routines:updated', handler);
+  },
   onUpdateStatus: (callback) => {
     const handler = (_: unknown, status: unknown) => callback(status as any);
     ipcRenderer.on('app:updateStatus', handler);
