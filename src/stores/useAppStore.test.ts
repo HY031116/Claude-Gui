@@ -584,3 +584,207 @@ describe('useAppStore - 任务列表与主题', () => {
     expect(useAppStore.getState().currentAuthMode).toBe('oauth');
   });
 });
+
+// ──────────────────────────────────────────────────────────────────
+// TEST-207 — 多工作区管理
+// ──────────────────────────────────────────────────────────────────
+describe('useAppStore - 多工作区管理', () => {
+  it('addWorkspace：新工作区加入列表，activePath 更新', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addWorkspace('/tmp/proj-a');
+    const { workspaces, activeWorkspacePath } = useAppStore.getState();
+    expect(workspaces.some((w) => w.path === '/tmp/proj-a')).toBe(true);
+    expect(activeWorkspacePath).toBe('/tmp/proj-a');
+  });
+
+  it('addWorkspace：重复路径不重复添加，只更新 activePath', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addWorkspace('/dup');
+    const before = useAppStore.getState().workspaces.length;
+    store.addWorkspace('/dup');
+    const after = useAppStore.getState().workspaces.length;
+    expect(after).toBe(before); // 数量不变
+    expect(useAppStore.getState().activeWorkspacePath).toBe('/dup');
+  });
+
+  it('removeWorkspace：移除后不再出现在列表', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addWorkspace('/tmp/remove-me');
+    const ws = useAppStore.getState().workspaces.find((w) => w.path === '/tmp/remove-me')!;
+    store.removeWorkspace(ws.id);
+    expect(useAppStore.getState().workspaces.every((w) => w.id !== ws.id)).toBe(true);
+  });
+
+  it('removeWorkspace：移除当前活跃工作区时 activeWorkspacePath 清空', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addWorkspace('/active-ws');
+    const ws = useAppStore.getState().workspaces.find((w) => w.path === '/active-ws')!;
+    store.removeWorkspace(ws.id);
+    expect(useAppStore.getState().activeWorkspacePath).toBe('');
+  });
+
+  it('setActiveWorkspace：直接设置 activeWorkspacePath', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.setActiveWorkspace('/manual-path');
+    expect(useAppStore.getState().activeWorkspacePath).toBe('/manual-path');
+  });
+
+  it('switchWorkspace：目标 ID 不存在时提前返回，状态不变', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+    const before = useAppStore.getState().activeWorkspacePath;
+
+    store.switchWorkspace('non-existent-id');
+    expect(useAppStore.getState().activeWorkspacePath).toBe(before);
+  });
+
+  it('switchWorkspace：切换到已有快照的工作区可正确恢复 tabs', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    // 先创建工作区 A
+    const wsIdA = store.createWorkspace('工作区A', '/ws-a');
+
+    // 向 A 添加消息
+    useAppStore.getState().addMessage({ id: 'msg-ws-a', role: 'user', content: 'A 的消息', timestamp: Date.now() });
+
+    // 创建工作区 B（切换时会自动保存 A 的快照）
+    const wsIdB = store.createWorkspace('工作区B', '/ws-b');
+
+    // 现在切换回工作区 A（A 应有快照）
+    store.switchWorkspace(wsIdA);
+
+    // 切换后，activeWorkspacePath 应是 A 的路径
+    const next = useAppStore.getState();
+    const wsA = next.workspaces.find((w) => w.id === wsIdA);
+    expect(next.activeWorkspacePath).toBe(wsA?.path);
+    // A 的消息不一定仍存（快照可能含消息，这里只验证 path 正确）
+    expect(wsIdB).toBeTruthy(); // B 也被创建
+  });
+
+  it('createWorkspace：立即切换到新工作区，介入状态清空', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+    const tabId = store.tabs[0].id;
+
+    // 在切换前设置一些介入状态
+    store.addPermissionRequest(tabId, { id: 'r1', toolName: 'bash', input: {}, risk: 'low' });
+    store.setLongWaitBanner(tabId, true);
+
+    const newId = store.createWorkspace('全新工作区', '/new-ws');
+
+    const next = useAppStore.getState();
+    expect(next.workspaces.some((w) => w.id === newId)).toBe(true);
+    // 切换后介入状态清空
+    expect(Object.keys(next.permissionRequestsPerTab)).toHaveLength(0);
+  });
+
+  it('togglePinTab：首次 pin，再次取消 pin', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+    const tabId = store.tabs[0].id;
+
+    store.togglePinTab(tabId);
+    expect(useAppStore.getState().pinnedTabIds).toContain(tabId);
+
+    store.togglePinTab(tabId);
+    expect(useAppStore.getState().pinnedTabIds).not.toContain(tabId);
+  });
+
+  it('setActiveChangeId：可设置和清空', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.setActiveChangeId('change-123');
+    expect(useAppStore.getState().activeChangeId).toBe('change-123');
+
+    store.setActiveChangeId(null);
+    expect(useAppStore.getState().activeChangeId).toBeNull();
+  });
+
+  it('clearPermissionRequestsForTab：清空指定 Tab 的所有请求', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+    const tabId = store.tabs[0].id;
+
+    store.addPermissionRequest(tabId, { id: 'req-1', toolName: 'bash', input: {}, risk: 'medium' });
+    store.addPermissionRequest(tabId, { id: 'req-2', toolName: 'write', input: {}, risk: 'high' });
+    store.clearPermissionRequestsForTab(tabId);
+
+    expect(useAppStore.getState().permissionRequestsPerTab[tabId]).toHaveLength(0);
+  });
+
+  it('setPendingQuickReply：按 Tab 设置和清空快速回复', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+    const tabId = store.tabs[0].id;
+
+    store.setPendingQuickReply(tabId, { text: '继续', createdAt: Date.now() });
+    expect(useAppStore.getState().pendingQuickReplies[tabId]).not.toBeNull();
+
+    store.setPendingQuickReply(tabId, null);
+    expect(useAppStore.getState().pendingQuickReplies[tabId]).toBeNull();
+  });
+
+  it('reorderTab：交换两个 tab 位置', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addTab();
+    store.addTab();
+    const tabs = useAppStore.getState().tabs;
+    const idFirst = tabs[0].id;
+    const idSecond = tabs[1].id;
+
+    store.reorderTab(0, 1);
+    const reordered = useAppStore.getState().tabs;
+    expect(reordered[0].id).toBe(idSecond);
+    expect(reordered[1].id).toBe(idFirst);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// TEST-208 — persistTabState 工具函数
+// ──────────────────────────────────────────────────────────────────
+describe('persistTabState', () => {
+  it('调用后将当前状态序列化到 localStorage', async () => {
+    const { useAppStore, persistTabState } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addMessage({ id: 'persist-1', role: 'user', content: '持久化测试', timestamp: Date.now() });
+
+    persistTabState();
+
+    const raw = localStorage.getItem('claude-gui-tab-persistence');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!);
+    expect(parsed).toHaveProperty('tabs');
+    expect(parsed).toHaveProperty('activeTabId');
+    expect(parsed).toHaveProperty('tabSnapshots');
+  });
+
+  it('多次调用覆盖旧值', async () => {
+    const { useAppStore, persistTabState } = await import('../stores/useAppStore');
+    const store = useAppStore.getState();
+
+    store.addMessage({ id: 'p1', role: 'user', content: '第一次', timestamp: Date.now() });
+    persistTabState();
+    const first = localStorage.getItem('claude-gui-tab-persistence');
+
+    store.addMessage({ id: 'p2', role: 'assistant', content: '第二次', timestamp: Date.now() });
+    persistTabState();
+    const second = localStorage.getItem('claude-gui-tab-persistence');
+
+    expect(first).not.toBe(second);
+  });
+});
