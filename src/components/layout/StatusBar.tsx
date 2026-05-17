@@ -23,7 +23,10 @@ export function StatusBar() {
       ) : (
         <>
           <span className={`status-dot ${session.isConnected ? 'connected' : 'disconnected'}`} />
-          <span className="status-item">
+          <span
+            className="status-item"
+            title={session.isConnected ? 'Claude CLI 会话已就绪' : 'Claude CLI 未启动，请先在委派视图启动一个任务'}
+          >
             {session.isConnected ? '已连接' : '未连接'}
           </span>
         </>
