@@ -570,7 +570,16 @@ export function LaunchPanel({ onLaunched }: LaunchPanelProps) {
             </button>
           ))}
         </div>
-        {activeMode && <span className="lp-hint">{activeMode.desc}</span>}
+        {activeMode && (
+          activeMode.danger
+            ? (
+              <div className="lp-danger-hint">
+                <AlertTriangle size={12} className="lp-danger-hint__icon" />
+                <span>无需任何确认直接执行，Claude 将完全自主操作文件和命令。<strong>无法中途介入</strong>，请确认了解风险后再启动。</span>
+              </div>
+            )
+            : <span className="lp-hint">{activeMode.desc}</span>
+        )}
       </div>
 
       {/* ── Agent ── */}

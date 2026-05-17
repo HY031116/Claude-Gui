@@ -6472,6 +6472,25 @@ body.is-resizing .resize-handle::after {
 
 /* 提示/错误文本 */
 .lp-hint { font-size: 11px; color: var(--text-tertiary); }
+
+/* 完全自主模式警告块 */
+.lp-danger-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  font-size: 11px;
+  color: var(--error-text);
+  line-height: 1.5;
+}
+.lp-danger-hint__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--danger);
+}
 .lp-err  { font-size: 11px; color: var(--danger); }
 .lp-err--block {
   display: flex;
