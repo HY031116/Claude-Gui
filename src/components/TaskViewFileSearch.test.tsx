@@ -216,3 +216,85 @@ describe('FileSearchDropdown', () => {
     });
   });
 });
+
+// ─── TaskView resize handle 拖拽测试 ────────────────────────────────────────
+
+describe('TaskView - resize handle 拖拽', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      tokenUsage: null,
+      toolCalls: [],
+      messages: [],
+    } as Parameters<typeof useAppStore.setState>[0]);
+  });
+
+  it('mousedown 拖拽分隔线左移时应增大右栏宽度', async () => {
+    const { TaskView } = await import('./task/TaskView');
+    const { container } = render(<TaskView activeTabId="tab-resize" />);
+
+    const handle = container.querySelector('.resize-handle') as HTMLElement;
+    expect(handle).not.toBeNull();
+
+    // mousedown 在 x=500
+    fireEvent.mouseDown(handle, { clientX: 500 });
+
+    // 向左拖动 100px（delta = 500 - 400 = +100 → 变宽）
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 400, bubbles: true }));
+
+    // 检查右栏宽度变化（宽度 > 默认值）
+    const reviewPanel = container.querySelector('.review-panel') as HTMLElement;
+    const width = parseInt(reviewPanel.style.width);
+    expect(width).toBeGreaterThan(300); // 默认 REVIEW_PANEL_DEFAULT=320，拖后应>=320
+  });
+
+  it('mouseup 后停止拖拽不再跟随 mousemove', async () => {
+    const { TaskView } = await import('./task/TaskView');
+    const { container } = render(<TaskView activeTabId="tab-resize2" />);
+
+    const handle = container.querySelector('.resize-handle') as HTMLElement;
+    fireEvent.mouseDown(handle, { clientX: 500 });
+
+    // mouseup 停止
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    const reviewPanel = container.querySelector('.review-panel') as HTMLElement;
+    const widthBefore = reviewPanel.style.width;
+
+    // 再次 mousemove 不应改变宽度
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 200, bubbles: true }));
+
+    expect(reviewPanel.style.width).toBe(widthBefore);
+  });
+
+  it('拖拽宽度不超过 REVIEW_PANEL_MAX', async () => {
+    const { TaskView } = await import('./task/TaskView');
+    const { container } = render(<TaskView activeTabId="tab-resize3" />);
+
+    const handle = container.querySelector('.resize-handle') as HTMLElement;
+    fireEvent.mouseDown(handle, { clientX: 500 });
+
+    // 向左拖拽极大距离（超过 MAX）
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: -5000, bubbles: true }));
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    const reviewPanel = container.querySelector('.review-panel') as HTMLElement;
+    const width = parseInt(reviewPanel.style.width);
+    expect(width).toBeLessThanOrEqual(900); // REVIEW_PANEL_MAX
+  });
+
+  it('拖拽宽度不低于 REVIEW_PANEL_MIN', async () => {
+    const { TaskView } = await import('./task/TaskView');
+    const { container } = render(<TaskView activeTabId="tab-resize4" />);
+
+    const handle = container.querySelector('.resize-handle') as HTMLElement;
+    fireEvent.mouseDown(handle, { clientX: 500 });
+
+    // 向右拖拽（delta 为负 → 宽度减小）
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 5000, bubbles: true }));
+    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    const reviewPanel = container.querySelector('.review-panel') as HTMLElement;
+    const width = parseInt(reviewPanel.style.width);
+    expect(width).toBeGreaterThanOrEqual(160); // REVIEW_PANEL_MIN
+  });
+});

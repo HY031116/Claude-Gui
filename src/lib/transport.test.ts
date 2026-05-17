@@ -498,3 +498,71 @@ describe('api 导出', () => {
     delete (window as Record<string, unknown>).electronAPI;
   });
 });
+
+// ── mem / hook / update 方法覆盖 ─────────────────────────────────────────────
+
+describe('webAPI - mem、hook、update 方法', () => {
+  const ok = (data: unknown) => ({ ok: true, json: async () => data });
+
+  it('checkClaudeMem 调用 mem:check', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ success: true }));
+    const { webAPI } = await import('./transport');
+    await webAPI.checkClaudeMem();
+    expect(mockFetch.mock.calls[0][0]).toContain('mem:check');
+  });
+
+  it('searchMemory 调用 mem:search', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ results: [] }));
+    const { webAPI } = await import('./transport');
+    await webAPI.searchMemory('query', {});
+    expect(mockFetch.mock.calls[0][0]).toContain('mem:search');
+  });
+
+  it('timelineMemory 调用 mem:timeline', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ entries: [] }));
+    const { webAPI } = await import('./transport');
+    await webAPI.timelineMemory({});
+    expect(mockFetch.mock.calls[0][0]).toContain('mem:timeline');
+  });
+
+  it('getObservations 调用 mem:get_observations', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ observations: [] }));
+    const { webAPI } = await import('./transport');
+    await webAPI.getObservations(['id1'], {});
+    expect(mockFetch.mock.calls[0][0]).toContain('mem:get_observations');
+  });
+
+  it('hookTestRun 调用 hook:test', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ success: true }));
+    const { webAPI } = await import('./transport');
+    await webAPI.hookTestRun('echo hi', '/cwd', {});
+    expect(mockFetch.mock.calls[0][0]).toContain('hook:test');
+  });
+
+  it('downloadUpdate 调用 update:download', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ success: true }));
+    const { webAPI } = await import('./transport');
+    await webAPI.downloadUpdate();
+    expect(mockFetch.mock.calls[0][0]).toContain('update:download');
+  });
+
+  it('notify:send + Notification.permission=granted 时创建桌面通知', async () => {
+    const MockNotif = vi.fn();
+    vi.stubGlobal('Notification', Object.assign(MockNotif, { permission: 'granted', requestPermission: vi.fn() }));
+
+    const { webAPI } = await import('./transport');
+    const unsub = webAPI.onNotificationClick(vi.fn());
+
+    const sse = MockEventSource.instances[0];
+    sse.emit(JSON.stringify({
+      channel: 'notify:send',
+      payload: { title: '任务完成', body: '内容', tabId: 'tab-1' },
+    }));
+
+    expect(MockNotif).toHaveBeenCalledWith('任务完成', { body: '内容' });
+
+    // 恢复 denied 状态
+    vi.stubGlobal('Notification', { permission: 'denied', requestPermission: vi.fn() });
+    unsub();
+  });
+});
