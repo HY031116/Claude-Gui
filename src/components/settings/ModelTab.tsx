@@ -41,25 +41,36 @@ export function ModelTab({ settings, setSettings, availableAgents, applyPreset }
         </label>
         <select
           className="input"
-          value={settings.model}
-          onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+          // 若当前值不在预设列表中，视为自定义模式，映射到 'custom'
+          value={MODEL_OPTIONS.some(m => m.value === settings.model) ? settings.model : 'custom'}
+          onChange={(e) => {
+            if (e.target.value !== 'custom') {
+              setSettings({ ...settings, model: e.target.value });
+            } else {
+              // 切换到自定义，清空为空字符串让用户填写
+              setSettings({ ...settings, model: '' });
+            }
+          }}
           style={{ fontSize: 12, cursor: 'pointer' }}
         >
           {MODEL_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-          自定义模型
-          <input
-            type="text"
-            className="input"
-            value={settings.model === 'custom' || !MODEL_OPTIONS.some(m => m.value === settings.model) ? settings.model : ''}
-            onChange={(e) => setSettings({ ...settings, model: e.target.value || 'sonnet' })}
-            placeholder="输入模型名称..."
-            style={{ fontSize: 11, padding: '4px 8px', marginTop: 4, width: '100%', fontFamily: 'monospace' }}
-          />
-        </div>
+        {/* 仅在选择"自定义模型..."或当前值不在预设列表中时显示输入框 */}
+        {(settings.model === 'custom' || !MODEL_OPTIONS.some(m => m.value === settings.model)) && (
+          <div style={{ marginTop: 6 }}>
+            <input
+              type="text"
+              className="input"
+              autoFocus
+              value={settings.model === 'custom' ? '' : settings.model}
+              onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+              placeholder="输入模型名称，如 claude-3-7-sonnet-20250219"
+              style={{ fontSize: 11, padding: '4px 8px', width: '100%', fontFamily: 'monospace' }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Effort Level */}

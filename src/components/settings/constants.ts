@@ -10,6 +10,7 @@ export const MODEL_OPTIONS = [
   { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'AWS Bedrock Sonnet v2' },
   { value: 'anthropic/claude-3.5-sonnet', label: 'OpenRouter Claude 3.5 Sonnet' },
   { value: 'meta/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
+  { value: 'custom', label: '自定义模型...' }, // 选此项才显示自定义输入框
 ];
 
 export const EFFORT_LEVELS = [
