@@ -164,6 +164,7 @@ body {
   --message-user-bg: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
 
   /* ══ 组件语义变量（主题感知） ══ */
+  --bg-overlay:          #1c1c38;  /* 浮层背景（高于 elevated，用于 popover/dropdown） */
   --nav-rail-bg:         rgba(7, 7, 20, 0.88);
   --accent-glass:        rgba(139, 92, 246, 0.15);
   --accent-glass-border: rgba(139, 92, 246, 0.3);
@@ -198,6 +199,7 @@ body {
   --bg-tertiary:   #dde0f0;
 
   /* 组件语义变量亮色覆盖 */
+  --bg-overlay:          #ffffff;  /* 亮色浮层背景 */
   --nav-rail-bg:         rgba(245, 245, 252, 0.95);
   --accent-glass:        rgba(124, 58, 237, 0.10);
   --accent-glass-border: rgba(124, 58, 237, 0.20);
