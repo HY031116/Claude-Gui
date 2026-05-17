@@ -4,7 +4,7 @@
  * 顶部概览栏汇总当前会话关键指标
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { GitBranch, FolderOpen, Clock, DollarSign, Cpu, FileText, RefreshCw, CheckSquare } from 'lucide-react';
+import { GitBranch, FolderOpen, Clock, DollarSign, Cpu, FileText, RefreshCw, CheckSquare, History } from 'lucide-react';
 import { GitPanel } from '../GitPanel';
 import { FileExplorer } from '../FileExplorer';
 import { HistoryPanel } from '../HistoryPanel';
@@ -12,7 +12,7 @@ import { CostPanel } from '../CostPanel';
 import { useAppStore } from '../../stores/useAppStore';
 import type { ToolCall } from '../../types';
 
-type ArtifactsTab = 'ai' | 'git' | 'files' | 'history' | 'cost';
+type ArtifactsTab = 'ai' | 'git' | 'files' | 'history' | 'cost' | 'changes';
 
 // ─── 工具名集合 ────────────────────────────────────────────────────────────────
 
@@ -488,6 +488,7 @@ export function ArtifactsView() {
     { id: 'git', label: 'Git', icon: GitBranch },
     { id: 'files', label: '文件', icon: FolderOpen },
     { id: 'history', label: '历史', icon: Clock },
+    { id: 'changes', label: '变更历史', icon: History },
     { id: 'cost', label: '成本', icon: DollarSign },
   ];
 
@@ -530,7 +531,182 @@ export function ArtifactsView() {
         {activeTab === 'git' && <GitPanel />}
         {activeTab === 'files' && <FileExplorer />}
         {activeTab === 'history' && <HistoryPanel />}
+        {activeTab === 'changes' && <ChangeHistoryPanel />}
         {activeTab === 'cost' && <CostPanel />}
+      </div>
+    </div>
+  );
+}
+
+// ─── 变更历史面板（FEAT-513）────────────────────────────────────────────────────
+
+/** 一个「任务批次」= 同一条 assistant 消息内的所有文件修改记录 */
+interface ChangeGroup {
+  msgIdx: number;
+  timestamp: number;
+  files: { path: string; op: string; bytes: number }[];
+}
+
+function ChangeHistoryPanel() {
+  const messages = useAppStore((s) => s.messages);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const groups = useMemo<ChangeGroup[]>(() => {
+    const result: ChangeGroup[] = [];
+    messages.forEach((msg, msgIdx) => {
+      const files: ChangeGroup['files'] = [];
+      (msg.toolCalls ?? []).forEach((tc) => {
+        if (!FILE_MODIFY_TOOLS.has(tc.name) || tc.status !== 'success') return;
+        const path = extractFilePath(tc);
+        if (!path) return;
+        const content = (tc.arguments?.content as string | undefined) ?? '';
+        files.push({
+          path,
+          op: FILE_WRITE_TOOLS.has(tc.name) ? '写入' : '编辑',
+          bytes: content.length,
+        });
+      });
+      if (files.length > 0) {
+        result.push({
+          msgIdx,
+          timestamp: (msg as unknown as { timestamp?: number }).timestamp ?? 0,
+          files,
+        });
+      }
+    });
+    return result.reverse();
+  }, [messages]);
+
+  const toggle = (idx: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  if (groups.length === 0) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', height: '100%', gap: 10,
+        color: 'var(--text-muted)', fontSize: 13,
+      }}>
+        <History size={28} />
+        <div>暂无文件变更记录</div>
+        <div style={{ fontSize: 11 }}>Claude 修改文件后，变更历史将按任务批次聚合显示</div>
+      </div>
+    );
+  }
+
+  const fmtTs = (ts: number) => {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* 标题栏 */}
+      <div style={{
+        padding: '10px 16px', borderBottom: '1px solid var(--border-color)',
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <History size={14} color="var(--accent-color)" />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>变更历史（{groups.length} 批次）</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          共 {groups.reduce((s, g) => s + g.files.length, 0)} 个文件操作
+        </span>
+      </div>
+
+      {/* 列表 */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {groups.map((g, i) => {
+          const isOpen = expanded.has(g.msgIdx);
+          // 按文件去重，只保留最后一次操作
+          const uniqueFiles = Array.from(
+            new Map(g.files.map(f => [f.path, f])).values()
+          );
+          return (
+            <div key={g.msgIdx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+              {/* 任务卡片标题行 */}
+              <div
+                onClick={() => toggle(g.msgIdx)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '9px 14px', cursor: 'pointer',
+                  background: i % 2 === 0 ? 'var(--bg-primary)' : 'var(--bg-secondary)',
+                }}
+              >
+                {/* 序号圆点 */}
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                  background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, color: 'var(--text-muted)',
+                }}>
+                  {groups.length - i}
+                </div>
+                {/* 时间 */}
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>
+                  {fmtTs(g.timestamp)}
+                </span>
+                {/* 文件数摘要 */}
+                <span style={{ fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
+                  {uniqueFiles.length} 个文件变更
+                </span>
+                {/* 操作类型标签 */}
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  {Array.from(new Set(g.files.map(f => f.op))).map(op => (
+                    <span key={op} style={{
+                      fontSize: 10, background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 4, padding: '1px 5px', color: 'var(--text-secondary)',
+                    }}>{op}</span>
+                  ))}
+                </div>
+                {/* 展开/收起 */}
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {isOpen ? '▲' : '▼'}
+                </span>
+              </div>
+
+              {/* 展开：文件列表 */}
+              {isOpen && (
+                <div style={{ paddingLeft: 20, paddingBottom: 6, background: 'var(--bg-secondary)' }}>
+                  {uniqueFiles.map((f) => (
+                    <div key={f.path} style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '4px 14px 4px 0', fontSize: 11,
+                    }}>
+                      <FileText size={11} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                      <span style={{
+                        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        color: 'var(--text-secondary)',
+                      }} title={f.path}>
+                        {basename(f.path)}
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        background: f.op === '写入' ? 'rgba(34,197,94,0.12)' : 'rgba(99,102,241,0.12)',
+                        color: f.op === '写入' ? '#22c55e' : '#818cf8',
+                        borderRadius: 3, padding: '1px 5px', flexShrink: 0,
+                      }}>
+                        {f.op}
+                      </span>
+                      {f.bytes > 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
+                          {(f.bytes / 1024).toFixed(1)} KB
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

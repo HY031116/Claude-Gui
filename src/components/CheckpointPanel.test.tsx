@@ -1,6 +1,7 @@
 /**
  * CheckpointPanel.test.tsx
- * 测试 CheckpointPanel：空状态、有记录、展开/折叠、确认还原弹窗
+ * 测试 CheckpointPanel 时间轴视图（FEAT-512）：
+ * 空状态、Checkpoint 列表渲染、展开/折叠、回滚确认弹窗
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -68,7 +69,7 @@ describe('CheckpointPanel - 空状态', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    expect(screen.getByText('当前会话暂无文件修改记录')).toBeInTheDocument();
+    expect(screen.getByText('暂无文件修改记录')).toBeInTheDocument();
   });
 
   it('消息中没有 Write/Edit toolCalls 时显示空状态', async () => {
@@ -84,7 +85,7 @@ describe('CheckpointPanel - 空状态', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    expect(screen.getByText('当前会话暂无文件修改记录')).toBeInTheDocument();
+    expect(screen.getByText('暂无文件修改记录')).toBeInTheDocument();
   });
 
   it('toolCalls 状态不是 success 时不显示记录', async () => {
@@ -109,14 +110,14 @@ describe('CheckpointPanel - 空状态', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    expect(screen.getByText('当前会话暂无文件修改记录')).toBeInTheDocument();
+    expect(screen.getByText('暂无文件修改记录')).toBeInTheDocument();
   });
 });
 
 // ── 有记录时的渲染 ────────────────────────────────────────────────────────────
 
 describe('CheckpointPanel - 有记录', () => {
-  it('Write 操作显示文件快照条目数量', async () => {
+  it('Write 操作显示时间轴快照数量', async () => {
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
     useAppStore.getState().addMessage(makeWriteMsg('w1', '/project/src/App.tsx'));
@@ -124,22 +125,11 @@ describe('CheckpointPanel - 有记录', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    expect(screen.getByText(/文件快照（1 条）/)).toBeInTheDocument();
-    expect(screen.getByText(/共 1 个文件/)).toBeInTheDocument();
+    expect(screen.getByText(/变更时间轴（1 个快照）/)).toBeInTheDocument();
+    expect(screen.getByText(/1 个文件变更/)).toBeInTheDocument();
   });
 
-  it('显示文件路径的后 3 段（短路径）', async () => {
-    const { useAppStore } = await import('../stores/useAppStore');
-    useAppStore.getState().clearMessages();
-    useAppStore.getState().addMessage(makeWriteMsg('w2', '/very/long/project/src/components/App.tsx'));
-
-    const { CheckpointPanel } = await import('./CheckpointPanel');
-    render(<CheckpointPanel />);
-
-    expect(screen.getByText('src/components/App.tsx')).toBeInTheDocument();
-  });
-
-  it('多个文件显示正确的分组数量', async () => {
+  it('多个消息各自生成独立 Checkpoint', async () => {
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
     useAppStore.getState().addMessage(makeWriteMsg('w3', '/proj/a.ts'));
@@ -148,11 +138,11 @@ describe('CheckpointPanel - 有记录', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    expect(screen.getByText(/文件快照（2 条）/)).toBeInTheDocument();
-    expect(screen.getByText(/共 2 个文件/)).toBeInTheDocument();
+    expect(screen.getByText(/变更时间轴（2 个快照）/)).toBeInTheDocument();
+    expect(screen.getByText(/共 2 次文件操作/)).toBeInTheDocument();
   });
 
-  it('Edit 操作显示"编辑"标签（点击展开后可见）', async () => {
+  it('Edit 操作显示"编辑"操作标签', async () => {
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
     useAppStore.getState().addMessage(makeEditMsg('e1', '/proj/utils.ts'));
@@ -160,14 +150,10 @@ describe('CheckpointPanel - 有记录', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    // 展开文件组
-    const toggleBtn = screen.getByRole('button', { name: /utils.ts/i });
-    fireEvent.click(toggleBtn);
-
     expect(screen.getByText('编辑')).toBeInTheDocument();
   });
 
-  it('Write 操作展开后显示"写入"标签和"还原"按钮', async () => {
+  it('Write 操作显示"写入"操作标签', async () => {
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
     useAppStore.getState().addMessage(makeWriteMsg('w5', '/proj/main.ts'));
@@ -175,18 +161,25 @@ describe('CheckpointPanel - 有记录', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    const toggleBtn = screen.getByRole('button', { name: /main.ts/i });
-    fireEvent.click(toggleBtn);
-
     expect(screen.getByText('写入')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /还原/ })).toBeInTheDocument();
+  });
+
+  it('每个 Checkpoint 显示"回滚到此点"按钮', async () => {
+    const { useAppStore } = await import('../stores/useAppStore');
+    useAppStore.getState().clearMessages();
+    useAppStore.getState().addMessage(makeWriteMsg('roll1', '/proj/index.ts'));
+
+    const { CheckpointPanel } = await import('./CheckpointPanel');
+    render(<CheckpointPanel />);
+
+    expect(screen.getByRole('button', { name: /回滚到此点/ })).toBeInTheDocument();
   });
 });
 
 // ── 展开 / 折叠 ───────────────────────────────────────────────────────────────
 
 describe('CheckpointPanel - 展开/折叠', () => {
-  it('点击文件标题可展开和折叠条目列表', async () => {
+  it('点击 Checkpoint 标题可展开和折叠文件列表', async () => {
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
     useAppStore.getState().addMessage(makeWriteMsg('fold1', '/proj/index.ts'));
@@ -194,40 +187,35 @@ describe('CheckpointPanel - 展开/折叠', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    const toggleBtn = screen.getByRole('button', { name: /index.ts/i });
+    // 初始折叠，找不到 title
+    expect(screen.queryByTitle('/proj/index.ts')).not.toBeInTheDocument();
 
-    // 初始折叠，不显示"还原"
-    expect(screen.queryByRole('button', { name: /还原/ })).not.toBeInTheDocument();
-
-    // 点击展开
-    fireEvent.click(toggleBtn);
-    expect(screen.getByRole('button', { name: /还原/ })).toBeInTheDocument();
+    // 直接点击文字 span（事件冒泡到有 onClick 的父 div）
+    fireEvent.click(screen.getByText(/1 个文件变更/));
+    expect(screen.getByTitle('/proj/index.ts')).toBeInTheDocument();
 
     // 再次点击折叠
-    fireEvent.click(toggleBtn);
-    expect(screen.queryByRole('button', { name: /还原/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/1 个文件变更/));
+    expect(screen.queryByTitle('/proj/index.ts')).not.toBeInTheDocument();
   });
 });
 
-// ── 确认还原弹窗 ──────────────────────────────────────────────────────────────
+// ── 回滚确认弹窗 ──────────────────────────────────────────────────────────────
 
-describe('CheckpointPanel - 确认还原弹窗', () => {
-  it('点击"还原"按钮显示确认弹窗', async () => {
+describe('CheckpointPanel - 回滚确认弹窗', () => {
+  it('点击"回滚到此点"显示确认弹窗', async () => {
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
-    useAppStore.getState().addMessage(makeWriteMsg('dlg1', '/workspace/project/src/components/App.tsx'));
+    useAppStore.getState().addMessage(makeWriteMsg('dlg1', '/workspace/project/src/App.tsx'));
 
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    // 展开（shortPath 只显示最后 3 段）
-    fireEvent.click(screen.getByRole('button', { name: /App.tsx/i }));
-    // 点击还原
-    fireEvent.click(screen.getByRole('button', { name: /还原/ }));
+    fireEvent.click(screen.getByRole('button', { name: /回滚到此点/ }));
 
-    expect(screen.getByText('确认还原文件？')).toBeInTheDocument();
-    // 确认弹窗显示完整路径
-    expect(screen.getByText('/workspace/project/src/components/App.tsx')).toBeInTheDocument();
+    expect(screen.getByText('确认回滚到此快照点？')).toBeInTheDocument();
+    // shortPath('/workspace/project/src/App.tsx') = 'project/src/App.tsx'
+    expect(screen.getByText('project/src/App.tsx')).toBeInTheDocument();
   });
 
   it('点击"取消"关闭确认弹窗', async () => {
@@ -238,12 +226,11 @@ describe('CheckpointPanel - 确认还原弹窗', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: /index.tsx/i }));
-    fireEvent.click(screen.getByRole('button', { name: /还原/ }));
-    expect(screen.getByText('确认还原文件？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /回滚到此点/ }));
+    expect(screen.getByText('确认回滚到此快照点？')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '取消' }));
-    expect(screen.queryByText('确认还原文件？')).not.toBeInTheDocument();
+    expect(screen.queryByText('确认回滚到此快照点？')).not.toBeInTheDocument();
   });
 
   it('点击遮罩层关闭确认弹窗', async () => {
@@ -254,38 +241,35 @@ describe('CheckpointPanel - 确认还原弹窗', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     const { container } = render(<CheckpointPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: /store.ts/i }));
-    fireEvent.click(screen.getByRole('button', { name: /还原/ }));
-    expect(screen.getByText('确认还原文件？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /回滚到此点/ }));
+    expect(screen.getByText('确认回滚到此快照点？')).toBeInTheDocument();
 
-    // 点击遮罩（position:fixed 的外层 div，不是弹窗内容区）
     const overlay = container.querySelector('[style*="position: fixed"]') as HTMLElement;
     fireEvent.click(overlay);
-    expect(screen.queryByText('确认还原文件？')).not.toBeInTheDocument();
+    expect(screen.queryByText('确认回滚到此快照点？')).not.toBeInTheDocument();
   });
 
-  it('点击"确认还原"调用 writeFile 并显示"已还原"', async () => {
+  it('只有一个 checkpoint 时回滚自身 entries', async () => {
     mockElectronAPI.writeFile.mockResolvedValue({ success: true });
 
     const { useAppStore } = await import('../stores/useAppStore');
     useAppStore.getState().clearMessages();
-    useAppStore.getState().addMessage(makeWriteMsg('restore1', '/proj/target.ts', '旧内容'));
+    useAppStore.getState().addMessage(makeWriteMsg('single', '/proj/target.ts', '旧内容'));
 
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: /target.ts/i }));
-    fireEvent.click(screen.getByRole('button', { name: /还原/ }));
-    
+    fireEvent.click(screen.getByRole('button', { name: /回滚到此点/ }));
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '确认还原' }));
+      fireEvent.click(screen.getByRole('button', { name: '确认回滚' }));
     });
 
     await waitFor(() => {
       expect(mockElectronAPI.writeFile).toHaveBeenCalledWith('/proj/target.ts', '旧内容');
     });
     await waitFor(() => {
-      expect(screen.getByText('已还原')).toBeInTheDocument();
+      expect(screen.getByText('已回滚')).toBeInTheDocument();
     });
   });
 
@@ -299,11 +283,10 @@ describe('CheckpointPanel - 确认还原弹窗', () => {
     const { CheckpointPanel } = await import('./CheckpointPanel');
     render(<CheckpointPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: /fail.ts/i }));
-    fireEvent.click(screen.getByRole('button', { name: /还原/ }));
+    fireEvent.click(screen.getByRole('button', { name: /回滚到此点/ }));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '确认还原' }));
+      fireEvent.click(screen.getByRole('button', { name: '确认回滚' }));
     });
 
     await waitFor(() => {
