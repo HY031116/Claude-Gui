@@ -1,30 +1,123 @@
-# Claude Code GUI — Bug 追踪 TODO（v4.3.0 → v4.6.0）
+# Claude Code GUI — 版本规划 TODO（v4.8.0 → v5.0.0）
 
-> 版本目标：聚焦"交互与状态同步"稳定化，不追加大功能。  
-> 标签格式：`[BUG]` 已知缺陷 · `[RISK]` 潜在风险 · `[DEBT]` 技术债 · `[TEST]` 需补测试
-
----
-
-## v4.6.0 — 状态清理收尾版（规划中）
-
-> 前提：v4.5.0 已发布，所有 DoD 完成，56 tests passed。
-
-### 🟡 优先级 P1：应在本版修复
-
-#### DEBT-002 permissionRequests 清理时机分散，单一遗漏即可残留
-- **代码行**：ChatPanel.tsx L761（message-done）· L798（message-error）· L1144（handleStop）· 权限 resolved 处理 2 处
-- **描述**：权限请求清理共 5 个分散调用点；任意一处遗漏都会导致介入中心残留过期审批条目。现状是靠"5 处都写对"维持正确，脆性高。
-- **方向**：将清理收敛为一个 `clearPermissionRequestsForTab` 调用入口，其他位置通过消费已有 action 而非直接 set；或将清理责任归到 `setIsProcessing(false)` 时自动触发（isProcessing 从 true → false 表示一轮结束）
-- **优先级**：P1（维护安全性）
-
-#### TEST-202 DEBT-002 修复后补充回归测试
-- **描述**：验证 5 个清理路径（message-done / message-error / handleStop / permission-resolved ×2）均正确清空，且相互隔离（Tab A 清理不影响 Tab B）
+> 上次更新：2026-05-17（UI 设计修复 + 大版本路线规划）  
+> 标签格式：`[FEAT]` 新功能 · `[OPT]` 优化 · `[DEBT]` 技术债 · `[TEST]` 需补测试  
+> 当前状态：v4.8.0 已发布，测试覆盖率 35.28%，DEBT-002 已修复
 
 ---
 
-### 📋 v4.6.0 新需求收集（待补充）
+## v4.9.0 — 「感知 + 生态」大版（规划中）
 
-> 请在此处登记 v4.6.0 希望新增的功能、优化或用户反馈。
+> 目标：让指挥中心成为真正的控制台，同时建立自动化地基
+
+### 模块一：指挥中心智能感知
+
+#### FEAT-401 智能状态分组
+- **描述**：新增 `isNeedsInput()` 启发式检测函数，匹配最后一条 assistant 消息是否含问号/选项列表/`Did you mean` 模式，符合则分入「🟡 需要输入」分组
+- **文件**：`src/components/views/CommandCenter.tsx` + `src/stores/useAppStore.ts`（新增 `pinnedTabIds: Set<string>`）
+- **优先级**：P1
+
+#### FEAT-402 会话图标系统
+- **描述**：`✽`（旋转/处理中）·`✻`（等待输入）·`∙`（已完成），对齐 CLI `claude agents` TUI 的图标体系
+- **文件**：`src/components/views/CommandCenter.tsx`
+- **优先级**：P1（与 FEAT-401 同步实现）
+
+#### FEAT-403 Peek 面板（UI 框架）
+- **描述**：点击会话行就地展开 Peek 面板，显示最近 120 字 + 快速回复输入框；发送功能 v4.9 先用 stub（显示"连接 Electron 后可用"），Escape/再次点击收起
+- **文件**：`src/components/views/CommandCenter.tsx` + `src/index.css`（`.peek-panel` 系列样式）
+- **依赖**：FEAT-401（状态分组先行）
+- **优先级**：P1
+
+#### FEAT-404 会话 Pin 置顶
+- **描述**：会话行增加 `☆` 按钮；Pin 状态存 `pinnedTabIds: Set<string>` 于 store 并持久化到 localStorage；置顶组常驻最上，不随状态变化改变位置
+- **文件**：`src/stores/useAppStore.ts` · `src/components/views/CommandCenter.tsx`
+- **优先级**：P2
+
+#### FEAT-405 今日统计增强
+- **描述**：统计行增加「节省时间估算」= token 总量 / 5000 × 30min（带 `~` 前缀标注为估算）；增加当日成本汇总
+- **文件**：`src/components/views/CommandCenter.tsx`
+- **优先级**：P2
+
+---
+
+### 模块二：自动化生态
+
+#### FEAT-411 Routines 定时任务
+- **描述**：监控视图新增「定时任务」Tab；表单：任务描述 + cron 频率选择器（预设：每小时/每日/自定义）+ 工作目录；底层 `node-cron` + Electron；显示任务历史 + 下次运行倒计时
+- **文件**：`src/components/RoutinesPanel.tsx`（新建）+ `electron/routines-service.ts`（新建）
+- **优先级**：P1
+
+#### FEAT-412 系统通知集成
+- **描述**：「需要输入」分组出现新会话时触发 Electron `Notification` API；设置面板新增通知开关（按类型）；点击通知跳转对应 Tab
+- **文件**：`electron/main.ts` + `src/components/SettingsSubPanels.tsx`（通知设置）+ `src/App.tsx`
+- **依赖**：FEAT-401（需要输入检测先行）
+- **优先级**：P2
+
+#### FEAT-413 Hooks 可视化配置器
+- **描述**：HooksPanel 从纯 JSON 编辑器 → 表单驱动：事件类型下拉 + Matcher 输入 + 命令输入 + 拖拽排序；右上角「切换 JSON 视图」逃生口保留
+- **文件**：`src/components/HooksPanel.tsx`
+- **优先级**：P2
+
+---
+
+### 质量目标
+
+#### TEST-401 覆盖率冲刺至 40%
+- 针对 FEAT-401~413 的新功能补全集成测试
+- **目标**：35.28% → 40%（+4.72%，约需 30~40 条新测试）
+
+---
+
+## v5.0.0 — 「产物闭环 + Peek 真实连接」大版（规划中）
+
+> 目标：从代码变更到 PR 合并在 GUI 内完整闭环；Peek 面板完成真实交互
+
+### 模块一：Peek 面板后端打通
+
+#### FEAT-501 Peek 快速回复真实发送
+- **描述**：Peek 面板发送框接入 `cli:sendMessage` IPC；发送后 Peek 收起，Tab 消息实时更新
+- **文件**：`src/components/views/CommandCenter.tsx` + `electron/cli-service.ts`
+- **依赖**：FEAT-403（UI 框架）
+- **优先级**：P1
+
+#### FEAT-502 Peek 内权限审批
+- **描述**：会话状态为「权限请求」时，Peek 内直接显示「允许 / 拒绝」按钮，无需跳转审查视图；接入 `handleApprovalAction`
+- **文件**：`src/components/views/CommandCenter.tsx`
+- **依赖**：FEAT-501
+- **优先级**：P1
+
+---
+
+### 模块二：产物完整闭环
+
+#### FEAT-511 PR 创建与状态集成
+- **描述**：产物视图新增 PR 区；有未 Push 提交时显示「创建 PR」；调用 GitHub CLI 创建 PR，title/body 从最近会话摘要自动生成；PR 状态点（待检查 `●`黄 / 通过 `●`绿 / 合并 `●`紫）回显到指挥中心会话行
+- **文件**：`src/components/views/ArtifactsView.tsx` + `electron/git-service.ts`（扩展 PR 相关 IPC）
+- **优先级**：P1
+
+#### FEAT-512 Checkpoint 可视化回滚
+- **描述**：CheckpointPanel 升级为时间轴视图；每快照显示：时间 + 触发操作 + 文件变更数；「回滚到此点」按钮 + 确认弹窗（列出将被丢弃的变更文件列表）
+- **文件**：`src/components/CheckpointPanel.tsx`
+- **优先级**：P2
+
+#### FEAT-513 文件变更历史（按任务分组）
+- **描述**：ArtifactsView 新增「变更历史」Tab；会话文件变更按任务卡片聚合：摘要 + 变更文件数 + ±行数 + 时间戳
+- **文件**：`src/components/views/ArtifactsView.tsx`
+- **优先级**：P2
+
+---
+
+### 质量目标
+
+#### TEST-501 覆盖率冲刺至 45%
+- PR 集成 / Peek 后端 / Checkpoint 新增集成测试
+- **目标**：40% → 45%
+
+---
+
+## 历史版本记录（v4.3.0 → v4.8.0 已完成）
+
+> 详见 CHANGELOG.md
 
 ---
 
