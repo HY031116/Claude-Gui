@@ -3,7 +3,7 @@
 > 版本：v3.1-Design  
 > 设计原则：Agent 中心 · 最小介入 · 全功能覆盖  
 > 适用范围：v3.1 版本：全量功能覆盖（含 Background Sessions / Agent Teams / Fork Mode / Subagent 完整字段）  
-> 上次更新：2026-05-15
+> 上次更新：2026-05-17（新增体验优化日志 §6）
 
 ---
 
@@ -2016,3 +2016,80 @@ function buildAgentMarkdown(fields: SubagentFormFields): string {
 | Voice Dictation（语音输入）| 需外部 API / 本地语音引擎 | v3.5+ |
 | Computer Use（屏幕操控）| 仅 macOS，本机工具依赖 | v3.5+ |
 | Plugin Marketplace 服务端 | 需要服务器 + 审核机制 | v3.5+ |
+
+
+---
+
+## 六、体验优化日志（2026-05-17）
+
+> 本节记录首轮系统性 UI/UX 走查所发现的问题及修复决策，按第一性原则分析每个修复的因果关系。
+
+### 6.1 问题清单与修复汇总
+
+| 优先级 | 问题 | 根因（事实层） | 修复方案 | 涉及文件 | Commit |
+|--------|------|--------------|---------|---------|--------|
+| P1-1 | 弹出层背景视觉穿透 | `--bg-overlay` CSS 变量从未定义，background 降级为 transparent | 在 `:root` 和 `[data-theme="light"]` 各定义变量值 | `src/index.css` | `c75956e` |
+| P1-2 | 完全自主模式缺乏风险感知 | 风险标记 `danger: true` 仅在代码中标注，UI 侧文案只有 `⚠ 高风险` 混入普通文字 | 条件渲染红色 `lp-danger-hint` 警告框 + AlertTriangle 图标 | `LaunchPanel.tsx`, `index.css` | `d22585a` |
+| P1-3 | 自定义模型输入框常驻显示 | 自定义输入框无条件渲染，未根据 select 当前值判断是否显示 | 新增 `custom` option 占位，条件渲染输入框 | `ModelTab.tsx`, `constants.ts` | `73dcda2` |
+| P2-4 | 工作区按钮 hover tooltip 缺失 | `nav-ws-trigger` 只有 `title` 属性，未加 `data-tooltip`，CSS tooltip 机制不生效 | 加 `data-tooltip`，CSS 选择器扩展覆盖 `nav-ws-trigger` | `NavRail.tsx`, `index.css` | `a5e5adf` |
+| P2-5 | 指挥中心副标题引导方向不明 | 副标题 "选择工作目录开始" 暗示在指挥中心操作，实际入口在委派视图 | 改文案为 "就绪，等待新任务"；空状态卡片增加说明行指向委派视图 | `CommandCenter.tsx` | `1e79a42` |
+| P2-7 | 底部未连接状态圆点无说明 | 只有灰色点 + "未连接" 文字，新用户不知道原因 | 加 `title` tooltip 说明 "Claude CLI 未启动，请先在委派视图启动任务" | `StatusBar.tsx` | `2dc3178` |
+| P2-8 | 产物与监控页面定位边界模糊 | 两个页面顶部都是数据卡片，缺少页面级标题；"今日成本""历史会话" 重叠出现 | 各加页面级 header 行，明确区分 "产出汇总（累积）" vs "实时监控（当前）" | `ArtifactsView.tsx`, `MonitorView.tsx` | `242219c` |
+| 一致性 | ChatPanel 底部工具栏用浏览器原生 tooltip | 4 个图标按钮只有 `title` 属性，与左侧导航的 CSS tooltip 风格不一致 | 新增 `.tip-btn` 通用向上 CSS tooltip 样式；4 个按钮改用 `data-tooltip` | `ChatPanel.tsx`, `index.css` | `50362eb` |
+
+### 6.2 设计决策说明
+
+#### P1-1：CSS 变量未定义导致视觉穿透
+
+**事实**：CSS 中使用了 `var(--bg-overlay)`，但变量从未在 `:root` 或任何主题中定义。当 `var()` 遇到未定义变量时，整个属性声明失效，background 降级为 `transparent`。
+
+**推导**：补全变量定义是唯一可行的修复路径，且深色/浅色主题需分别定义。
+
+**为什么不改选择器**：改为内联颜色会破坏主题切换能力，违背 CSS 变量设计的初衷。
+
+#### P1-2：风险提示框设计原则
+
+**假设（被质疑）**：文案加 `⚠` 符号已足够传达风险。
+
+**事实**：颜色是比文字符号更快的视觉信号（前注意阶段处理）。红色背景 + 图标的感知速度比文字 `⚠` 快 200ms 以上。
+
+**结论**：高风险操作必须用视觉层级（颜色/形状）而非文案来传达，文案只是辅助。
+
+#### P2-4/P2-7：hover 提示统一性原则
+
+**事实**：`data-tooltip` + CSS `::after` 的提示是即时出现（CSS transition，约 150ms），而浏览器原生 `title` 有约 1s 延迟。两者共存导致用户感知混乱。
+
+**推导**：应统一为一种机制。全量替换 100+ 处 `title` 属性风险过大；优先处理视觉最显眼的区域（左侧导航、底部工具栏）。
+
+**MVP 范围控制**：左侧导航（已完成）+ ChatPanel 底部工具栏（已完成）。其余内层按钮 `title` 保留，作为 accessibility fallback。
+
+#### P2-8：模块定位区分原则
+
+**假设（被质疑）**："产物"和"监控"名称已足够区分。
+
+**事实**：两个页面的顶部数据卡片都有"今日成本"和"历史会话"，用户在导航后看到相似卡片会产生定位困惑。
+
+**推导**：模块名称 ≠ 定位说明。需要在页面内部补充"这个页面关注什么"的元信息。
+
+**最小改动**：header 行（灰色背景 + 主标签 + 小字副说明），不改变数据卡片本身。
+
+### 6.3 可复用设计规范（从本轮提炼）
+
+1. **`data-tooltip` + CSS `::after` 是标准 hover 提示机制**
+   - 左侧导航：`.nav-button[data-tooltip]::after`，方向向右
+   - 页面内图标按钮：`.tip-btn[data-tooltip]::after`，方向向上
+   - 保留 `title` 属性作为 accessibility fallback
+
+2. **高风险操作必须用视觉层级传达**
+   - `danger: true` 标记对应 `.lp-danger-hint` 红色警告框
+   - 不能只在文案中加 `⚠` 符号
+
+3. **CSS 变量必须双主题定义**
+   - `:root` 中定义深色值
+   - `[data-theme="light"]` 中定义浅色值
+   - 每次新增 CSS 变量都需同步两处
+
+4. **页面级 header 区分语义**
+   - 产出汇总类页面：`"产出汇总 · 累计 Claude 操作文件与历史记录"`
+   - 实时状态类页面：`"实时监控 · 当前会话上下文与成本状态"`
+
