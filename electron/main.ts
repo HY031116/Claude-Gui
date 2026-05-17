@@ -11,7 +11,7 @@ import { RoutinesService, type Routine, type RoutineHistoryEntry } from './routi
 import {
   getGitStatus, getGitDiff, gitAdd, gitUnstage, gitCommit,
   getGitLog, isGitRepo, getGitBranch, gitPush, gitPull, getGitRemotes,
-  listWorktrees, addWorktree, removeWorktree, pruneWorktrees,
+  listWorktrees, addWorktree, removeWorktree, pruneWorktrees, createPullRequest,
 } from './git-service';
 import { startWebServer, WEB_PORT } from './web-server';
 
@@ -424,6 +424,11 @@ ipcMain.handle('git:push', async (_e, cwd: string, remote?: string, branch?: str
 
 ipcMain.handle('git:pull', async (_e, cwd: string, remote?: string, branch?: string) => {
   return gitPull(cwd, remote, branch);
+});
+
+// FEAT-511: GitHub CLI PR 创建
+ipcMain.handle('git:createPR', async (_e, cwd: string, title: string, body: string, base?: string, draft?: boolean) => {
+  return createPullRequest(cwd, title, body, base, draft ?? false);
 });
 
 // ── Git Worktree ──────────────────────────────────────────────────────────────

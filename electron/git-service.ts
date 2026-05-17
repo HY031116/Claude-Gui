@@ -309,3 +309,58 @@ export function pruneWorktrees(cwd: string): { success: boolean; output?: string
     ? { success: true, output: r.stdout }
     : { success: false, error: r.stderr };
 }
+
+// ===================== GitHub PR 创建 =====================
+
+/**
+ * 使用 GitHub CLI（gh）创建 Pull Request。
+ * 要求：用户已安装 gh 并完成 `gh auth login`。
+ * @param cwd   工作目录（必须是 git 仓库）
+ * @param title PR 标题
+ * @param body  PR 描述正文（可空）
+ * @param base  目标基础分支（不传则由 gh 自动推断）
+ * @param draft 是否以草稿形式创建
+ */
+export async function createPullRequest(
+  cwd: string,
+  title: string,
+  body: string,
+  base?: string,
+  draft = false,
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  const args = ['pr', 'create', '--title', title, '--body', body];
+  if (base) args.push('--base', base);
+  if (draft) args.push('--draft');
+
+  return new Promise((resolve) => {
+    const proc = spawn('gh', args, { cwd, env: process.env });
+    const timer = setTimeout(() => {
+      proc.kill();
+      resolve({ success: false, error: 'GitHub CLI 操作超时（60s）' });
+    }, 60000);
+
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      // gh pr create 成功时 stdout 最后一行是 PR URL
+      const url = stdout.trim().match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/)?.[0];
+      if (code === 0) {
+        resolve({ success: true, url: url ?? stdout.trim() });
+      } else {
+        resolve({ success: false, error: stderr.trim() || stdout.trim() || 'PR 创建失败' });
+      }
+    });
+    proc.on('error', (e) => {
+      clearTimeout(timer);
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') {
+        resolve({ success: false, error: '未找到 GitHub CLI (gh)，请先安装：https://cli.github.com' });
+      } else {
+        resolve({ success: false, error: e.message });
+      }
+    });
+  });
+}

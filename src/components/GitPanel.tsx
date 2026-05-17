@@ -3,7 +3,7 @@
  * 显示当前分支、变更文件（staged/unstaged）、提交信息输入、最近日志
  */
 import { useState, useEffect, useCallback } from 'react';
-import { GitBranch, RefreshCw, Plus, Minus, Check, ChevronDown, ChevronRight, FileText, ArrowUp, ArrowDown } from 'lucide-react';
+import { GitBranch, RefreshCw, Plus, Minus, Check, ChevronDown, ChevronRight, FileText, ArrowUp, ArrowDown, GitPullRequest, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import type { GitStatus, GitLogEntry } from '../types/electron';
 
@@ -91,6 +91,13 @@ export function GitPanel() {
   const [pushing, setPushing] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [pushPullResult, setPushPullResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // FEAT-511: PR 创建
+  const [prOpen, setPrOpen] = useState(false);
+  const [prTitle, setPrTitle] = useState('');
+  const [prBody, setPrBody] = useState('');
+  const [prCreating, setPrCreating] = useState(false);
+  const [prResult, setPrResult] = useState<{ ok: boolean; msg: string; url?: string } | null>(null);
 
   // 日志展开
   const [showLog, setShowLog] = useState(false);
@@ -190,6 +197,26 @@ export function GitPanel() {
       if (r.success) refresh();
     } finally {
       setPulling(false);
+    }
+  };
+
+  // FEAT-511: 创建 Pull Request
+  const doCreatePR = async () => {
+    if (!cwd || !prTitle.trim() || prCreating) return;
+    setPrCreating(true);
+    setPrResult(null);
+    try {
+      const r = await window.electronAPI.gitCreatePR(cwd, prTitle.trim(), prBody.trim());
+      if (r.success) {
+        setPrResult({ ok: true, msg: 'PR 已创建', url: r.url });
+        setPrTitle('');
+        setPrBody('');
+        setPrOpen(false);
+      } else {
+        setPrResult({ ok: false, msg: r.error ?? 'PR 创建失败' });
+      }
+    } finally {
+      setPrCreating(false);
     }
   };
 
@@ -391,6 +418,95 @@ export function GitPanel() {
                 {pushPullResult.msg}
               </div>
             )}
+            {/* FEAT-511: 创建 PR 入口 */}
+            <div style={{ marginTop: 6 }}>
+              {!prOpen ? (
+                <button
+                  onClick={() => { setPrOpen(true); setPrResult(null); }}
+                  style={{
+                    width: '100%', padding: '5px 4px',
+                    borderRadius: 4, border: '1px solid var(--border-color)',
+                    background: 'var(--bg-hover)', color: 'var(--text-secondary)',
+                    cursor: 'pointer', fontSize: 12,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}
+                >
+                  <GitPullRequest size={11} /> 创建 Pull Request
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <input
+                    value={prTitle}
+                    onChange={e => setPrTitle(e.target.value)}
+                    placeholder="PR 标题…"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'var(--bg-input, var(--bg-tertiary))',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 4, color: 'var(--text-primary)',
+                      padding: '5px 8px', fontSize: 12, outline: 'none',
+                    }}
+                  />
+                  <textarea
+                    value={prBody}
+                    onChange={e => setPrBody(e.target.value)}
+                    placeholder="PR 描述（可空）…"
+                    rows={2}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'var(--bg-input, var(--bg-tertiary))',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 4, color: 'var(--text-primary)',
+                      padding: '5px 8px', fontSize: 12, resize: 'vertical',
+                      fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      onClick={doCreatePR}
+                      disabled={!prTitle.trim() || prCreating}
+                      style={{
+                        flex: 1, padding: '5px 4px', borderRadius: 4, border: 'none',
+                        background: prTitle.trim() ? 'var(--accent-primary, #7c3aed)' : 'var(--bg-hover)',
+                        color: prTitle.trim() ? '#fff' : 'var(--text-muted)',
+                        cursor: prTitle.trim() && !prCreating ? 'pointer' : 'not-allowed',
+                        fontSize: 12, fontWeight: 600,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      }}
+                    >
+                      <GitPullRequest size={11} />
+                      {prCreating ? '创建中…' : '提交 PR'}
+                    </button>
+                    <button
+                      onClick={() => { setPrOpen(false); setPrResult(null); }}
+                      style={{
+                        padding: '5px 10px', borderRadius: 4,
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-hover)', color: 'var(--text-secondary)',
+                        cursor: 'pointer', fontSize: 12,
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+              {prResult && (
+                <div style={{ marginTop: 4, fontSize: 11, color: prResult.ok ? '#22c55e' : '#ef4444', wordBreak: 'break-all' }}>
+                  {prResult.msg}
+                  {prResult.url && (
+                    <a
+                      href={prResult.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ marginLeft: 4, color: '#3b82f6', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+                    >
+                      <ExternalLink size={10} /> 查看
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

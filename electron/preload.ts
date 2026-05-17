@@ -117,6 +117,8 @@ export interface ElectronAPI {
   gitRemotes: (cwd: string) => Promise<{ success: boolean; remotes: string[] }>;
   gitPush: (cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
   gitPull: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** FEAT-511: 使用 GitHub CLI 创建 PR */
+  gitCreatePR: (cwd: string, title: string, body: string, base?: string, draft?: boolean) => Promise<{ success: boolean; url?: string; error?: string }>;
   // Git Worktree
   gitWorktreeList: (cwd: string) => Promise<{ success: boolean; worktrees?: Array<{ path: string; head: string; branch: string; isMain: boolean; isDetached: boolean; isLocked: boolean }>; error?: string }>;
   gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
@@ -233,6 +235,7 @@ const api: ElectronAPI = {
   gitRemotes: (cwd) => ipcRenderer.invoke('git:remotes', cwd),
   gitPush: (cwd, remote, branch, setUpstream) => ipcRenderer.invoke('git:push', cwd, remote, branch, setUpstream),
   gitPull: (cwd, remote, branch) => ipcRenderer.invoke('git:pull', cwd, remote, branch),
+  gitCreatePR: (cwd, title, body, base, draft) => ipcRenderer.invoke('git:createPR', cwd, title, body, base, draft),
   // Git Worktree
   gitWorktreeList: (cwd) => ipcRenderer.invoke('git:worktree:list', cwd),
   gitWorktreeAdd: (cwd, worktreePath, branch, createBranch, commitIsh) => ipcRenderer.invoke('git:worktree:add', cwd, worktreePath, branch, createBranch, commitIsh),

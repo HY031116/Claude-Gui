@@ -15,6 +15,10 @@ import {
   ChevronDown,
   ChevronRight,
   Zap,
+  Send,
+  ShieldAlert,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
 import { DISPATCH_AUX_SUBS, DISPATCH_AUX_DEFAULT } from '../../utils/nav';
@@ -168,13 +172,20 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setPendingMonitorTab = useAppStore((s) => s.setPendingMonitorTab);
   const setPendingHighlightSessionId = useAppStore((s) => s.setPendingHighlightSessionId);
+  // FEAT-502: 权限审批 store 订阅
+  const permissionRequestsPerTab = useAppStore((s) => s.permissionRequestsPerTab);
+  const removePermissionRequest = useAppStore((s) => s.removePermissionRequest);
 
   // Peek 展开状态
   const [expandedTabId, setExpandedTabId] = useState<string | null>(null);
+  // FEAT-501: Peek 快速回复输入状态
+  const [peekInput, setPeekInput] = useState('');
+  const [peekSending, setPeekSending] = useState(false);
   const peekInputRef = useRef<HTMLInputElement>(null);
 
-  // 展开 Peek 时自动聚焦输入框
+  // 展开 / 切换 Peek 时自动聚焦并清空输入
   useEffect(() => {
+    setPeekInput('');
     if (expandedTabId && peekInputRef.current) {
       peekInputRef.current.focus();
     }
@@ -278,6 +289,54 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
     setExpandedTabId((prev) => (prev === tabId ? null : tabId));
   }, []);
 
+  // FEAT-501: 获取指定 tab 的 session（cwd + conversationSessionId）
+  const getTabSession = useCallback(
+    (tabId: string) => {
+      if (tabId === activeTabId) return session;
+      return tabSnapshots[tabId]?.session ?? { isConnected: false, workingDirectory: '' };
+    },
+    [activeTabId, session, tabSnapshots],
+  );
+
+  // FEAT-501: Peek 快速回复发送
+  const handlePeekSend = useCallback(
+    async (tabId: string) => {
+      const text = peekInput.trim();
+      if (!text || peekSending) return;
+      setPeekSending(true);
+      const tabSession = getTabSession(tabId);
+      try {
+        await window.electronAPI?.cliSendMessage(
+          text,
+          tabSession.workingDirectory || undefined,
+          tabSession.conversationSessionId,
+          undefined,
+          undefined,
+          tabId,
+        );
+      } finally {
+        setPeekInput('');
+        setPeekSending(false);
+        setExpandedTabId(null); // 发送后收起 Peek
+      }
+    },
+    [peekInput, peekSending, getTabSession],
+  );
+
+  // FEAT-501: Peek 停止正在执行的会话
+  const handlePeekStop = useCallback(async (tabId: string) => {
+    await window.electronAPI?.cliStopMessage(tabId);
+  }, []);
+
+  // FEAT-502: Peek 权限审批
+  const handlePeekPermission = useCallback(
+    async (tabId: string, requestId: string, allow: boolean) => {
+      await window.electronAPI?.cliRespondPermission(requestId, allow);
+      removePermissionRequest(tabId, requestId);
+    },
+    [removePermissionRequest],
+  );
+
   /** 渲染单个会话行 */
   const renderSessionRow = useCallback(
     (tabId: string, group: TabGroup) => {
@@ -351,69 +410,139 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
           </div>
 
           {/* Peek 面板 */}
-          {isExpanded && (
-            <div className="cc-peek">
-              {(group === 'working' || (group === 'pinned' && isProcessing)) && (
-                <>
-                  <p className="cc-peek-text">{getLastToolSummary(snap)}</p>
+          {isExpanded && (() => {
+            // FEAT-502: 优先展示权限审批请求
+            const pendingPerms = permissionRequestsPerTab[tabId] ?? [];
+            if (pendingPerms.length > 0) {
+              const req = pendingPerms[0];
+              return (
+                <div className="cc-peek">
+                  <div className="cc-peek-permission">
+                    <ShieldAlert size={13} style={{ color: 'var(--warning, #f59e0b)', flexShrink: 0 }} />
+                    <span className="cc-peek-permission-tool">{req.tool ?? '未知工具'}</span>
+                    {pendingPerms.length > 1 && (
+                      <span className="cc-peek-permission-count">+{pendingPerms.length - 1}</span>
+                    )}
+                  </div>
+                  {req.description && (
+                    <p className="cc-peek-text" style={{ marginTop: 4 }}>{req.description}</p>
+                  )}
                   <div className="cc-peek-btns">
-                    <button className="btn-sm btn-primary" onClick={() => handleGoToTab(tabId)}>
-                      查看完整日志
+                    <button
+                      className="btn-sm btn-primary"
+                      style={{ background: 'var(--success, #10b981)' }}
+                      onClick={() => handlePeekPermission(tabId, req.id, true)}
+                    >
+                      <CheckCircle size={11} /> 允许
                     </button>
-                    <button className="btn-sm btn-outline" style={{ color: 'var(--error, #ef4444)' }}>
-                      <StopCircle size={11} /> 停止
-                    </button>
-                  </div>
-                </>
-              )}
-              {(group === 'needsInput' || (group === 'pinned' && !isProcessing && isNeedsInput(snap, false))) && (
-                <>
-                  <p className="cc-peek-text">{getLastAssistantPreview(snap)}</p>
-                  <div className="cc-peek-btns">
-                    <button className="btn-sm btn-primary" onClick={() => handleGoToTab(tabId)}>
-                      去回复
+                    <button
+                      className="btn-sm btn-outline"
+                      style={{ color: 'var(--error, #ef4444)' }}
+                      onClick={() => handlePeekPermission(tabId, req.id, false)}
+                    >
+                      <XCircle size={11} /> 拒绝
                     </button>
                   </div>
-                </>
-              )}
-              {(group === 'pendingReview') && (
-                <>
-                  <div className="cc-peek-files">
-                    {getPendingFiles(snap).map((f) => (
-                      <span key={f} className="cc-peek-file-tag">
-                        <FileEdit size={10} />
-                        {f.split(/[\\/]/).pop()}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="cc-peek-btns">
-                    <button className="btn-sm btn-primary" onClick={() => onNavClick('review')}>
-                      查看变更
-                    </button>
-                    <button className="btn-sm btn-outline" onClick={() => handleGoToTab(tabId)}>
-                      进入对话
-                    </button>
-                  </div>
-                </>
-              )}
-              {group === 'done' && (
-                <>
-                  <p className="cc-peek-text">{getLastAssistantPreview(snap)}</p>
-                  <div className="cc-peek-btns">
-                    <button className="btn-sm btn-primary" onClick={() => handleGoToTab(tabId)}>
-                      继续对话
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                </div>
+              );
+            }
+
+            return (
+              <div className="cc-peek">
+                {(group === 'working' || (group === 'pinned' && isProcessing)) && (
+                  <>
+                    <p className="cc-peek-text">{getLastToolSummary(snap)}</p>
+                    <div className="cc-peek-btns">
+                      <button className="btn-sm btn-primary" onClick={() => handleGoToTab(tabId)}>
+                        查看完整日志
+                      </button>
+                      {/* FEAT-501: 停止按钮接入真实 IPC */}
+                      <button
+                        className="btn-sm btn-outline"
+                        style={{ color: 'var(--error, #ef4444)' }}
+                        onClick={() => handlePeekStop(tabId)}
+                      >
+                        <StopCircle size={11} /> 停止
+                      </button>
+                    </div>
+                  </>
+                )}
+                {(group === 'needsInput' || (group === 'pinned' && !isProcessing && isNeedsInput(snap, false))) && (
+                  <>
+                    <p className="cc-peek-text">{getLastAssistantPreview(snap)}</p>
+                    {/* FEAT-501: 内联快速回复输入框 */}
+                    <div className="cc-peek-reply">
+                      <input
+                        ref={peekInputRef}
+                        className="cc-peek-input"
+                        placeholder="快速回复…"
+                        value={peekInput}
+                        onChange={(e) => setPeekInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handlePeekSend(tabId);
+                          }
+                        }}
+                        disabled={peekSending}
+                      />
+                      <button
+                        className="btn-sm btn-primary cc-peek-send-btn"
+                        onClick={() => handlePeekSend(tabId)}
+                        disabled={!peekInput.trim() || peekSending}
+                        title="发送（Enter）"
+                      >
+                        <Send size={11} />
+                      </button>
+                    </div>
+                    <div className="cc-peek-btns">
+                      <button className="btn-sm btn-outline" onClick={() => handleGoToTab(tabId)}>
+                        进入完整对话
+                      </button>
+                    </div>
+                  </>
+                )}
+                {(group === 'pendingReview') && (
+                  <>
+                    <div className="cc-peek-files">
+                      {getPendingFiles(snap).map((f) => (
+                        <span key={f} className="cc-peek-file-tag">
+                          <FileEdit size={10} />
+                          {f.split(/[\\/]/).pop()}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="cc-peek-btns">
+                      <button className="btn-sm btn-primary" onClick={() => onNavClick('review')}>
+                        查看变更
+                      </button>
+                      <button className="btn-sm btn-outline" onClick={() => handleGoToTab(tabId)}>
+                        进入对话
+                      </button>
+                    </div>
+                  </>
+                )}
+                {group === 'done' && (
+                  <>
+                    <p className="cc-peek-text">{getLastAssistantPreview(snap)}</p>
+                    <div className="cc-peek-btns">
+                      <button className="btn-sm btn-primary" onClick={() => handleGoToTab(tabId)}>
+                        继续对话
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       );
     },
     [
       tabById, getSnap, processingTabs, pinnedTabIds, expandedTabId, activeTabId,
+      permissionRequestsPerTab, peekInput, peekSending,
       handleGoToTab, handleTogglePeek, togglePinTab, onNavClick,
+      handlePeekSend, handlePeekStop, handlePeekPermission,
     ],
   );
 

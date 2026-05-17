@@ -6340,6 +6340,58 @@ body.is-resizing .resize-handle::after {
 
 .cc-peek-btns { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
+/* FEAT-501: Peek 快速回复输入行 */
+.cc-peek-reply {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cc-peek-input {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.cc-peek-input:focus { border-color: var(--accent); }
+.cc-peek-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.cc-peek-send-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 9px;
+}
+.cc-peek-send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* FEAT-502: Peek 权限审批横幅 */
+.cc-peek-permission {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cc-peek-permission-tool {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-peek-permission-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: var(--bg-hover);
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .cc-peek-files { display: flex; flex-wrap: wrap; gap: 4px; }
 .cc-peek-file-tag {
   display: inline-flex;
