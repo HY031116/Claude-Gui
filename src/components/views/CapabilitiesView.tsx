@@ -112,7 +112,7 @@ export function CapabilitiesView() {
           className="tip-btn"
           data-tooltip="刷新配置统计"
           title="刷新配置统计"
-          style={
+          style={{
             marginLeft: 'auto', background: 'none', border: 'none',
             cursor: 'pointer', padding: 2, color: 'var(--text-tertiary)',
             display: 'flex', alignItems: 'center',
