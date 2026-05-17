@@ -385,11 +385,21 @@ function OverviewBar({ aiFileCount, onGoGit }: { aiFileCount: number; onGoGit: (
   useEffect(() => { refresh(); }, [refresh]);
 
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-      borderBottom: '1px solid var(--border-color)',
-      flexShrink: 0,
-    }}>
+    <div style={{ flexShrink: 0 }}>
+      {/* 页面标题行 */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '7px 14px',
+        borderBottom: '1px solid var(--border-color)',
+        background: 'var(--bg-secondary)',
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>产出汇总</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· 累计 Claude 操作文件与历史记录</span>
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        borderBottom: '1px solid var(--border-color)',
+      }}>
       {/* AI 产物 */}
       <div style={{ padding: '10px 14px', borderRight: '1px solid var(--border-color)' }}>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, letterSpacing: '0.05em' }}>AI 产物</div>
@@ -447,6 +457,7 @@ function OverviewBar({ aiFileCount, onGoGit }: { aiFileCount: number; onGoGit: (
           {conversationHistoryLen}
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>总记录数</div>
+      </div>
       </div>
     </div>
   );

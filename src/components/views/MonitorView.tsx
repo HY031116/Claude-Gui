@@ -85,6 +85,17 @@ export function MonitorView() {
 
   return (
     <div className="full-view">
+      {/* 页面标题行 */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '7px 14px',
+        borderBottom: '1px solid var(--border-color)',
+        background: 'var(--bg-secondary)',
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>实时监控</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· 当前会话上下文与成本状态</span>
+      </div>
       {/* 实时指标仪表盘 */}
       <div style={{
         display: 'grid',
