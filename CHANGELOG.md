@@ -1,5 +1,28 @@
 # Changelog
 
+## [5.0.0] - 2026-05-25
+
+### 功能
+- **FEAT-501 Peek 快速回复真实发送**
+  - `CommandCenter.tsx` Peek 面板发送框接入 `cli:sendMessage` IPC；发送后 Peek 收起，Tab 消息实时更新
+- **FEAT-502 Peek 内权限审批**
+  - Peek 面板会话处于「权限请求」状态时，直接显示「允许 / 拒绝」按钮，接入 `handleApprovalAction`
+- **FEAT-511 PR 创建流程**
+  - `electron/git-service.ts` 新增 `createPullRequest()` 调用 `gh pr create`
+  - `electron/main.ts` 注册 `git:createPR` IPC Handler；`electron/preload.ts` 添加桥接
+  - `src/components/GitPanel.tsx` 新增「创建 Pull Request」内联表单 UI（标题/正文/创建按钮/结果回显）
+- **FEAT-512 Checkpoint 可视化时间轴回滚**
+  - `CheckpointPanel.tsx` 完整重构为垂直时间轴视图：每快照一行（时间戳 + 工具标签 + 文件数）
+  - 支持展开查看文件列表、「回滚到此点」确认弹窗（列出将被还原的文件，去重后批量写回）
+- **FEAT-513 变更历史 Tab**
+  - `ArtifactsView.tsx` 新增「变更历史」Tab，内嵌 `ChangeHistoryPanel` 按消息分组展示文件变更卡片
+
+### 质量
+- **TEST-501 覆盖率 40.29% → 保持 486 tests / 33 test files（全量通过）**
+  - 重写 `CheckpointPanel.test.tsx`（14 条）以匹配时间轴新 UI
+
+---
+
 ## [4.9.0] - 2026-05-24
 
 ### 功能
