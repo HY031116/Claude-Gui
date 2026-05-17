@@ -419,13 +419,13 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
                 <div className="cc-peek">
                   <div className="cc-peek-permission">
                     <ShieldAlert size={13} style={{ color: 'var(--warning, #f59e0b)', flexShrink: 0 }} />
-                    <span className="cc-peek-permission-tool">{req.tool ?? '未知工具'}</span>
+                    <span className="cc-peek-permission-tool">{req.toolName ?? '未知工具'}</span>
                     {pendingPerms.length > 1 && (
                       <span className="cc-peek-permission-count">+{pendingPerms.length - 1}</span>
                     )}
                   </div>
-                  {req.description && (
-                    <p className="cc-peek-text" style={{ marginTop: 4 }}>{req.description}</p>
+                  {req.inputPreview && (
+                    <p className="cc-peek-text" style={{ marginTop: 4 }}>{req.inputPreview}</p>
                   )}
                   <div className="cc-peek-btns">
                     <button

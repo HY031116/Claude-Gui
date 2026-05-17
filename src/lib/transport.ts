@@ -143,6 +143,7 @@ export const webAPI: ElectronAPI = {
   gitRemotes: (cwd) => webInvoke('git:remotes', cwd),
   gitPush: (cwd, remote, branch, setUpstream) => webInvoke('git:push', cwd, remote, branch, setUpstream),
   gitPull: (cwd, remote, branch) => webInvoke('git:pull', cwd, remote, branch),
+  gitCreatePR: (cwd, title, body, base, draft) => webInvoke('git:createPR', cwd, title, body, base, draft),
   gitWorktreeList: (cwd) => webInvoke('git:worktree:list', cwd),
   gitWorktreeAdd: (cwd, worktreePath, branch, createBranch, commitIsh) =>
     webInvoke('git:worktree:add', cwd, worktreePath, branch, createBranch, commitIsh),

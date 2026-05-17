@@ -122,6 +122,7 @@ export interface ElectronAPI {
   gitRemotes: (cwd: string) => Promise<{ success: boolean; remotes: string[] }>;
   gitPush: (cwd: string, remote?: string, branch?: string, setUpstream?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
   gitPull: (cwd: string, remote?: string, branch?: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  gitCreatePR: (cwd: string, title: string, body: string, base?: string, draft?: boolean) => Promise<{ success: boolean; url?: string; error?: string }>;
   // Git Worktree
   gitWorktreeList: (cwd: string) => Promise<{ success: boolean; worktrees?: WorktreeInfo[]; error?: string }>;
   gitWorktreeAdd: (cwd: string, worktreePath: string, branch: string, createBranch: boolean, commitIsh?: string) => Promise<{ success: boolean; error?: string }>;
