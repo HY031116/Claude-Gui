@@ -462,7 +462,7 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
         <div>
           <h1 className="command-center-title">指挥中心</h1>
           <p className="command-center-subtitle">
-            {projectName ? `项目：${projectName}` : '选择工作目录开始'}
+            {projectName ? `项目：${projectName}` : '就绪，等待新任务'}
             {session.isConnected && (
               <span className="status-dot connected" title="已连接" style={{ marginLeft: 6 }} />
             )}
@@ -483,6 +483,9 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
         <div className="empty-state-card" style={{ marginTop: 8 }}>
           <Zap size={32} style={{ color: 'var(--text-tertiary)', marginBottom: 8 }} />
           <p>还没有活跃会话</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+            前往<strong>委派</strong>视图，设置工作目录并描述任务即可启动
+          </p>
           <button className="btn-primary" onClick={handleNewTab} style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Play size={13} />
             开始第一个任务
