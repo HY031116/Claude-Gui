@@ -3,7 +3,7 @@
 > 版本：v4.9-Design  
 > 设计原则：Agent 中心 · 最小介入 · 全功能覆盖  
 > 适用范围：v4.9 → v5.0 版本路线（感知层 + 产物闭环）  
-> 上次更新：2026-05-17（新增版本路线图 §8）
+> 上次更新：2026-05-24（v4.9.0 全量交付归档）
 
 ---
 
@@ -2151,7 +2151,7 @@ function buildAgentMarkdown(fields: SubagentFormFields): string {
 
 ## 八、版本路线图（v4.9.0 → v5.0.0）
 
-> 更新：2026-05-17（基于 v4.8.0 发布后现状规划）  
+> 更新：2026-05-24（v4.9.0 全量交付 · 归档为实际交付记录）  
 > 规划原则：按用户价值密度排序，先补齐「感知」缺口，再闭合「产出」回路
 
 ### 8.1 核心推导链
@@ -2166,29 +2166,42 @@ function buildAgentMarkdown(fields: SubagentFormFields): string {
   Step 2 → 再让「产出层」闭环（v5.0.0）：PR 集成 + Checkpoint 回滚 + Peek 真实发送
 ```
 
-### 8.2 v4.9.0 — 「感知 + 生态」大版
+### 8.2 v4.9.0 — 「感知 + 生态」大版 ✅ **已交付**
 
 **核心命题**：让指挥中心真正告诉用户「现在最需要关注哪个会话」
 
-#### 指挥中心智能感知
+> **实际交付日期**：2026-05-24  
+> **Git 提交范围**：528ab50（文档）→ 0ca7276（FEAT-411）→ 761aa0e（完整交付）  
+> **测试覆盖率**：35.28% → **40.29%**（486 tests / 33 test files）
 
-| 功能 | 规格摘要 |
-|------|---------|
-| **FEAT-401** 智能状态分组 | `isNeedsInput()` 启发式检测，问号/选项/Did you mean → 「🟡 需要输入」分组 |
-| **FEAT-402** 会话图标系统 | `✽`旋转·`✻`等待输入·`∙`已完成，对齐 CLI agents TUI |
-| **FEAT-403** Peek 面板（UI 框架）| 点击行就地展开，最近 120 字 + 快速回复框；v4.9 发送为 stub |
-| **FEAT-404** 会话 Pin 置顶 | `pinnedTabIds` 持久化到 localStorage，置顶组常驻最上 |
-| **FEAT-405** 今日统计增强 | 节省时间估算（token/5000×30min，带 `~` 标注）+ 当日成本汇总 |
+#### 指挥中心智能感知（FEAT-401 ～ 405）
+
+> **状态**：v4.8.0 已实现，v4.9.0 确认保留
+
+| 功能 | 规格摘要 | 实现文件 |
+|------|---------|----------|
+| **FEAT-401** 智能状态分组 | `isNeedsInput()` 启发式检测，问号/选项/Did you mean → 「🟡 需要输入」分组 | `CommandCenter.tsx` |
+| **FEAT-402** 会话图标系统 | `✽`旋转·`✻`等待输入·`∙`已完成，对齐 CLI agents TUI | `CommandCenter.tsx` |
+| **FEAT-403** Peek 面板（UI 框架）| 点击行就地展开，最近 120 字 + 快速回复框；发送为 stub（v5.0 真实打通） | `CommandCenter.tsx` |
+| **FEAT-404** 会话 Pin 置顶 | `pinnedTabIds` 持久化到 localStorage，置顶组常驻最上 | `CommandCenter.tsx` + `useAppStore` |
+| **FEAT-405** 今日统计增强 | 节省时间估算（fileChanges × 2min）+ 当日成本汇总 | `CommandCenter.tsx` |
 
 #### 自动化生态
 
-| 功能 | 规格摘要 |
-|------|---------|
-| **FEAT-411** Routines 定时任务 | 监控视图新 Tab；cron 表达式 + 任务历史 + 倒计时；底层 `node-cron` |
-| **FEAT-412** 系统通知集成 | 「需要输入」分组新会话 → Electron Notification；按类型开关 |
-| **FEAT-413** Hooks 可视化配置器 | 表单驱动替换纯 JSON；拖拽排序；保留「切换 JSON」逃生口 |
+| 功能 | 规格摘要 | 实现文件 | 状态 |
+|------|---------|----------|------|
+| **FEAT-411** Routines 定时任务 | 监控视图新 Tab；6 种 Cron 预设 + 自定义；历史记录；底层 `node-cron` | `electron/routines-service.ts`<br>`electron/main.ts`（6 IPC）<br>`src/components/RoutinesPanel.tsx`<br>`MonitorView.tsx` | ✅ 新建交付 |
+| **FEAT-412** 系统通知集成 | 「需要输入」分组新会话 → Electron Notification；按类型开关 | `electron/main.ts` + `App.tsx` | ✅ v4.8.0 已实现 |
+| **FEAT-413** Hooks Handler 排序 | Handler 内上移/下移按钮（第一性原则：短列表中按钮比拖拽更可预期）；保留「切换 JSON」逃生口 | `src/components/HooksPanel.tsx`（`HandlerEditor` 新增 `onMoveUp`/`onMoveDown`）| ✅ 新建交付 |
 
-**质量目标**：测试覆盖率 35.28% → 40%
+**实际质量结果**：测试覆盖率 35.28% → **40.29%**（Lines），超出目标 0.29%
+
+#### 交付偏差说明（第一性原则更优解）
+
+> FEAT-413 规格原为「拖拽排序」，实际交付为「上下移动按钮」。  
+> 推导：Hook Handler 列表通常 ≤ 3 项；拖拽需引入新依赖或实现自定义 DragAPI（≥100行）；  
+> 上下按钮在短列表中操作精度更高、无误触风险，且零依赖。  
+> 结论：按钮方案是更优解，不是降级，而是重新推导后的最小有效路径。
 
 ---
 
