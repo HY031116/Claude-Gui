@@ -987,6 +987,35 @@ pre code {
   cursor: not-allowed;
 }
 
+/* 通用向上 CSS tooltip（.tip-btn + data-tooltip 属性驱动） */
+.tip-btn {
+  position: relative;
+}
+.tip-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+  z-index: 999;
+}
+.tip-btn[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* 输入框快捷键提示 */
 .input-shortcuts-hint {
   display: flex;

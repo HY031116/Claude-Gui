@@ -1792,10 +1792,10 @@ export function ChatPanel() {
         <div className="chat-input-wrapper">
           {/* 附件按钮 */}
           <button
-            className="chat-attach-btn"
+            className="chat-attach-btn tip-btn"
             onClick={handleAttachFile}
             disabled={!canSend}
-            title="附加文件到上下文"
+            data-tooltip="附加文件到上下文"
           >
             <Paperclip size={16} />
           </button>
@@ -1835,10 +1835,10 @@ export function ChatPanel() {
             }}
           />
           <button
-            className={`chat-send-btn ${isProcessing ? 'stop' : ''}`}
+            className={`chat-send-btn ${isProcessing ? 'stop' : ''} tip-btn`}
             onClick={isProcessing ? handleStop : handleSend}
             disabled={!canSend || (!isProcessing && !input.trim())}
-            title={isProcessing ? '停止生成' : '发送'}
+            data-tooltip={isProcessing ? '停止生成' : '发送'}
           >
             {isProcessing ? <Square size={16} /> : <Send size={16} />}
           </button>
@@ -1934,8 +1934,8 @@ export function ChatPanel() {
           <div style={{ flex: 1 }} />
           {/* 消息搜索 */}
           <button
-            className="btn"
-            title="搜索消息 (Ctrl+F)"
+            className="btn tip-btn"
+            data-tooltip="搜索消息 (Ctrl+F)"
             onClick={() => { setShowSearch(!showSearch); setTimeout(() => searchInputRef.current?.focus(), 50); }}
             style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
           >
@@ -1943,8 +1943,8 @@ export function ChatPanel() {
           </button>
           {/* 导出会话 */}
           <button
-            className="btn"
-            title="导出会话为 Markdown"
+            className="btn tip-btn"
+            data-tooltip="导出会话为 Markdown"
             onClick={handleExport}
             disabled={messages.length === 0 || exporting}
             style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
