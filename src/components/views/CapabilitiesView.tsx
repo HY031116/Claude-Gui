@@ -102,8 +102,10 @@ export function CapabilitiesView() {
         <span><strong style={{ color: 'var(--text-primary)' }}>{counts.rules}</strong> 条权限规则</span>
         <button
           onClick={() => void refreshCounts()}
+          className="tip-btn"
+          data-tooltip="刷新配置统计"
           title="刷新配置统计"
-          style={{
+          style={
             marginLeft: 'auto', background: 'none', border: 'none',
             cursor: 'pointer', padding: 2, color: 'var(--text-tertiary)',
             display: 'flex', alignItems: 'center',

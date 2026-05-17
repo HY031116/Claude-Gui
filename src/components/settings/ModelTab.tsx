@@ -102,7 +102,7 @@ export function ModelTab({ settings, setSettings, availableAgents, applyPreset }
           className="input"
           value={settings.language ?? ''}
           onChange={(e) => setSettings({ ...settings, language: e.target.value || undefined })}
-          placeholder="留空 = 默认，或填写 japanese / chinese / spanish / french"
+          placeholder="留空 = 默认语言，可填 chinese（中文）/ japanese / french 等"
           style={{ fontSize: 12 }}
         />
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>

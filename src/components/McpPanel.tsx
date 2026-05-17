@@ -382,17 +382,19 @@ export function McpPanel() {
           <ShoppingBag size={13} /> 市场
         </button>
         <button
-          className="btn"
+          className="btn tip-btn"
           onClick={openImport}
           style={{ fontSize: 12, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+          data-tooltip="从 JSON 批量导入"
           title="从 JSON 批量导入"
         >
           <Upload size={13} />
         </button>
         <button
-          className="btn"
+          className="btn tip-btn"
           onClick={openExport}
           style={{ fontSize: 12, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+          data-tooltip="导出为 JSON"
           title="导出为 JSON"
           disabled={Object.keys(servers).length === 0}
         >
