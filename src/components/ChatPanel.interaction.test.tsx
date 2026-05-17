@@ -139,8 +139,9 @@ describe('ChatPanel 交互 - 发送消息', () => {
     fireEvent.change(textarea, { target: { value: '你好，Claude！' } });
 
     await waitFor(() => {
-      const sendBtn = screen.getByTitle('发送');
-      expect((sendBtn as HTMLButtonElement).disabled).toBe(false);
+      const sendBtn = document.querySelector('.chat-send-btn') as HTMLButtonElement | null;
+      expect(sendBtn).not.toBeNull();
+      expect(sendBtn!.disabled).toBe(false);
     });
   });
 

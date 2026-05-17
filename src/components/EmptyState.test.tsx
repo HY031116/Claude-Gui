@@ -116,12 +116,12 @@ describe('SkillsPanel - 无 cwd 时的空状态引导', () => {
     useAppStore.setState({ cwd: '' });
   });
 
-  it('无 cwd 时应显示"请先开启会话"提示', async () => {
+  it('无 cwd 时应显示"请先在委派视图中设置工作目录"提示', async () => {
     const { SkillsPanel } = await import('./SkillsPanel');
     render(<SkillsPanel />);
 
     await waitFor(() => {
-      expect(screen.getByText(/请先开启会话/)).toBeInTheDocument();
+      expect(screen.getByText(/请先在委派视图中设置工作目录/)).toBeInTheDocument();
     });
   });
 

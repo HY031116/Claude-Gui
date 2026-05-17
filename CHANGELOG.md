@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.9.0] - 2026-05-24
+
+### 功能
+- **FEAT-411 Routines 定时任务系统**
+  - 新建 `electron/routines-service.ts`：基于 `node-cron` 的定时任务调度服务，支持 CRUD、立即执行、历史记录、Cron 表达式校验
+  - `electron/main.ts` 注册 6 个 IPC Handler：`routines:list/create/update/delete/runNow/validateCron`
+  - `electron/preload.ts` 添加类型定义与渲染进程桥接方法
+  - 新建 `src/components/RoutinesPanel.tsx`：完整 UI 面板，支持 6 种 Cron 预设 + 自定义、展开历史、工作目录选择器
+  - `MonitorView.tsx` 新增「定时任务」 Tab
+- **FEAT-413 Hooks Handler 排序功能**
+  - `HooksPanel.tsx` 的 `HandlerEditor` 新增上移下移按钒，支持在 Matcher Group 内调整 Handler 执行顺序
+
+### 测试
+- **TEST-401 覆盖率 35.28% → 40.29%**（+5.01%，486 tests passed / 33 test files）
+  - 新建 `RoutinesPanel.test.tsx`：11 条测试（渲染、空状态、交互流）
+  - 新建 `WorkspaceSelector.test.tsx`：4 条测试（渲染、下拉开关、工作区切换）
+  - 修复 `EmptyState.test.tsx`：同步文案变更（「请先在委派视图中设置工作目录」）
+  - 修复 `ChatPanel.interaction.test.tsx`：修复发送按钒选择器（`data-tooltip` vs `title`）
+
+---
+
 ## [4.8.0] - 2026-05-22
 
 ### 测试

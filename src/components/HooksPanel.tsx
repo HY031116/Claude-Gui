@@ -127,10 +127,14 @@ function HandlerEditor({
   handler,
   onChange,
   onDelete,
+  onMoveUp,
+  onMoveDown,
 }: {
   handler: HookHandler;
   onChange: (h: HookHandler) => void;
   onDelete: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -188,6 +192,17 @@ function HandlerEditor({
           {handlerSummary(handler)}
         </span>
         {handler.async && <span style={{ fontSize: 10, color: '#f59e0b', flexShrink: 0 }}>异步</span>}
+        {/* 顺序调整按钒 */}
+        {onMoveUp && (
+          <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} title="上移" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '1px 3px', flexShrink: 0 }}>
+            <ChevronUp size={11} />
+          </button>
+        )}
+        {onMoveDown && (
+          <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} title="下移" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '1px 3px', flexShrink: 0 }}>
+            <ChevronDown size={11} />
+          </button>
+        )}
         <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="删除" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '1px 3px', flexShrink: 0 }}>
           <Trash2 size={12} />
         </button>
@@ -436,7 +451,22 @@ function MatcherGroupEditor({
         <>
           {/* handlers */}
           {group.hooks.map((h, i) => (
-            <HandlerEditor key={i} handler={h} onChange={(v) => updateHandler(i, v)} onDelete={() => deleteHandler(i)} />
+            <HandlerEditor
+              key={i}
+              handler={h}
+              onChange={(v) => updateHandler(i, v)}
+              onDelete={() => deleteHandler(i)}
+              onMoveUp={i > 0 ? () => {
+                const hooks = [...group.hooks];
+                [hooks[i - 1], hooks[i]] = [hooks[i], hooks[i - 1]];
+                onChange({ ...group, hooks });
+              } : undefined}
+              onMoveDown={i < group.hooks.length - 1 ? () => {
+                const hooks = [...group.hooks];
+                [hooks[i], hooks[i + 1]] = [hooks[i + 1], hooks[i]];
+                onChange({ ...group, hooks });
+              } : undefined}
+            />
           ))}
 
           <button className="btn" onClick={addHandler} style={{ marginTop: 8, fontSize: 12 }}>
