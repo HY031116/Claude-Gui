@@ -12,6 +12,13 @@ import { CostPanel } from '../CostPanel';
 import { useAppStore } from '../../stores/useAppStore';
 import type { ToolCall } from '../../types';
 
+/** 格式化日期时间为 M/D HH:MM */
+function fmtTs(ts: number): string {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 type ArtifactsTab = 'ai' | 'git' | 'files' | 'history' | 'cost' | 'changes';
 
 // ─── 工具名集合 ────────────────────────────────────────────────────────────────
@@ -569,7 +576,7 @@ function ChangeHistoryPanel() {
       if (files.length > 0) {
         result.push({
           msgIdx,
-          timestamp: (msg as unknown as { timestamp?: number }).timestamp ?? 0,
+          timestamp: msg.timestamp,
           files,
         });
       }
@@ -599,12 +606,6 @@ function ChangeHistoryPanel() {
       </div>
     );
   }
-
-  const fmtTs = (ts: number) => {
-    if (!ts) return '—';
-    const d = new Date(ts);
-    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>

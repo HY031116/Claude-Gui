@@ -60,6 +60,12 @@ function fmtTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
+/** 短路径显示（只显示最后 3 段） */
+function shortPath(fp: string): string {
+  const parts = fp.replace(/\\/g, '/').split('/');
+  return parts.slice(-3).join('/');
+}
+
 /**
  * CheckpointPanel — 时间轴视图（FEAT-512）
  *
@@ -101,7 +107,7 @@ export function CheckpointPanel() {
       if (entries.length > 0) {
         result.push({
           msgIdx,
-          timestamp: (msg as unknown as { timestamp?: number }).timestamp ?? Date.now(),
+          timestamp: msg.timestamp,
           primaryTool: entries[0].toolName,
           entries,
         });
@@ -150,12 +156,6 @@ export function CheckpointPanel() {
         return next;
       });
     }, 3000);
-  };
-
-  /** 短路径显示（只显示最后 3 段） */
-  const shortPath = (fp: string) => {
-    const parts = fp.replace(/\\/g, '/').split('/');
-    return parts.slice(-3).join('/');
   };
 
   const totalEntries = checkpoints.reduce((s, c) => s + c.entries.length, 0);
