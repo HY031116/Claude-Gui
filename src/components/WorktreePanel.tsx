@@ -279,7 +279,7 @@ export function WorktreePanel() {
             style={{ fontSize: 12, padding: '5px 14px' }}
             onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
           >
-            前往委派，设置工作目录
+            前往委派，启动任务
           </button>
         </div>
       </div>

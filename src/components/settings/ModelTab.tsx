@@ -22,9 +22,10 @@ export function ModelTab({ settings, setSettings, availableAgents, applyPreset }
           {CONFIG_PRESETS.map((preset) => (
             <button
               key={preset.id}
-              className="btn"
+              className="btn tip-btn"
               style={{ fontSize: 11, padding: '6px 8px', justifyContent: 'center' }}
               onClick={() => applyPreset(preset.id)}
+              data-tooltip={preset.description}
               title={preset.description}
             >
               {preset.label}

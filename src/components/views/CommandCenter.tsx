@@ -5,7 +5,6 @@
 import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import {
   Clock,
-  DollarSign,
   FileEdit,
   Pin,
   PinOff,
@@ -511,7 +510,6 @@ export function CommandCenter({ onNavClick, onStartSession }: CommandCenterProps
         <span className="cc-stats-sep">·</span>
         <strong>{todayFileChanges}</strong> 变更
         <span className="cc-stats-sep">·</span>
-        <DollarSign size={11} style={{ display: 'inline', verticalAlign: 'middle' }} />
         <strong>{formatCost(totalCostUsd)}</strong>
         {estimatedMinutesSaved > 0 && (
           <>

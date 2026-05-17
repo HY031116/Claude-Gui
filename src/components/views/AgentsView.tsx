@@ -21,6 +21,11 @@ export function AgentsView() {
 
   return (
     <div className="full-view">
+      {/* 页面标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>Agent 舰队</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· 并行 Worktree 会话与 Agent 定义管理</span>
+      </div>
       {/* 视图内 Tab 切换 */}
       <div className="view-tab-bar">
         {tabs.map((tab) => {

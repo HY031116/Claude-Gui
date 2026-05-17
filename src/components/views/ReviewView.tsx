@@ -26,6 +26,11 @@ export function ReviewView() {
 
   return (
     <div className="full-view">
+      {/* 页面标题行 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>审查</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· 代码变更 / 执行计划 / 检查点快照</span>
+      </div>
       <div className="view-tab-bar">
         {tabs.map((tab) => {
           const Icon = tab.icon;

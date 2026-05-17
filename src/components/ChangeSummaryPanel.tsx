@@ -348,7 +348,7 @@ export function ChangeSummaryPanel() {
           style={{ fontSize: 12, padding: '5px 14px' }}
           onClick={() => useAppStore.getState().setActiveNavSection('dispatch')}
         >
-          前往委派，开始一个任务
+          前往委派，启动任务
         </button>
       </div>
     );
