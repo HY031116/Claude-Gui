@@ -1,12 +1,31 @@
-# Claude Code GUI — 版本规划 TODO（v4.8.0 → v5.0.0）
+# Claude Code GUI — 版本规划 TODO（v4.9.0 → v5.0.0）
 
-> 上次更新：2026-05-17（UI 设计修复 + 大版本路线规划）  
-> 标签格式：`[FEAT]` 新功能 · `[OPT]` 优化 · `[DEBT]` 技术债 · `[TEST]` 需补测试  
-> 当前状态：v4.8.0 已发布，测试覆盖率 35.28%，DEBT-002 已修复
+> 上次更新：2026-05-24（v4.9.0 全量交付，状态归档）  
+> 标签格式：`[FEAT]` 新功能 · `[OPT]` 优化 · `[DEBT]` 技术巫t · `[TEST]` 需补测试  
+> 当前状态：v4.9.0 已发布（commit 04d00b2），测试覆盖率 **40.29%**
 
 ---
 
-## v4.9.0 — 「感知 + 生态」大版（规划中）
+## ✅ v4.9.0 — 「感知 + 生态」大版（**已完成**）
+
+> 交付日期：2026-05-24 · Git commit 范围：528ab50 → 04d00b2  
+> 测试覆盖率：35.28% → **40.29%**（486 tests / 33 test files）
+
+| FEAT | 状态 | 备注 |
+|------|------|---------|
+| FEAT-401 智能状态分组 | ✅ v4.8.0 已实现 | CommandCenter.tsx isNeedsInput() |
+| FEAT-402 会话图标系统 | ✅ v4.8.0 已实现 | CommandCenter.tsx getSessionIcon() |
+| FEAT-403 Peek 面板 UI | ✅ v4.8.0 已实现 | CommandCenter.tsx 展开行 + stub 按钒 |
+| FEAT-404 会话 Pin 置顶 | ✅ v4.8.0 已实现 | CommandCenter.tsx + store pinnedTabIds |
+| FEAT-405 今日统计增强 | ✅ v4.8.0 已实现 | CommandCenter.tsx cc-stats-bar |
+| FEAT-411 Routines 定时任务 | ✅ v4.9.0 新建交付 | commit 0ca7276 |
+| FEAT-412 系统通知 | ✅ v4.8.0 已实现 | main.ts notify:send |
+| FEAT-413 Hooks Handler 排序 | ✅ v4.9.0 新建交付 | HooksPanel.tsx 上下移动按钒 |
+| TEST-401 覆盖率 40% | ✅ v4.9.0 完成 | 40.29%，+RoutinesPanel.test / WorkspaceSelector.test |
+
+---
+
+## v4.9.0 — 「感知 + 生态」大版（规划原文存档）
 
 > 目标：让指挥中心成为真正的控制台，同时建立自动化地基
 
@@ -115,7 +134,7 @@
 
 ---
 
-## 历史版本记录（v4.3.0 → v4.8.0 已完成）
+## 历史版本记录（v4.3.0 → v4.9.0 已完成）
 
 > 详见 CHANGELOG.md
 
