@@ -266,6 +266,7 @@ export function NavRail({ onNavClick }: NavRailProps) {
           ref={wsButtonRef}
           className="nav-rail-logo nav-ws-trigger"
           title={activeWorkspace ? `工作区：${activeWorkspace.name}` : '工作区管理'}
+          data-tooltip={activeWorkspace ? `工作区：${activeWorkspace.name}` : '工作区管理'}
           onClick={() => setWsPopoverOpen((v) => !v)}
           style={{ cursor: 'pointer' }}
         >

@@ -1996,7 +1996,8 @@ pre code {
 }
 
 /* CSS tooltip via data-tooltip 属性 */
-.nav-button[data-tooltip]::after {
+.nav-button[data-tooltip]::after,
+.nav-ws-trigger[data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
   left: calc(100% + 10px);
@@ -2017,7 +2018,8 @@ pre code {
   z-index: 999;
 }
 
-.nav-button[data-tooltip]:hover::after {
+.nav-button[data-tooltip]:hover::after,
+.nav-ws-trigger[data-tooltip]:hover::after {
   opacity: 1;
   transform: translateY(-50%) translateX(0);
 }
