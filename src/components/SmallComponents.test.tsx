@@ -195,4 +195,24 @@ describe('AuxPanel', () => {
     fireEvent.click(screen.getByTitle('Git'));
     expect(useAppStore.getState().activeAuxSubPanel).toBe('git');
   });
+
+  it('dispatch 模式下点击折叠按钮将面板折叠为 collapsed 态', async () => {
+    useAppStore.setState({ activeNavSection: 'dispatch', activeAuxSubPanel: 'files' } as Parameters<typeof useAppStore.setState>[0]);
+    const { AuxPanel } = await import('./layout/AuxPanel');
+    render(<AuxPanel {...mockProps} />);
+    // 点击折叠按钮（title="折叠上下文面板"）
+    fireEvent.click(screen.getByTitle('折叠上下文面板'));
+    // 折叠后显示展开按钮
+    expect(screen.getByTitle('展开上下文工具')).toBeInTheDocument();
+  });
+
+  it('折叠后点击展开按钮恢复正常态', async () => {
+    useAppStore.setState({ activeNavSection: 'dispatch', activeAuxSubPanel: 'files' } as Parameters<typeof useAppStore.setState>[0]);
+    const { AuxPanel } = await import('./layout/AuxPanel');
+    render(<AuxPanel {...mockProps} />);
+    fireEvent.click(screen.getByTitle('折叠上下文面板'));
+    fireEvent.click(screen.getByTitle('展开上下文工具'));
+    // 恢复后显示 Git 标签
+    expect(screen.getByTitle('Git')).toBeInTheDocument();
+  });
 });

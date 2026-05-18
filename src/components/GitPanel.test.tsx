@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { useAppStore } from '@/stores/useAppStore';
 
 // ──────────────────────────────────────────
@@ -20,6 +20,7 @@ const mockElectronAPI = {
   gitPush: vi.fn().mockResolvedValue({ success: true }),
   gitPull: vi.fn().mockResolvedValue({ success: true }),
   gitLog: vi.fn().mockResolvedValue({ success: true, log: [] }),
+  gitCreatePR: vi.fn().mockResolvedValue({ success: false, error: '未连接' }),
 };
 
 beforeEach(() => {
@@ -129,6 +130,109 @@ describe('GitPanel - 有 staged 变更', () => {
     await waitFor(() => {
       // FileRow 只渲染 path.split('/').pop()，即 "index.ts"
       expect(screen.getByText('index.ts')).toBeInTheDocument();
+    });
+  });
+});
+
+// ──────────────────────────────────────────
+// 情景 5：PR 创建流程（FEAT-511）
+// ──────────────────────────────────────────
+describe('GitPanel - PR 创建流程', () => {
+  beforeEach(() => {
+    useAppStore.setState({ session: { isConnected: true, workingDirectory: 'D:\\proj' } });
+    mockElectronAPI.gitIsRepo.mockResolvedValue({ isRepo: true });
+    mockElectronAPI.gitStatus.mockResolvedValue({
+      success: true,
+      status: { staged: [], unstaged: [], untracked: [], branch: 'feat/pr-test', ahead: 1, behind: 0 },
+    });
+  });
+
+  it('显示"创建 Pull Request"按钮', async () => {
+    const { GitPanel } = await import('./GitPanel');
+    render(<GitPanel />);
+    await waitFor(() => {
+      expect(screen.getByText(/创建 Pull Request/)).toBeInTheDocument();
+    });
+  });
+
+  it('点击"创建 Pull Request"展开 PR 表单', async () => {
+    const { GitPanel } = await import('./GitPanel');
+    render(<GitPanel />);
+    await waitFor(() => screen.getByText(/创建 Pull Request/));
+
+    fireEvent.click(screen.getByText(/创建 Pull Request/));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('PR 标题…')).toBeInTheDocument();
+    });
+  });
+
+  it('点击"取消"收起 PR 表单', async () => {
+    const { GitPanel } = await import('./GitPanel');
+    render(<GitPanel />);
+    await waitFor(() => screen.getByText(/创建 Pull Request/));
+
+    fireEvent.click(screen.getByText(/创建 Pull Request/));
+    await waitFor(() => screen.getByPlaceholderText('PR 标题…'));
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('PR 标题…')).not.toBeInTheDocument();
+    });
+  });
+
+  it('未填写标题时"提交 PR"按钮禁用', async () => {
+    const { GitPanel } = await import('./GitPanel');
+    render(<GitPanel />);
+    await waitFor(() => screen.getByText(/创建 Pull Request/));
+
+    fireEvent.click(screen.getByText(/创建 Pull Request/));
+    await waitFor(() => screen.getByText('提交 PR'));
+
+    expect(screen.getByText('提交 PR').closest('button')).toBeDisabled();
+  });
+
+  it('填写标题后提交成功显示"PR 已创建"', async () => {
+    mockElectronAPI.gitCreatePR.mockResolvedValue({ success: true, url: 'https://github.com/test/repo/pull/1' });
+
+    const { GitPanel } = await import('./GitPanel');
+    render(<GitPanel />);
+    await waitFor(() => screen.getByText(/创建 Pull Request/));
+
+    fireEvent.click(screen.getByText(/创建 Pull Request/));
+    await waitFor(() => screen.getByPlaceholderText('PR 标题…'));
+
+    fireEvent.change(screen.getByPlaceholderText('PR 标题…'), { target: { value: 'feat: 新功能' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('提交 PR'));
+    });
+
+    await waitFor(() => {
+      expect(mockElectronAPI.gitCreatePR).toHaveBeenCalledWith('D:\\proj', 'feat: 新功能', '');
+    });
+    await waitFor(() => {
+      expect(screen.getByText('PR 已创建')).toBeInTheDocument();
+    });
+  });
+
+  it('PR 创建失败显示错误信息', async () => {
+    mockElectronAPI.gitCreatePR.mockResolvedValue({ success: false, error: 'gh 未登录' });
+
+    const { GitPanel } = await import('./GitPanel');
+    render(<GitPanel />);
+    await waitFor(() => screen.getByText(/创建 Pull Request/));
+
+    fireEvent.click(screen.getByText(/创建 Pull Request/));
+    await waitFor(() => screen.getByPlaceholderText('PR 标题…'));
+
+    fireEvent.change(screen.getByPlaceholderText('PR 标题…'), { target: { value: '错误测试' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('提交 PR'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('gh 未登录')).toBeInTheDocument();
     });
   });
 });
